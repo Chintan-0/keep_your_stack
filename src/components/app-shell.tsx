@@ -6,14 +6,21 @@ import { CommandPalette } from "@/components/command-palette";
 import { AddResourceModal } from "@/components/add-resource-modal";
 import { EditResourceModal } from "@/components/edit-resource-modal";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
-import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "sonner";
+import { StoreHydrator } from "@/components/store-hydrator";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  userEmail,
+  userName,
+}: {
+  children: React.ReactNode;
+  userEmail: string;
+  userName: string;
+}) {
   return (
     <div className="min-h-screen bg-background">
-      <ThemeProvider />
-      <TopBar />
+      <StoreHydrator />
+      <TopBar userEmail={userEmail} userName={userName} />
       <Sidebar />
       <main className="pl-0 pt-14 md:pl-60">
         <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</div>
@@ -23,18 +30,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AddResourceModal />
       <EditResourceModal />
       <KeyboardShortcuts />
-      <Toaster
-        theme="dark"
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: "var(--surface-2)",
-            border: "1px solid var(--border-strong)",
-            color: "var(--text-primary)",
-            fontSize: "13px",
-          },
-        }}
-      />
     </div>
   );
 }

@@ -65,18 +65,18 @@ function NavLink({
 
 export function Sidebar() {
   const resources = useStore((s) => s.resources);
+  const archivedCount = useStore((s) => s.archivedResources.length);
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const now = useNow();
 
-  const active = resources.filter((r) => !r.isArchived);
+  const active = resources;
   const favoriteCount = active.filter((r) => r.isFavorite).length;
   const recentCount = active.filter((r) => {
     const d = (now - new Date(r.createdAt).getTime()) / 86400000;
     return d <= 14;
   }).length;
-  const archivedCount = resources.filter((r) => r.isArchived).length;
 
   const popularTagIds = new Map<string, number>();
   for (const r of active) {

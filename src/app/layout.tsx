@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { AppShell } from "@/components/app-shell";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -18,11 +19,24 @@ export const metadata: Metadata = {
   description: "A personal toolbox for building on the internet.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${jbmono.variable} dark h-full antialiased`}>
-      <body className="min-h-full">
-        <AppShell>{children}</AppShell>
+      <body className="min-h-full bg-background">
+        <ThemeProvider />
+        {children}
+        <Toaster
+          theme="dark"
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: "var(--surface-2)",
+              border: "1px solid var(--border-strong)",
+              color: "var(--text-primary)",
+              fontSize: "13px",
+            },
+          }}
+        />
       </body>
     </html>
   );

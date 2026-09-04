@@ -4,10 +4,11 @@ import Link from "next/link";
 import { Search, Plus, Menu } from "lucide-react";
 import { useUIStore } from "@/lib/ui-store";
 
-export function TopBar() {
+export function TopBar({ userEmail, userName }: { userEmail: string; userName: string }) {
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
+  const initial = (userName || userEmail || "?").trim().charAt(0).toUpperCase();
 
   return (
     <header className="fixed left-0 right-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface/90 px-4 backdrop-blur-md">
@@ -50,9 +51,10 @@ export function TopBar() {
         <Link
           href="/settings"
           className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet to-accent text-[12px] font-semibold text-white ring-2 ring-transparent transition-all hover:ring-accent/40"
-          aria-label="Settings"
+          aria-label="Account settings"
+          title={userEmail}
         >
-          M
+          {initial}
         </Link>
       </div>
     </header>

@@ -13,8 +13,20 @@ import { TagInput } from "@/components/tag-input";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { normalizeUrl, getDomain } from "@/lib/utils";
-import { fetchMetadata } from "@/lib/metadata";
+import type { FetchedMetadata } from "@/lib/data/metadata";
 import type { Resource } from "@/lib/types";
+
+async function fetchMetadata(
+  url: string
+): Promise<{ ok: true; data: FetchedMetadata } | { ok: false; domain: string }> {
+  const res = await fetch("/api/metadata", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) return { ok: false, domain: getDomain(url) };
+  return res.json();
+}
 
 type Stage = "url" | "loading" | "details" | "unreachable" | "duplicate";
 
@@ -46,6 +58,8 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [domain, setDomain] = useState("");
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [useCaseDraft, setUseCaseDraft] = useState("");
   const [useCases, setUseCases] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -73,6 +87,8 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
       setTitle(result.data.title);
       setDescription(result.data.description);
       setDomain(result.data.domain);
+      setFaviconUrl(result.data.faviconUrl);
+      setImageUrl(result.data.imageUrl);
       setStage("details");
     } else {
       setDomain(result.domain);
@@ -99,10 +115,10 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
     setUseCaseDraft("");
   }
 
-  function save(force = false) {
+  async function save(force = false) {
     setSaving(true);
     try {
-      const { resource, duplicate } = addResource(
+      const { resource, duplicate } = await addResource(
         {
           url,
           title,
@@ -112,13 +128,14 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
           notes,
           tagNames: tags,
           stackIds,
+          faviconUrl,
+          imageUrl,
         },
         { force }
       );
       if (duplicate) {
         setDuplicateOf(resource);
         setStage("duplicate");
-        setSaving(false);
         return;
       }
       toast.success(`Saved ${resource.title} to your stack`, {
@@ -128,8 +145,8 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
         },
       });
       onClose();
-    } catch {
-      toast.error("That URL doesn't look valid.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save your resource. Try again.");
     } finally {
       setSaving(false);
     }

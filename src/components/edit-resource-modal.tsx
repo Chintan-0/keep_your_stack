@@ -17,7 +17,11 @@ import type { Resource } from "@/lib/types";
 export function EditResourceModal() {
   const editResourceId = useUIStore((s) => s.editResourceId);
   const close = useUIStore((s) => s.closeEditResource);
-  const resource = useStore((s) => s.resources.find((r) => r.id === editResourceId));
+  const resource = useStore(
+    (s) =>
+      s.resources.find((r) => r.id === editResourceId) ??
+      s.archivedResources.find((r) => r.id === editResourceId)
+  );
 
   return (
     <Modal open={!!editResourceId} onClose={close} className="max-w-xl" labelledBy="edit-resource-title">
@@ -28,7 +32,6 @@ export function EditResourceModal() {
 
 function EditResourceForm({ resource, onClose }: { resource: Resource; onClose: () => void }) {
   const updateResource = useStore((s) => s.updateResource);
-  const ensureTags = useStore((s) => s.ensureTags);
   const tags = useStore((s) => s.tags);
 
   const [title, setTitle] = useState(resource.title);
@@ -50,13 +53,12 @@ function EditResourceForm({ resource, onClose }: { resource: Resource; onClose: 
   }
 
   function save() {
-    const tagIds = ensureTags(tagNames);
     updateResource(resource.id, {
       title: title.trim() || resource.domain,
       description,
       useCases,
       categoryId,
-      tagIds,
+      tagNames,
       stackIds,
       notes,
     });

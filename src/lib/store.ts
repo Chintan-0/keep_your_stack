@@ -1,10 +1,21 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 import type { Resource, Stack, Tag } from "./types";
-import { buildResources, stacks as seedStacks, tags as seedTags } from "./mock-data";
 import { normalizeUrl } from "./utils";
+
+async function api<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body?.error || "Something went wrong. Please try again.");
+  }
+  return body as T;
+}
 
 interface AddResourceInput {
   url: string;
@@ -17,202 +28,226 @@ interface AddResourceInput {
   stackIds?: string[];
   pricing?: Resource["pricing"];
   platform?: Resource["platform"];
+  faviconUrl?: string | null;
+  imageUrl?: string | null;
+}
+
+interface UpdateResourcePatch {
+  title?: string;
+  description?: string;
+  useCases?: string[];
+  categoryId?: string | null;
+  notes?: string;
+  isFavorite?: boolean;
+  isArchived?: boolean;
+  pricing?: Resource["pricing"];
+  platform?: Resource["platform"];
+  tagNames?: string[];
+  stackIds?: string[];
 }
 
 interface StoreState {
   resources: Resource[];
+  archivedResources: Resource[];
   stacks: Stack[];
   tags: Tag[];
   hasHydrated: boolean;
-  setHasHydrated: (v: boolean) => void;
+
+  /** Fetches this user's resources/stacks/tags from the server. Call once on mount. */
+  hydrate: () => Promise<void>;
+  /** Re-fetches just the tag list — call after a save that might have minted new tags. */
+  refreshTags: () => Promise<void>;
 
   findByUrl: (url: string) => Resource | undefined;
   addResource: (
     input: AddResourceInput,
     opts?: { force?: boolean }
-  ) => { resource: Resource; duplicate: boolean };
-  updateResource: (id: string, patch: Partial<Resource>) => void;
+  ) => Promise<{ resource: Resource; duplicate: boolean }>;
+  /** Optimistic: updates local state immediately, persists in the background, reverts + toasts on failure. */
+  updateResource: (id: string, patch: UpdateResourcePatch) => void;
   toggleFavorite: (id: string) => void;
   archiveResource: (id: string) => void;
   restoreResource: (id: string) => void;
   deleteResourcePermanently: (id: string) => void;
 
-  addStack: (input: { name: string; description: string; icon: string; color: string }) => Stack;
+  addStack: (input: { name: string; description: string; icon: string; color: string }) => Promise<Stack>;
   updateStack: (id: string, patch: Partial<Stack>) => void;
   deleteStack: (id: string) => void;
   addResourceToStack: (resourceId: string, stackId: string) => void;
   removeResourceFromStack: (resourceId: string, stackId: string) => void;
-
-  ensureTags: (names: string[]) => string[];
 }
 
-function slugify(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
+export const useStore = create<StoreState>()((set, get) => ({
+  resources: [],
+  archivedResources: [],
+  stacks: [],
+  tags: [],
+  hasHydrated: false,
 
-export const useStore = create<StoreState>()(
-  persist(
-    (set, get) => ({
-      resources: buildResources(),
-      stacks: seedStacks,
-      tags: seedTags,
-      hasHydrated: false,
-      setHasHydrated: (v) => set({ hasHydrated: v }),
-
-      findByUrl: (url) => {
-        const normalized = normalizeUrl(url);
-        if (!normalized) return undefined;
-        return get().resources.find((r) => normalizeUrl(r.url) === normalized);
-      },
-
-      ensureTags: (names) => {
-        const existing = get().tags;
-        const toAdd: Tag[] = [];
-        const ids: string[] = [];
-        for (const raw of names) {
-          const name = raw.trim().toLowerCase();
-          if (!name) continue;
-          const id = slugify(name);
-          ids.push(id);
-          if (!existing.find((t) => t.id === id) && !toAdd.find((t) => t.id === id)) {
-            toAdd.push({ id, name });
-          }
-        }
-        if (toAdd.length) {
-          set({ tags: [...existing, ...toAdd] });
-        }
-        return Array.from(new Set(ids));
-      },
-
-      addResource: (input, opts) => {
-        const normalized = normalizeUrl(input.url);
-        if (!normalized) {
-          throw new Error("Invalid URL");
-        }
-        const existing = get().findByUrl(normalized);
-        if (existing && !opts?.force) {
-          return { resource: existing, duplicate: true };
-        }
-        const tagIds = input.tagNames ? get().ensureTags(input.tagNames) : [];
-        const now = new Date().toISOString();
-        let domain = normalized;
-        try {
-          domain = new URL(normalized).hostname.replace(/^www\./, "");
-        } catch {
-          /* noop */
-        }
-        const resource: Resource = {
-          id: `res_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          title: input.title?.trim() || domain,
-          url: normalized,
-          domain,
-          description: input.description?.trim() || "",
-          faviconLetter: (input.title?.trim() || domain).charAt(0).toUpperCase(),
-          categoryId: input.categoryId ?? null,
-          useCases: input.useCases?.filter(Boolean) ?? [],
-          notes: input.notes?.trim() || "",
-          tagIds,
-          stackIds: input.stackIds ?? [],
-          pricing: input.pricing ?? null,
-          platform: input.platform ?? null,
-          isFavorite: false,
-          isArchived: false,
-          createdAt: now,
-          updatedAt: now,
-          useCount: 0,
-        };
-        set({ resources: [resource, ...get().resources] });
-        return { resource, duplicate: false };
-      },
-
-      updateResource: (id, patch) => {
-        set({
-          resources: get().resources.map((r) =>
-            r.id === id ? { ...r, ...patch, updatedAt: new Date().toISOString() } : r
-          ),
-        });
-      },
-
-      toggleFavorite: (id) => {
-        set({
-          resources: get().resources.map((r) =>
-            r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
-          ),
-        });
-      },
-
-      archiveResource: (id) => {
-        set({
-          resources: get().resources.map((r) => (r.id === id ? { ...r, isArchived: true } : r)),
-        });
-      },
-
-      restoreResource: (id) => {
-        set({
-          resources: get().resources.map((r) => (r.id === id ? { ...r, isArchived: false } : r)),
-        });
-      },
-
-      deleteResourcePermanently: (id) => {
-        set({ resources: get().resources.filter((r) => r.id !== id) });
-      },
-
-      addStack: (input) => {
-        const stack: Stack = {
-          id: `stack_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          name: input.name.trim(),
-          description: input.description.trim(),
-          icon: input.icon || "📦",
-          color: input.color || "accent",
-          createdAt: new Date().toISOString(),
-        };
-        set({ stacks: [...get().stacks, stack] });
-        return stack;
-      },
-
-      updateStack: (id, patch) => {
-        set({ stacks: get().stacks.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
-      },
-
-      deleteStack: (id) => {
-        set({
-          stacks: get().stacks.filter((s) => s.id !== id),
-          resources: get().resources.map((r) => ({
-            ...r,
-            stackIds: r.stackIds.filter((sid) => sid !== id),
-          })),
-        });
-      },
-
-      addResourceToStack: (resourceId, stackId) => {
-        set({
-          resources: get().resources.map((r) =>
-            r.id === resourceId && !r.stackIds.includes(stackId)
-              ? { ...r, stackIds: [...r.stackIds, stackId] }
-              : r
-          ),
-        });
-      },
-
-      removeResourceFromStack: (resourceId, stackId) => {
-        set({
-          resources: get().resources.map((r) =>
-            r.id === resourceId
-              ? { ...r, stackIds: r.stackIds.filter((sid) => sid !== stackId) }
-              : r
-          ),
-        });
-      },
-    }),
-    {
-      name: "keepyourstack-storage",
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
-      },
+  hydrate: async () => {
+    try {
+      const [resourcesRes, archivedRes, stacksRes, tagsRes] = await Promise.all([
+        api<{ resources: Resource[] }>("/api/resources"),
+        api<{ resources: Resource[] }>("/api/resources?archived=true"),
+        api<{ stacks: Stack[] }>("/api/stacks"),
+        api<{ tags: Tag[] }>("/api/tags"),
+      ]);
+      set({
+        resources: resourcesRes.resources,
+        archivedResources: archivedRes.resources,
+        stacks: stacksRes.stacks,
+        tags: tagsRes.tags,
+        hasHydrated: true,
+      });
+    } catch {
+      set({ hasHydrated: true });
+      toast.error("Couldn't load your stack. Check your connection and reload.");
     }
-  )
-);
+  },
+
+  refreshTags: async () => {
+    try {
+      const { tags } = await api<{ tags: Tag[] }>("/api/tags");
+      set({ tags });
+    } catch {
+      // Non-critical — the next full hydrate will pick up any new tags.
+    }
+  },
+
+  findByUrl: (url) => {
+    const normalized = normalizeUrl(url);
+    if (!normalized) return undefined;
+    const all = [...get().resources, ...get().archivedResources];
+    return all.find((r) => normalizeUrl(r.url) === normalized);
+  },
+
+  addResource: async (input, opts) => {
+    const { resource, duplicate } = await api<{ resource: Resource; duplicate: boolean }>("/api/resources", {
+      method: "POST",
+      body: JSON.stringify({ ...input, force: opts?.force }),
+    });
+    if (!duplicate) {
+      set({ resources: [resource, ...get().resources] });
+      if (input.tagNames?.length) void get().refreshTags();
+    }
+    return { resource, duplicate };
+  },
+
+  updateResource: (id, patch) => {
+    const prevResources = get().resources;
+    const prevArchived = get().archivedResources;
+    const apply = (r: Resource): Resource => ({
+      ...r,
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.description !== undefined ? { description: patch.description } : {}),
+      ...(patch.useCases !== undefined ? { useCases: patch.useCases } : {}),
+      ...(patch.categoryId !== undefined ? { categoryId: patch.categoryId } : {}),
+      ...(patch.notes !== undefined ? { notes: patch.notes } : {}),
+      ...(patch.isFavorite !== undefined ? { isFavorite: patch.isFavorite } : {}),
+      ...(patch.isArchived !== undefined ? { isArchived: patch.isArchived } : {}),
+      ...(patch.pricing !== undefined ? { pricing: patch.pricing } : {}),
+      ...(patch.platform !== undefined ? { platform: patch.platform } : {}),
+      ...(patch.stackIds !== undefined ? { stackIds: patch.stackIds } : {}),
+    });
+
+    // Optimistic update, including moving between the active/archived
+    // lists when isArchived flips.
+    let nextResources = prevResources.map((r) => (r.id === id ? apply(r) : r));
+    let nextArchived = prevArchived.map((r) => (r.id === id ? apply(r) : r));
+    if (patch.isArchived === true) {
+      const moving = prevResources.find((r) => r.id === id);
+      nextResources = nextResources.filter((r) => r.id !== id);
+      if (moving) nextArchived = [apply(moving), ...nextArchived];
+    } else if (patch.isArchived === false) {
+      const moving = prevArchived.find((r) => r.id === id);
+      nextArchived = nextArchived.filter((r) => r.id !== id);
+      if (moving) nextResources = [apply(moving), ...nextResources];
+    }
+    set({ resources: nextResources, archivedResources: nextArchived });
+
+    api<{ resource: Resource }>(`/api/resources/${id}`, { method: "PATCH", body: JSON.stringify(patch) })
+      .then(() => {
+        if (patch.tagNames?.length) void get().refreshTags();
+      })
+      .catch(() => {
+        set({ resources: prevResources, archivedResources: prevArchived });
+        toast.error("Couldn't save your changes. Try again.");
+      });
+  },
+
+  toggleFavorite: (id) => {
+    const current = [...get().resources, ...get().archivedResources].find((r) => r.id === id);
+    if (!current) return;
+    get().updateResource(id, { isFavorite: !current.isFavorite });
+  },
+
+  archiveResource: (id) => get().updateResource(id, { isArchived: true }),
+  restoreResource: (id) => get().updateResource(id, { isArchived: false }),
+
+  deleteResourcePermanently: (id) => {
+    const prevArchived = get().archivedResources;
+    const prevResources = get().resources;
+    set({
+      archivedResources: prevArchived.filter((r) => r.id !== id),
+      resources: prevResources.filter((r) => r.id !== id),
+    });
+    api(`/api/resources/${id}`, { method: "DELETE" }).catch(() => {
+      set({ archivedResources: prevArchived, resources: prevResources });
+      toast.error("Couldn't delete this resource. Try again.");
+    });
+  },
+
+  addStack: async (input) => {
+    const { stack } = await api<{ stack: Stack }>("/api/stacks", { method: "POST", body: JSON.stringify(input) });
+    set({ stacks: [...get().stacks, stack] });
+    return stack;
+  },
+
+  updateStack: (id, patch) => {
+    const prev = get().stacks;
+    set({ stacks: prev.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
+    api(`/api/stacks/${id}`, { method: "PATCH", body: JSON.stringify(patch) }).catch(() => {
+      set({ stacks: prev });
+      toast.error("Couldn't update the stack. Try again.");
+    });
+  },
+
+  deleteStack: (id) => {
+    const prevStacks = get().stacks;
+    const prevResources = get().resources;
+    set({
+      stacks: prevStacks.filter((s) => s.id !== id),
+      resources: prevResources.map((r) => ({ ...r, stackIds: r.stackIds.filter((sid) => sid !== id) })),
+    });
+    api(`/api/stacks/${id}`, { method: "DELETE" }).catch(() => {
+      set({ stacks: prevStacks, resources: prevResources });
+      toast.error("Couldn't delete the stack. Try again.");
+    });
+  },
+
+  addResourceToStack: (resourceId, stackId) => {
+    const prev = get().resources;
+    set({
+      resources: prev.map((r) =>
+        r.id === resourceId && !r.stackIds.includes(stackId) ? { ...r, stackIds: [...r.stackIds, stackId] } : r
+      ),
+    });
+    api("/api/resource-stacks", { method: "POST", body: JSON.stringify({ resourceId, stackId }) }).catch(() => {
+      set({ resources: prev });
+      toast.error("Couldn't add to stack. Try again.");
+    });
+  },
+
+  removeResourceFromStack: (resourceId, stackId) => {
+    const prev = get().resources;
+    set({
+      resources: prev.map((r) =>
+        r.id === resourceId ? { ...r, stackIds: r.stackIds.filter((sid) => sid !== stackId) } : r
+      ),
+    });
+    api(`/api/resource-stacks?resourceId=${resourceId}&stackId=${stackId}`, { method: "DELETE" }).catch(() => {
+      set({ resources: prev });
+      toast.error("Couldn't remove from stack. Try again.");
+    });
+  },
+}));
