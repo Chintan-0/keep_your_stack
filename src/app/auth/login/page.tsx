@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
@@ -8,27 +8,66 @@ import { createClient } from "@/lib/supabase/client";
 import { AuthCard, AuthField } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
 
+// Dev-only convenience: auto-signs in as a fixed local account so you don't
+// have to log in by hand while testing. `NODE_ENV === "development"` is
+// inlined at build time, so this whole branch — credentials included — is
+// stripped out of `next build`/`next start`; it only ever runs under
+// `next dev`. Create the account once with `node scripts/create-dev-user.mjs`
+// (needed again after any `supabase db reset`).
+const DEV_USER =
+  process.env.NODE_ENV === "development"
+    ? { email: "dev@keepyourstack.local", password: "devpassword123" }
+    : null;
+
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(DEV_USER?.email ?? "");
+  const [password, setPassword] = useState(DEV_USER?.password ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [autoLoggingIn, setAutoLoggingIn] = useState(!!DEV_USER);
+
+  async function signIn(signInEmail: string, signInPassword: string) {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email: signInEmail, password: signInPassword });
+    if (error) return error;
+    const next = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
+    router.push(next || "/");
+    router.refresh();
+    return null;
+  }
+
+  useEffect(() => {
+    if (!DEV_USER) return;
+    signIn(DEV_USER.email, DEV_USER.password).then((error) => {
+      if (error) {
+        // Dev account probably doesn't exist yet — fall back to the normal
+        // form (already pre-filled) instead of getting stuck.
+        setAutoLoggingIn(false);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const error = await signIn(email, password);
     setLoading(false);
     if (error) {
       setError(error.message === "Invalid login credentials" ? "Wrong email or password." : error.message);
-      return;
     }
-    const next = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
-    router.push(next || "/");
-    router.refresh();
+  }
+
+  if (autoLoggingIn) {
+    return (
+      <AuthCard title="Signing you in…" subtitle="Dev auto-login — one moment.">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-accent" />
+        </div>
+      </AuthCard>
+    );
   }
 
   return (
@@ -49,6 +88,12 @@ export default function LoginPage() {
           <div className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-danger/30 bg-danger-soft px-3 py-2.5 text-[13px] text-danger">
             <AlertCircle size={15} className="mt-0.5 shrink-0" />
             {error}
+          </div>
+        )}
+        {DEV_USER && (
+          <div className="rounded-[var(--radius-sm)] border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
+            Dev mode: auto-login failed (run <code className="font-mono">node scripts/create-dev-user.mjs</code>).
+            Form is pre-filled — just hit Sign In.
           </div>
         )}
         <AuthField
