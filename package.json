@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "build:extension": "tsc -p extension/tsconfig.json",
+    "build:extension": "node extension/scripts/generate-manifest.js && tsc -p extension/tsconfig.json",
     "package:extension": "npm run build:extension && node extension/scripts/package.js"
   },
   "dependencies": {

@@ -51,11 +51,19 @@ async function getActiveTab(): Promise<PageInfo | null> {
 let currentPage: PageInfo | null = null;
 let savedResource: ExtResource | null = null;
 
+function setLoadingMessage(text: string) {
+  const el = document.querySelector("#view-loading p");
+  if (el) el.textContent = text;
+}
+
 async function init() {
   show("loading");
+  setLoadingMessage("Checking…");
 
   currentPage = await getActiveTab();
   const supportedUrl = !!currentPage && isSupportedUrl(currentPage.url);
+
+  if (supportedUrl) setLoadingMessage("Checking your KeepYourStack account…");
   const connection = supportedUrl ? await checkConnection() : null;
   const everConnected = await hasEverConnected();
 
@@ -65,6 +73,7 @@ async function init() {
     return;
   }
 
+  setLoadingMessage("Checking your stack…");
   await checkDuplicateAndRender();
 }
 
@@ -201,8 +210,26 @@ function wireEvents() {
   });
 }
 
-wireEvents();
-void init();
+// Guard the whole startup path: a single unexpected throw here (a missing
+// element, a chrome.* call rejecting in an unusual way) must never leave a
+// blank, silently-broken popup — show the same error view a network
+// failure would, since to the user it looks identical either way.
+function showFatalError(message: string) {
+  try {
+    renderError(new Error(message));
+  } catch {
+    document.body.innerHTML = `<div style="padding:16px;font:13px sans-serif;color:#e8eaf0">${message}</div>`;
+  }
+}
+
+try {
+  wireEvents();
+  void init().catch((e) => {
+    showFatalError(e instanceof Error ? e.message : "Something went wrong. Try reopening the popup.");
+  });
+} catch {
+  showFatalError("Something went wrong loading the popup. Try reopening it.");
+}
 
 // Persist the chosen stack as the new default whenever the user saves with
 // one selected — makes the next save one field lighter, without ever

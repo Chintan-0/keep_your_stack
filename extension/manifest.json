@@ -21,15 +21,25 @@
     "type": "module"
   },
   "options_page": "options.html",
-  "permissions": ["activeTab", "contextMenus", "storage", "notifications"],
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "storage",
+    "notifications"
+  ],
   "host_permissions": [
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*"
   ],
   "content_scripts": [
     {
-      "matches": ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
-      "js": ["dist/content/bridge.js"],
+      "matches": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "js": [
+        "dist/content/bridge.js"
+      ],
       "run_at": "document_idle"
     }
   ]

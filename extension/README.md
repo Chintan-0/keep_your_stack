@@ -113,12 +113,31 @@ That origin must also be listed in `manifest.json`'s `host_permissions` and
 `content_scripts.matches` for both the API `fetch()` calls and the
 Connect-Extension bridge to work — Chrome doesn't grant cross-origin fetch
 or injection to an origin the manifest didn't declare. `localhost:3000` and
-`127.0.0.1:3000` are declared for local development. **Deploying the web
-app to a real domain and wanting the extension to work there requires
-adding that origin to both lists in `manifest.json` and rebuilding/reloading
-the extension** — this is a deliberate manual step (see §34 of the Phase 5
-spec — minimal permissions, no broad host access) rather than something the
-extension requests automatically.
+`127.0.0.1:3000` are declared for local development.
+
+**To point a build at a production deployment**, set `EXTENSION_APP_ORIGINS`
+(reusing the project's existing environment-variable convention — the same
+way `NEXT_PUBLIC_SUPABASE_URL` configures the web app) before building:
+
+```bash
+EXTENSION_APP_ORIGINS=https://app.keepyourstack.example npm run build:extension
+```
+
+`npm run build:extension` runs `extension/scripts/generate-manifest.js`
+first, which rewrites `manifest.json`'s `host_permissions` and
+`content_scripts.matches` to exactly that origin (comma-separate a list —
+e.g. `https://app.keepyourstack.example,http://localhost:3000` — to support
+both at once), then compiles as usual. Leaving the variable unset keeps the
+local-dev defaults. This only ever accepts a bare origin (`https://host`,
+no path, validated before anything is written) — there is no path through
+it for a secret or credential to end up in the built manifest, and nothing
+else about the extension's permissions changes.
+
+After changing it, reload the unpacked extension in `chrome://extensions`
+(Chrome doesn't pick up a manifest change until you do) — this is a
+deliberate manual step (see §34 of the Phase 5 spec — minimal permissions,
+no broad host access, no permission the extension requests automatically
+without you choosing to rebuild for that origin).
 
 ## 6. Testing locally
 
@@ -131,28 +150,54 @@ npx tsc --noEmit -p tsconfig.json      # web app + extension/src (extension's ow
 npm run build:extension                # extension/tsconfig.json — compiles the shipped extension itself
 ```
 
-Manual (see the Phase 5 final report for the actual run of this list):
+Manual: see §7 below for the full real-Chrome checklist and its current
+(unrun) status.
 
-1. Fresh account, `npm run dev` running, extension loaded unpacked.
-2. Open a real website, click the KeepYourStack icon — verify title, URL,
-   favicon appear.
-3. Save it, confirm it appears in the web app and survives a refresh.
-4. Reopen the same page — verify "Already saved", and that no duplicate
-   was created.
-5. Save a different page with Useful For / Stack / Tags / Note filled in —
-   verify all of it persists.
-6. Right-click a page → "Save to KeepYourStack" — verify it saves and a
-   Chrome notification confirms it.
-7. Open `chrome://extensions` (or any browser-internal page) and click the
-   icon — verify "This page can't be saved to KeepYourStack." with no
-   crash.
-8. Stop the dev server mid-save — verify a clear error with a working
-   Retry, not a raw stack trace.
-9. Save a page whose metadata can't be fetched (e.g. an unreachable
-   domain) — verify the URL/title still save, with no invented
-   description.
+## 7. Manual QA checklist (real Chrome — not yet run by an agent)
 
-## 7. Packaging for later Chrome Web Store submission
+Everything below needs an actual Chrome window with the unpacked extension
+loaded. As of Phase 5.1, no agent session in this environment has had a
+connected real Chrome browser available (`list_connected_browsers` /
+equivalent came back empty) — the backend contract, auth bridge mechanics,
+CORS, and URL-normalization/duplicate-detection logic have all been
+verified live against local Supabase by replaying the extension's exact
+HTTP calls (see the Phase 5 and 5.1 final reports), and 100+ automated
+tests cover the pure logic, but **the literal in-Chrome click-through below
+has not been performed by an agent.** Run it once through before trusting
+the extension in daily use, and update this note (or delete it) once you
+have:
+
+- [ ] Load unpacked in `chrome://extensions` — no manifest/service-worker
+      errors shown on the extension's card
+- [ ] Click the toolbar icon on a real site (e.g. react.dev) — title, URL,
+      and favicon appear correctly
+- [ ] Sign into the web app, go to `/extension`, click **Connect
+      Extension** — popup then shows the connected state (not "Connect
+      KeepYourStack") without manually copying any token
+- [ ] Save the current page — loading state, then "Saved to
+      KeepYourStack ✓"; the Save button can't be double-clicked into a
+      double submission
+- [ ] Reopen the same page — popup shows "Already saved", not the save
+      form; confirm in the web app only one resource exists
+- [ ] Save with Useful For + Stack + Tags + Note filled in — all four
+      persist and are visible/searchable in the web app after a refresh
+- [ ] Right-click → "Save to KeepYourStack" on a page the popup hasn't
+      touched — a Chrome notification confirms save or duplicate
+- [ ] Visit `chrome://extensions`, `chrome://settings`, or `about:blank`
+      and open the popup — "This page can't be saved to KeepYourStack.",
+      no network request attempted, no crash
+- [ ] Stop the dev server, attempt a save — clear error + working Retry,
+      no raw stack trace; start the server back up and confirm Retry
+      succeeds
+- [ ] Sign out of the web app, then try to save from the extension — it
+      should show the expired/disconnected state rather than continuing to
+      save (the sign-out call revokes the session server-side; see the
+      Phase 5.1 report for the API-level proof of that revocation)
+- [ ] Open the Chrome DevTools console for the popup and the service
+      worker (`chrome://extensions` → "service worker" link) — no
+      uncaught exceptions, no CORS errors, no undefined `chrome.*` calls
+
+## 8. Packaging for later Chrome Web Store submission
 
 Not done in this phase (see §34/§36 of the Phase 5 spec — explicitly out of
 scope). When it's time:
