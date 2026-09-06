@@ -13,6 +13,7 @@ import {
   Settings,
   Upload,
   Archive,
+  FolderPlus,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
@@ -22,6 +23,7 @@ export function CommandPalette() {
   const open = useUIStore((s) => s.commandPaletteOpen);
   const setOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const openAddResource = useUIStore((s) => s.openAddResource);
+  const openCreateStack = useUIStore((s) => s.openCreateStack);
   const router = useRouter();
   const allResources = useStore((s) => s.resources);
   const resources = useMemo(() => allResources.filter((r) => !r.isArchived), [allResources]);
@@ -72,6 +74,15 @@ export function CommandPalette() {
             className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-text-primary aria-selected:bg-surface-hover"
           >
             <Plus size={15} className="text-accent" /> Add Resource
+          </Command.Item>
+          <Command.Item
+            onSelect={() => {
+              setOpen(false);
+              openCreateStack();
+            }}
+            className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-text-primary aria-selected:bg-surface-hover"
+          >
+            <FolderPlus size={15} className="text-accent" /> Create Stack
           </Command.Item>
         </Command.Group>
 

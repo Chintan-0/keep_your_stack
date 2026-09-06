@@ -111,17 +111,12 @@ export function ResourceCard({
         </p>
       </Link>
 
-      <div className="flex items-center gap-1.5 text-[11px] text-text-muted">
-        <span className="truncate">{categoryName(resource.categoryId)}</span>
-        {stack && (
-          <>
-            <span className="text-border-strong">·</span>
-            <span className="flex items-center gap-1">
-              {stack.icon} {stack.name}
-            </span>
-          </>
-        )}
-      </div>
+      {resource.useCases.length > 0 && (
+        <p className="line-clamp-1 text-[12px] text-text-secondary">
+          <span className="text-text-muted">Useful for </span>
+          {resource.useCases[0]}
+        </p>
+      )}
 
       {resourceTags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -132,12 +127,15 @@ export function ResourceCard({
       )}
 
       <div className="mt-auto flex items-center justify-between pt-1">
-        <Link
-          href={`/resources/${resource.id}`}
-          className="text-[12px] font-medium text-text-secondary hover:text-text-primary"
-        >
-          Details
-        </Link>
+        <span className="truncate text-[11px] text-text-muted">
+          {stack ? (
+            <span className="flex items-center gap-1">
+              {stack.icon} {stack.name}
+            </span>
+          ) : (
+            categoryName(resource.categoryId)
+          )}
+        </span>
         <a
           href={resource.url}
           target="_blank"

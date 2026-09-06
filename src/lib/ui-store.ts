@@ -17,6 +17,10 @@ interface UIState {
 
   mobileNavOpen: boolean;
   setMobileNavOpen: (v: boolean) => void;
+
+  createStackOpen: boolean;
+  openCreateStack: () => void;
+  closeCreateStack: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -34,4 +38,8 @@ export const useUIStore = create<UIState>((set) => ({
 
   mobileNavOpen: false,
   setMobileNavOpen: (v) => set({ mobileNavOpen: v }),
+
+  createStackOpen: false,
+  openCreateStack: () => set({ createStackOpen: true }),
+  closeCreateStack: () => set({ createStackOpen: false }),
 }));

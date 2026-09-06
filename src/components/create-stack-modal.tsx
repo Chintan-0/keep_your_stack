@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Modal, ModalHeader } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
+import { useUIStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 
 const ICONS = ["📦", "🌐", "🤖", "⚙️", "🎨", "☁️", "🛠️", "🧪", "🔐", "📱", "🎮", "📊"];
@@ -17,7 +18,9 @@ const COLORS = [
   { key: "warning", swatch: "bg-warning" },
 ];
 
-export function CreateStackModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CreateStackModal() {
+  const open = useUIStore((s) => s.createStackOpen);
+  const onClose = useUIStore((s) => s.closeCreateStack);
   const addStack = useStore((s) => s.addStack);
   const router = useRouter();
   const [name, setName] = useState("");
@@ -32,20 +35,16 @@ export function CreateStackModal({ open, onClose }: { open: boolean; onClose: ()
     setColor(COLORS[0].key);
   }
 
-  async function save() {
+  function save() {
     if (!name.trim()) {
       toast.error("Give your stack a name first.");
       return;
     }
-    try {
-      const stack = await addStack({ name, description, icon, color });
-      toast.success(`Created ${stack.name}`);
-      reset();
-      onClose();
-      router.push(`/stacks/${stack.id}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't create the stack.");
-    }
+    const stack = addStack({ name, description, icon, color });
+    toast.success(`Created ${stack.name}`);
+    reset();
+    onClose();
+    router.push(`/stacks/${stack.id}`);
   }
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Archive as ArchiveIcon, RotateCcw, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Favicon } from "@/components/ui/favicon";
@@ -11,7 +11,8 @@ import { categoryName, formatAbsoluteDate } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function ArchivePage() {
-  const resources = useStore((s) => s.archivedResources);
+  const allResources = useStore((s) => s.resources);
+  const resources = useMemo(() => allResources.filter((r) => r.isArchived), [allResources]);
   const hasHydrated = useStore((s) => s.hasHydrated);
   const restoreResource = useStore((s) => s.restoreResource);
   const deleteResourcePermanently = useStore((s) => s.deleteResourcePermanently);

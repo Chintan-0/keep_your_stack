@@ -17,11 +17,7 @@ import type { Resource } from "@/lib/types";
 export function EditResourceModal() {
   const editResourceId = useUIStore((s) => s.editResourceId);
   const close = useUIStore((s) => s.closeEditResource);
-  const resource = useStore(
-    (s) =>
-      s.resources.find((r) => r.id === editResourceId) ??
-      s.archivedResources.find((r) => r.id === editResourceId)
-  );
+  const resource = useStore((s) => s.resources.find((r) => r.id === editResourceId));
 
   return (
     <Modal open={!!editResourceId} onClose={close} className="max-w-xl" labelledBy="edit-resource-title">

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Link2, Loader2, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
+import { Link2, Loader2, AlertTriangle, CheckCircle2, Sparkles, ChevronDown } from "lucide-react";
 import { Modal, ModalHeader } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
@@ -67,6 +67,7 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
   const [stackIds, setStackIds] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showMoreContext, setShowMoreContext] = useState(false);
 
   const canSubmitUrl = useMemo(() => !!normalizeUrl(url), [url]);
 
@@ -307,32 +308,45 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-medium text-text-secondary">Category</label>
-                <CategorySelector value={categoryId} onChange={setCategoryId} />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-medium text-text-secondary">Tags</label>
-                <TagInput value={tags} onChange={setTags} />
-              </div>
-            </div>
+            {!showMoreContext ? (
+              <button
+                type="button"
+                onClick={() => setShowMoreContext(true)}
+                className="flex items-center gap-1.5 self-start text-[12.5px] font-medium text-text-secondary hover:text-text-primary cursor-pointer"
+              >
+                <ChevronDown size={14} />
+                Add category, tags, stack, or a note
+              </button>
+            ) : (
+              <div className="flex flex-col gap-4 animate-fade-in">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-text-secondary">Category</label>
+                    <CategorySelector value={categoryId} onChange={setCategoryId} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[12px] font-medium text-text-secondary">Tags</label>
+                    <TagInput value={tags} onChange={setTags} />
+                  </div>
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium text-text-secondary">Stack</label>
-              <StackSelector value={stackIds} onChange={setStackIds} />
-            </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-medium text-text-secondary">Stack</label>
+                  <StackSelector value={stackIds} onChange={setStackIds} />
+                </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[12px] font-medium text-text-secondary">Your note</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={2}
-                placeholder="Use this before uploading large hero images…"
-                className="resize-none rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 py-2 text-[13px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
-              />
-            </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-medium text-text-secondary">Your note</label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={2}
+                    placeholder="Use this before uploading large hero images…"
+                    className="resize-none rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 py-2 text-[13px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

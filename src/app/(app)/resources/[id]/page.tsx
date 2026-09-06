@@ -27,7 +27,6 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const router = useRouter();
   const resources = useStore((s) => s.resources);
-  const archivedResources = useStore((s) => s.archivedResources);
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
   const hasHydrated = useStore((s) => s.hasHydrated);
@@ -39,12 +38,12 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const resource = resources.find((r) => r.id === id) ?? archivedResources.find((r) => r.id === id);
+  const resource = resources.find((r) => r.id === id);
 
   const related = useMemo(() => {
     if (!resource) return [];
     const scored = resources
-      .filter((r) => r.id !== resource.id)
+      .filter((r) => r.id !== resource.id && !r.isArchived)
       .map((r) => {
         let score = 0;
         if (r.categoryId && r.categoryId === resource.categoryId) score += 3;

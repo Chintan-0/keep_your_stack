@@ -23,10 +23,9 @@ export default function ImportPage() {
   const [bookmarks, setBookmarks] = useState<ParsedBookmark[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importedCount, setImportedCount] = useState(0);
-  const [failedCount, setFailedCount] = useState(0);
   const [importing, setImporting] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const hydrate = useStore((s) => s.hydrate);
+  const addResource = useStore((s) => s.addResource);
 
   const duplicateUrls = useMemo(() => {
     const set = new Set<string>();
@@ -63,28 +62,19 @@ export default function ImportPage() {
     });
   }
 
-  async function importSelected() {
-    const toImport = bookmarks.filter((b) => selected.has(b.url) && normalizeUrl(b.url));
+  function importSelected() {
     setImporting(true);
-    try {
-      const res = await fetch("/api/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookmarks: toImport }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || "Import failed");
-
-      setImportedCount(body.imported);
-      setFailedCount(body.failed?.length ?? 0);
-      setStage("done");
-      toast.success(`Imported ${body.imported} resource${body.imported === 1 ? "" : "s"}`);
-      void hydrate();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Import failed. Nothing was lost — try again.");
-    } finally {
-      setImporting(false);
+    let count = 0;
+    for (const b of bookmarks) {
+      if (!selected.has(b.url)) continue;
+      if (!normalizeUrl(b.url)) continue;
+      const { duplicate } = addResource({ url: b.url, title: b.title });
+      if (!duplicate) count++;
     }
+    setImportedCount(count);
+    setStage("done");
+    setImporting(false);
+    toast.success(`Imported ${count} resource${count === 1 ? "" : "s"}`);
   }
 
   return (
@@ -207,8 +197,8 @@ export default function ImportPage() {
             <Button variant="ghost" onClick={() => setStage("upload")}>
               <ArrowLeft size={14} /> Choose different file
             </Button>
-            <Button onClick={() => void importSelected()} disabled={selected.size === 0 || importing}>
-              {importing ? "Importing…" : `Import ${selected.size} Resource${selected.size === 1 ? "" : "s"}`}
+            <Button onClick={importSelected} disabled={selected.size === 0 || importing}>
+              Import {selected.size} Resource{selected.size === 1 ? "" : "s"}
             </Button>
           </div>
         </div>
@@ -224,11 +214,6 @@ export default function ImportPage() {
             <p className="mt-1 text-[13px] text-text-secondary">
               They&apos;re now in your library, ready to organize into stacks.
             </p>
-            {failedCount > 0 && (
-              <p className="mt-1 text-[12.5px] text-warning">
-                {failedCount} bookmark{failedCount === 1 ? "" : "s"} couldn&apos;t be saved and were skipped.
-              </p>
-            )}
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setStage("upload")}>

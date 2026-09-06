@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Search as SearchIcon, ArrowUpRight, Heart } from "lucide-react";
 import { useStore } from "@/lib/store";
-import type { SearchMatch } from "@/lib/types";
+import { searchResources } from "@/lib/search";
 import { Favicon } from "@/components/ui/favicon";
 import { Tag } from "@/components/ui/tag";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ResourceCardSkeleton } from "@/components/ui/skeleton";
 import { categoryName, cn } from "@/lib/utils";
 
 function initialQueryFromLocation(): string {
@@ -18,43 +17,11 @@ function initialQueryFromLocation(): string {
 
 export default function SearchPage() {
   const [query, setQuery] = useState(initialQueryFromLocation);
+  const storeResources = useStore((s) => s.resources);
+  const resources = useMemo(() => storeResources.filter((r) => !r.isArchived), [storeResources]);
   const toggleFavorite = useStore((s) => s.toggleFavorite);
 
-  const [results, setResults] = useState<SearchMatch[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const trimmed = query.trim();
-    // Nothing to search — the render below already shows a hint instead of
-    // results whenever the query is empty, so there's no state to reset.
-    if (!trimmed) return;
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
-        if (!res.ok) throw new Error();
-        const body = await res.json();
-        if (!cancelled) {
-          setResults(body.results);
-          setError(null);
-        }
-      } catch {
-        if (!cancelled) {
-          setError("Search is temporarily unavailable.");
-          setResults([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }, 200); // debounce so every keystroke doesn't round-trip
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [query]);
+  const results = useMemo(() => searchResources(resources, query), [resources, query]);
 
   function updateQuery(value: string) {
     setQuery(value);
@@ -79,14 +46,6 @@ export default function SearchPage() {
         <p className="text-center text-[13px] text-text-muted">
           Try searching an intent like &ldquo;compress images&rdquo; or &ldquo;test graphql&rdquo;.
         </p>
-      ) : loading ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <ResourceCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : error ? (
-        <EmptyState icon={SearchIcon} title="Search is temporarily unavailable." description="Try again in a moment." />
       ) : results.length === 0 ? (
         <EmptyState
           icon={SearchIcon}
