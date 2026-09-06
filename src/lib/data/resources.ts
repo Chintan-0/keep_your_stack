@@ -24,6 +24,9 @@ export interface ResourceInput {
   /** Only ever set by server-side seeding (demo data) — never accepted from a client request body. */
   isFavorite?: boolean;
   isArchived?: boolean;
+  /** Set by the bookmark importer — e.g. "chrome-bookmarks" + "Bookmarks bar / Development". */
+  importSource?: string | null;
+  importFolder?: string | null;
 }
 
 // Returns both active and archived resources — the UI keeps them in one
@@ -126,6 +129,8 @@ export async function createResource(
       platform: input.platform ?? [],
       is_favorite: input.isFavorite ?? false,
       is_archived: input.isArchived ?? false,
+      import_source: input.importSource ?? null,
+      import_folder: input.importFolder ?? null,
     })
     .select(RESOURCE_SELECT)
     .single();

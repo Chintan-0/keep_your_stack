@@ -26,6 +26,8 @@ export function mapResourceRow(row: ResourceRow): Resource {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     useCount: row.use_count,
+    importSource: row.import_source,
+    importFolder: row.import_folder,
   };
 }
 

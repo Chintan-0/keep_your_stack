@@ -175,9 +175,9 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* Useful for */}
-      {resource.useCases.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">Useful For</h2>
+      <section className="flex flex-col gap-2.5">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">Useful For</h2>
+        {resource.useCases.length > 0 ? (
           <ul className="flex flex-col gap-2">
             {resource.useCases.map((uc, i) => (
               <li key={i} className="flex items-start gap-2 text-[14px] text-text-primary">
@@ -186,16 +186,18 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        ) : (
+          <p className="text-[13px] text-text-muted">Not added yet.</p>
+        )}
+      </section>
 
       {/* Personal context */}
-      {resource.notes && (
-        <section className="flex flex-col gap-2.5 rounded-[var(--radius-lg)] border border-accent/25 bg-accent-soft p-5">
-          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-accent">Your Note</h2>
-          <p className="text-[14.5px] leading-6 text-text-primary">{resource.notes}</p>
-        </section>
-      )}
+      <section className="flex flex-col gap-2.5 rounded-[var(--radius-lg)] border border-accent/25 bg-accent-soft p-5">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-accent">Your Note</h2>
+        <p className="text-[14.5px] leading-6 text-text-primary">
+          {resource.notes || <span className="text-text-muted">No note yet.</span>}
+        </p>
+      </section>
 
       {/* Organization */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -239,6 +241,12 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
 
       <p className="font-mono text-[11.5px] text-text-muted">
         Added {formatAbsoluteDate(resource.createdAt)} · Updated {formatAbsoluteDate(resource.updatedAt)}
+        {resource.importFolder && (
+          <>
+            {" "}
+            · Imported from {resource.importFolder}
+          </>
+        )}
       </p>
 
       {/* Related */}

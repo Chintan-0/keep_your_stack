@@ -84,6 +84,8 @@ interface StoreState {
 
   /** Seeds realistic sample resources/stacks into the (presumably empty) signed-in account. Never runs automatically. */
   loadDemoData: () => Promise<void>;
+  /** Permanently deletes every resource/stack/tag this user has — the account itself stays. */
+  clearAllData: () => Promise<void>;
 }
 
 export const useStore = create<StoreState>()((set, get) => ({
@@ -231,5 +233,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   loadDemoData: async () => {
     await api("/api/demo-data", { method: "POST" });
     await get().hydrate();
+  },
+
+  clearAllData: async () => {
+    await api("/api/clear-data", { method: "DELETE" });
+    set({ resources: [], stacks: [], tags: [] });
   },
 }));

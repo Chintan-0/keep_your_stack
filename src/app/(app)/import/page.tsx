@@ -2,31 +2,51 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Upload, FileUp, Check, ArrowLeft } from "lucide-react";
+import { Upload, FileUp, Check, ArrowLeft, AlertTriangle, FolderOpen } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { parseBookmarksHtml, type ParsedBookmark } from "@/lib/bookmark-import";
-import { normalizeUrl, getDomain } from "@/lib/utils";
+import { parseBookmarksHtml, looksLikeBookmarkExport, type ParsedBookmark } from "@/lib/bookmark-import";
+import { groupByFolder, suggestCategoryForFolder, suggestStackForFolder } from "@/lib/import-organizer";
+import { runWithConcurrency } from "@/lib/concurrency";
+import { normalizeUrl, getDomain, cn } from "@/lib/utils";
+import { categories } from "@/lib/categories";
 import { Favicon } from "@/components/ui/favicon";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { CategorySelector } from "@/components/category-selector";
+import type { Resource } from "@/lib/types";
+import type { FetchedMetadata } from "@/lib/data/metadata";
 
-type Stage = "upload" | "preview" | "done";
+type Stage = "upload" | "preview" | "importing" | "done";
+
+const GROUP_KEY = (folder: string | null) => folder ?? "__none__";
+
+interface GroupChoice {
+  categoryId: string | null;
+  /** "none" | "existing" | "new" */
+  stackMode: "none" | "existing" | "new";
+  existingStackId: string;
+  newStackName: string;
+}
 
 export default function ImportPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const findByUrl = useStore((s) => s.findByUrl);
+  const stacks = useStore((s) => s.stacks);
+  const addStack = useStore((s) => s.addStack);
+  const hydrate = useStore((s) => s.hydrate);
 
   const [stage, setStage] = useState<Stage>("upload");
+  const [fileError, setFileError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
   const [bookmarks, setBookmarks] = useState<ParsedBookmark[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [importedCount, setImportedCount] = useState(0);
-  const [failedCount, setFailedCount] = useState(0);
-  const [importing, setImporting] = useState(false);
+  const [groupChoices, setGroupChoices] = useState<Map<string, GroupChoice>>(new Map());
   const [dragOver, setDragOver] = useState(false);
-  const hydrate = useStore((s) => s.hydrate);
+
+  const [progress, setProgress] = useState<{ phase: "saving" | "enriching"; done: number; total: number } | null>(
+    null
+  );
+  const [summary, setSummary] = useState({ imported: 0, duplicates: 0, failed: 0, enrichFailed: 0 });
 
   const duplicateUrls = useMemo(() => {
     const set = new Set<string>();
@@ -37,20 +57,47 @@ export default function ImportPage() {
   }, [bookmarks, findByUrl]);
 
   const newCount = bookmarks.length - duplicateUrls.size;
+  const groups = useMemo(() => groupByFolder(bookmarks), [bookmarks]);
 
   async function handleFile(file: File) {
+    setFileError(null);
     if (!file.name.endsWith(".html") && !file.name.endsWith(".htm")) {
-      toast.error("Please upload the exported Chrome bookmarks .html file.");
+      setFileError("This doesn't look like a browser bookmark file. Try exporting your bookmarks from Chrome and upload the HTML file again.");
       return;
     }
     const text = await file.text();
+    if (!looksLikeBookmarkExport(text)) {
+      setFileError(
+        "This doesn't look like a browser bookmark file. Try exporting your bookmarks from Chrome and upload the HTML file again."
+      );
+      return;
+    }
+
     const parsed = parseBookmarksHtml(text);
+    if (parsed.length === 0) {
+      setFileError("No bookmarks were found in that file.");
+      return;
+    }
+
     setFileName(file.name);
     setBookmarks(parsed);
-    const initialSelected = new Set(
-      parsed.filter((b) => !findByUrl(b.url)).map((b) => b.url)
-    );
-    setSelected(initialSelected);
+    setSelected(new Set(parsed.filter((b) => !findByUrl(b.url)).map((b) => b.url)));
+
+    // Seed each folder group's organization choice from a real suggestion —
+    // an existing category/stack it actually matches, never an invented one.
+    const groupedForSuggestions = groupByFolder(parsed);
+    const choices = new Map<string, GroupChoice>();
+    for (const g of groupedForSuggestions) {
+      const categoryId = suggestCategoryForFolder(g.folder, categories);
+      const stackSuggestion = suggestStackForFolder(g.folder, stacks);
+      choices.set(GROUP_KEY(g.folder), {
+        categoryId,
+        stackMode: stackSuggestion.existingStackId ? "existing" : stackSuggestion.suggestedName ? "new" : "none",
+        existingStackId: stackSuggestion.existingStackId ?? "",
+        newStackName: stackSuggestion.suggestedName ?? "",
+      });
+    }
+    setGroupChoices(choices);
     setStage("preview");
   }
 
@@ -63,36 +110,147 @@ export default function ImportPage() {
     });
   }
 
+  function toggleGroup(group: ReturnType<typeof groupByFolder>[number], select: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const b of group.bookmarks) {
+        if (select && !duplicateUrls.has(b.url)) next.add(b.url);
+        else if (!select) next.delete(b.url);
+      }
+      return next;
+    });
+  }
+
+  function updateGroupChoice(key: string, patch: Partial<GroupChoice>) {
+    setGroupChoices((prev) => {
+      const next = new Map(prev);
+      const current = next.get(key) ?? { categoryId: null, stackMode: "none", existingStackId: "", newStackName: "" };
+      next.set(key, { ...current, ...patch });
+      return next;
+    });
+  }
+
   async function importSelected() {
     const toImport = bookmarks.filter((b) => selected.has(b.url) && normalizeUrl(b.url));
-    setImporting(true);
-    try {
-      const res = await fetch("/api/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookmarks: toImport }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || "Import failed");
+    if (toImport.length === 0) return;
+    setStage("importing");
+    setProgress({ phase: "saving", done: 0, total: toImport.length });
 
-      setImportedCount(body.imported);
-      setFailedCount(body.failed?.length ?? 0);
-      setStage("done");
-      toast.success(`Imported ${body.imported} resource${body.imported === 1 ? "" : "s"}`);
-      void hydrate();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Import failed. Nothing was lost — try again.");
-    } finally {
-      setImporting(false);
+    // Resolve each selected group's stack choice into a real stack id —
+    // create any "new stack" choices once per group, not once per bookmark.
+    const stackIdByGroupKey = new Map<string, string>();
+    for (const g of groups) {
+      const key = GROUP_KEY(g.folder);
+      const inGroupSelected = g.bookmarks.some((b) => selected.has(b.url));
+      if (!inGroupSelected) continue;
+      const choice = groupChoices.get(key);
+      if (!choice) continue;
+      if (choice.stackMode === "existing" && choice.existingStackId) {
+        stackIdByGroupKey.set(key, choice.existingStackId);
+      } else if (choice.stackMode === "new" && choice.newStackName.trim()) {
+        try {
+          const stack = await addStack({ name: choice.newStackName.trim(), description: "", icon: "📦", color: "accent" });
+          stackIdByGroupKey.set(key, stack.id);
+        } catch {
+          // Stack creation failing shouldn't sink the import — the
+          // resources in that group just won't get a stack assigned.
+        }
+      }
     }
+
+    // Save in chunks so large imports show real incremental progress
+    // instead of one long blocking request.
+    const CHUNK_SIZE = 25;
+    let importedCount = 0;
+    let duplicateCount = 0;
+    let failedCount = 0;
+    const created: Resource[] = [];
+
+    for (let i = 0; i < toImport.length; i += CHUNK_SIZE) {
+      const chunk = toImport.slice(i, i + CHUNK_SIZE);
+      try {
+        const res = await fetch("/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bookmarks: chunk.map((b) => {
+              const key = GROUP_KEY(b.folder);
+              const choice = groupChoices.get(key);
+              const stackId = stackIdByGroupKey.get(key);
+              return {
+                title: b.title,
+                url: b.url,
+                folder: b.folder,
+                categoryId: choice?.categoryId ?? null,
+                stackIds: stackId ? [stackId] : [],
+              };
+            }),
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body?.error || "Import failed");
+        importedCount += body.imported;
+        duplicateCount += body.duplicates;
+        failedCount += body.failed?.length ?? 0;
+        created.push(...(body.created ?? []));
+      } catch {
+        failedCount += chunk.length;
+      }
+      setProgress({ phase: "saving", done: Math.min(i + CHUNK_SIZE, toImport.length), total: toImport.length });
+    }
+
+    // Every saved resource shows up immediately, even before enrichment.
+    await hydrate();
+
+    // Enrich metadata afterward, with limited concurrency — never blocks
+    // the basic import, and a failed fetch just leaves the bookmark's
+    // original title/URL in place rather than failing the resource.
+    let enrichFailed = 0;
+    if (created.length > 0) {
+      setProgress({ phase: "enriching", done: 0, total: created.length });
+      await runWithConcurrency(
+        created,
+        5,
+        async (resource) => {
+          try {
+            const metaRes = await fetch("/api/metadata", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: resource.url }),
+            });
+            const result: { ok: true; data: FetchedMetadata } | { ok: false } = await metaRes.json();
+            if (result.ok) {
+              await fetch(`/api/resources/${resource.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  title: result.data.title || resource.title,
+                  description: result.data.description || "",
+                }),
+              });
+            } else {
+              enrichFailed++;
+            }
+          } catch {
+            enrichFailed++;
+          }
+        },
+        (done, total) => setProgress({ phase: "enriching", done, total })
+      );
+      await hydrate();
+    }
+
+    setSummary({ imported: importedCount, duplicates: duplicateCount, failed: failedCount, enrichFailed });
+    setProgress(null);
+    setStage("done");
   }
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight text-text-primary">Import Bookmarks</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-text-primary">Import your bookmarks</h1>
         <p className="text-[13px] text-text-secondary">
-          Upload your exported Chrome bookmarks file to bring existing links into KeepYourStack.
+          Bring your existing browser bookmarks into KeepYourStack.
         </p>
       </div>
 
@@ -123,7 +281,7 @@ export default function ImportPage() {
               <p className="mt-1 text-[12.5px] text-text-secondary">or click to browse</p>
             </div>
             <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <FileUp size={14} /> Choose File
+              <FileUp size={14} /> Choose Bookmark File
             </Button>
             <input
               ref={fileInputRef}
@@ -137,13 +295,28 @@ export default function ImportPage() {
             />
           </div>
 
+          {fileError && (
+            <div className="flex items-start gap-2.5 rounded-[var(--radius-md)] border border-danger/30 bg-danger-soft px-3.5 py-3 text-[13px] text-danger">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              {fileError}
+            </div>
+          )}
+
           <div className="rounded-[var(--radius-md)] border border-border bg-surface-2 p-4 text-[12.5px] text-text-secondary">
-            <p className="font-medium text-text-primary">How to export from Chrome</p>
+            <p className="font-medium text-text-primary">Step 1 — export from Chrome</p>
             <ol className="mt-1.5 list-decimal space-y-1 pl-4">
               <li>Open Chrome → Bookmarks → Bookmark Manager</li>
-              <li>Click the ⋮ menu → Export bookmarks</li>
-              <li>Upload the saved HTML file here</li>
+              <li>
+                Click the <span className="font-mono text-text-primary">⋮</span> menu → Export bookmarks
+              </li>
+              <li>
+                Chrome creates a <span className="font-mono text-text-primary">bookmarks.html</span> file
+              </li>
             </ol>
+            <p className="mt-3 font-medium text-text-primary">Step 2 — upload it here</p>
+            <p className="mt-1">
+              KeepYourStack can&apos;t read your browser&apos;s bookmarks directly — this file is the bridge.
+            </p>
           </div>
         </div>
       )}
@@ -156,49 +329,141 @@ export default function ImportPage() {
             <span className="text-warning">{duplicateUrls.size} duplicates</span>
             <span className="text-text-muted">·</span>
             <span className="text-success">{newCount} new resources</span>
+            <span className="text-text-muted">·</span>
+            <span className="text-accent">{selected.size} selected</span>
           </div>
 
           <div className="flex items-center justify-between">
-            <p className="text-[12.5px] text-text-secondary">{fileName}</p>
-            <button
-              onClick={() =>
-                setSelected(new Set(bookmarks.filter((b) => !duplicateUrls.has(b.url)).map((b) => b.url)))
-              }
-              className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
-            >
-              Select only new
-            </button>
+            <p className="truncate text-[12.5px] text-text-secondary">{fileName}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setSelected(new Set(bookmarks.map((b) => b.url)))}
+                className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
+              >
+                Select all
+              </button>
+              <button
+                onClick={() => setSelected(new Set())}
+                className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
+              >
+                Deselect all
+              </button>
+              <button
+                onClick={() =>
+                  setSelected(new Set(bookmarks.filter((b) => !duplicateUrls.has(b.url)).map((b) => b.url)))
+                }
+                className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
+              >
+                Select only new
+              </button>
+            </div>
           </div>
 
-          <div className="flex max-h-[420px] flex-col gap-1 overflow-y-auto rounded-[var(--radius-md)] border border-border bg-surface p-2">
-            {bookmarks.map((b) => {
-              const isDup = duplicateUrls.has(b.url);
-              const isSelected = selected.has(b.url);
+          <div className="flex max-h-[520px] flex-col gap-3 overflow-y-auto">
+            {groups.map((group) => {
+              const key = GROUP_KEY(group.folder);
+              const choice = groupChoices.get(key);
+              const groupSelectedCount = group.bookmarks.filter((b) => selected.has(b.url)).length;
               return (
-                <button
-                  key={b.url}
-                  onClick={() => toggle(b.url)}
-                  className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left hover:bg-surface-3 cursor-pointer"
-                >
-                  <span
-                    className={cn(
-                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border",
-                      isSelected ? "border-accent bg-accent text-white" : "border-border-strong text-transparent"
-                    )}
-                  >
-                    <Check size={12} />
-                  </span>
-                  <Favicon seed={b.title} size={24} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] text-text-primary">{b.title}</p>
-                    <p className="truncate font-mono text-[11px] text-text-muted">{getDomain(b.url)}</p>
+                <div key={key} className="rounded-[var(--radius-md)] border border-border bg-surface">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3.5 py-2.5">
+                    <div className="flex items-center gap-2 text-[12.5px] text-text-secondary">
+                      <FolderOpen size={14} className="text-text-muted" />
+                      <span className="font-medium text-text-primary">{group.folder ?? "No folder"}</span>
+                      <span className="font-mono text-[11px] text-text-muted">
+                        {groupSelectedCount}/{group.bookmarks.length} selected
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        onClick={() => toggleGroup(group, true)}
+                        className="text-[11px] text-text-muted hover:text-text-primary cursor-pointer"
+                      >
+                        Select group
+                      </button>
+                      <span className="text-[11px] text-text-muted">·</span>
+                      <button
+                        onClick={() => toggleGroup(group, false)}
+                        className="text-[11px] text-text-muted hover:text-text-primary cursor-pointer"
+                      >
+                        Deselect group
+                      </button>
+                    </div>
                   </div>
-                  {isDup && (
-                    <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
-                      Duplicate
-                    </span>
+
+                  {choice && (
+                    <div className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-surface-2/50 px-3.5 py-2.5">
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Apply to group:</span>
+                      <div className="w-44">
+                        <CategorySelector
+                          value={choice.categoryId}
+                          onChange={(categoryId) => updateGroupChoice(key, { categoryId })}
+                        />
+                      </div>
+                      <select
+                        value={choice.stackMode === "existing" ? `existing:${choice.existingStackId}` : choice.stackMode}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          if (v === "none") updateGroupChoice(key, { stackMode: "none" });
+                          else if (v === "new") updateGroupChoice(key, { stackMode: "new" });
+                          else updateGroupChoice(key, { stackMode: "existing", existingStackId: v.replace("existing:", "") });
+                        }}
+                        className="h-8 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2 text-[12.5px] text-text-primary focus:border-accent focus:outline-none"
+                      >
+                        <option value="none">No stack</option>
+                        {stacks.map((s) => (
+                          <option key={s.id} value={`existing:${s.id}`}>
+                            {s.icon} {s.name}
+                          </option>
+                        ))}
+                        <option value="new">
+                          + Create stack{choice.newStackName ? `: ${choice.newStackName}` : ""}
+                        </option>
+                      </select>
+                      {choice.stackMode === "new" && (
+                        <input
+                          value={choice.newStackName}
+                          onChange={(e) => updateGroupChoice(key, { newStackName: e.target.value })}
+                          placeholder="New stack name"
+                          className="h-8 w-36 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2 text-[12.5px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
+                        />
+                      )}
+                    </div>
                   )}
-                </button>
+
+                  <div className="flex flex-col gap-0.5 p-2">
+                    {group.bookmarks.map((b) => {
+                      const isDup = duplicateUrls.has(b.url);
+                      const isSelected = selected.has(b.url);
+                      return (
+                        <button
+                          key={b.url}
+                          onClick={() => toggle(b.url)}
+                          className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left hover:bg-surface-3 cursor-pointer"
+                        >
+                          <span
+                            className={cn(
+                              "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border",
+                              isSelected ? "border-accent bg-accent text-white" : "border-border-strong text-transparent"
+                            )}
+                          >
+                            <Check size={12} />
+                          </span>
+                          <Favicon seed={b.title} size={24} />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13px] text-text-primary">{b.title}</p>
+                            <p className="truncate font-mono text-[11px] text-text-muted">{getDomain(b.url)}</p>
+                          </div>
+                          {isDup && (
+                            <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
+                              Already saved
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -207,10 +472,34 @@ export default function ImportPage() {
             <Button variant="ghost" onClick={() => setStage("upload")}>
               <ArrowLeft size={14} /> Choose different file
             </Button>
-            <Button onClick={() => void importSelected()} disabled={selected.size === 0 || importing}>
-              {importing ? "Importing…" : `Import ${selected.size} Resource${selected.size === 1 ? "" : "s"}`}
+            <Button onClick={() => void importSelected()} disabled={selected.size === 0}>
+              Import {selected.size} Resource{selected.size === 1 ? "" : "s"}
             </Button>
           </div>
+        </div>
+      )}
+
+      {stage === "importing" && progress && (
+        <div className="flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-10 text-center">
+          <p className="text-[14px] font-medium text-text-primary">
+            {progress.phase === "saving" ? "Saving bookmarks…" : "Enriching metadata…"}
+          </p>
+          <div className="w-full max-w-xs">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
+              <div
+                className="h-full rounded-full bg-accent transition-all"
+                style={{ width: `${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%` }}
+              />
+            </div>
+            <p className="mt-2 font-mono text-[12px] text-text-muted">
+              {progress.done} / {progress.total}
+            </p>
+          </div>
+          {progress.phase === "enriching" && (
+            <p className="max-w-xs text-[12px] text-text-muted">
+              Your resources are already saved — this step just fills in descriptions and titles where possible.
+            </p>
+          )}
         </div>
       )}
 
@@ -220,13 +509,20 @@ export default function ImportPage() {
             <Check size={22} />
           </div>
           <div>
-            <p className="text-[15px] font-semibold text-text-primary">Imported {importedCount} resources</p>
-            <p className="mt-1 text-[13px] text-text-secondary">
-              They&apos;re now in your library, ready to organize into stacks.
-            </p>
-            {failedCount > 0 && (
-              <p className="mt-1 text-[12.5px] text-warning">
-                {failedCount} bookmark{failedCount === 1 ? "" : "s"} couldn&apos;t be saved and were skipped.
+            <p className="text-[15px] font-semibold text-text-primary">Import complete</p>
+            <p className="mt-1 text-[13px] text-text-secondary">{summary.imported} resources added</p>
+            {summary.duplicates > 0 && (
+              <p className="text-[12.5px] text-text-secondary">{summary.duplicates} duplicates skipped</p>
+            )}
+            {summary.enrichFailed > 0 && (
+              <p className="text-[12.5px] text-warning">
+                {summary.enrichFailed} resource{summary.enrichFailed === 1 ? "" : "s"} couldn&apos;t be enriched —
+                the title and URL were still saved.
+              </p>
+            )}
+            {summary.failed > 0 && (
+              <p className="text-[12.5px] text-danger">
+                {summary.failed} bookmark{summary.failed === 1 ? "" : "s"} failed to save.
               </p>
             )}
           </div>
@@ -234,7 +530,7 @@ export default function ImportPage() {
             <Button variant="secondary" onClick={() => setStage("upload")}>
               Import Another File
             </Button>
-            <Button onClick={() => router.push("/resources")}>Go to Library</Button>
+            <Button onClick={() => router.push("/resources")}>View Imported Resources</Button>
           </div>
         </div>
       )}

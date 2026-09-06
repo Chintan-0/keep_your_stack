@@ -40,6 +40,10 @@ export interface Resource {
   createdAt: string; // ISO
   updatedAt: string; // ISO
   useCount: number;
+  /** e.g. "chrome-bookmarks" — set only for imported resources. */
+  importSource: string | null;
+  /** Original folder path at import time, e.g. "Bookmarks bar / Development / Frontend". */
+  importFolder: string | null;
 }
 
 export interface SearchMatch {

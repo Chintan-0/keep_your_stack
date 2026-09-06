@@ -1,17 +1,16 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
-import { buildResources, stacks as demoStacks, tags as demoTags } from "@/lib/mock-data";
+import { buildResources, stacks as demoStacks, tags as demoTags } from "@/lib/demo-data";
 import { createStack } from "./stacks";
 import { createResource } from "./resources";
 
 type Client = SupabaseClient<Database>;
 
 /**
- * Seeds the realistic sample dataset (from src/lib/mock-data.ts — the same
- * data the local-only build shipped with) into an authenticated user's
- * otherwise-empty account. Never runs automatically; only in response to
- * an explicit "Load Demo Data" action, and duplicate URLs are skipped
+ * Seeds the realistic sample dataset (from src/lib/demo-data.ts) into an
+ * authenticated user's account. Never runs automatically; only in response
+ * to an explicit "Load Demo Data" action, and duplicate URLs are skipped
  * rather than double-created if it's ever run more than once.
  */
 export async function loadDemoData(client: Client, userId: string): Promise<{ stacks: number; resources: number }> {

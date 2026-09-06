@@ -1,4 +1,8 @@
-import type { Category, Resource, Stack, Tag } from "./types";
+// Realistic sample dataset — used ONLY by the explicit "Load Demo Data"
+// action (see src/lib/data/demo-data.ts + the Settings/empty-dashboard
+// entry points). Never seeded automatically: a real account starts
+// with zero resources, zero stacks, zero tags.
+import type { Resource, Stack, Tag } from "./types";
 
 const daysAgo = (n: number, hourOffset = 9) => {
   const d = new Date();
@@ -6,26 +10,6 @@ const daysAgo = (n: number, hourOffset = 9) => {
   d.setHours(hourOffset, 0, 0, 0);
   return d.toISOString();
 };
-
-export const categories: Category[] = [
-  { id: "development", name: "Development", parentId: null },
-  { id: "dev-frontend", name: "Frontend", parentId: "development" },
-  { id: "dev-backend", name: "Backend", parentId: "development" },
-  { id: "dev-api", name: "API Tools", parentId: "development" },
-  { id: "dev-web-images", name: "Image Tools", parentId: "development" },
-  { id: "dev-devops", name: "DevOps", parentId: "development" },
-  { id: "dev-database", name: "Database", parentId: "development" },
-  { id: "design", name: "Design", parentId: null },
-  { id: "design-ui", name: "UI Design", parentId: "design" },
-  { id: "design-assets", name: "Assets & Icons", parentId: "design" },
-  { id: "ai", name: "AI & ML", parentId: null },
-  { id: "ai-models", name: "Models & Inference", parentId: "ai" },
-  { id: "ai-frameworks", name: "Frameworks", parentId: "ai" },
-  { id: "utilities", name: "Utilities", parentId: null },
-  { id: "utilities-converters", name: "Converters", parentId: "utilities" },
-  { id: "utilities-formatters", name: "Formatters & Validators", parentId: "utilities" },
-  { id: "learning", name: "Learning", parentId: null },
-];
 
 export const tags: Tag[] = [
   "react", "nextjs", "vite", "tailwind", "css", "svg", "images", "webp", "compression",
@@ -665,6 +649,8 @@ export function buildResources(): Resource[] {
       createdAt: created,
       updatedAt: created,
       useCount: s.useCount ?? 0,
+      importSource: null,
+      importFolder: null,
     } satisfies Resource;
   });
 }

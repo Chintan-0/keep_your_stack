@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { categories } from "./mock-data";
+import { categories } from "./categories";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

@@ -52,12 +52,17 @@ export default function ExtensionPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
       <div className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-text-primary">
-          <Puzzle size={19} /> Browser Extension
+          <Puzzle size={19} /> Save from your browser
         </h1>
         <p className="max-w-xl text-[13px] text-text-secondary">
-          The extension is a fast capture layer — click it on any page to save that page to KeepYourStack
-          with its metadata already filled in. It does not run in the background or sync automatically; it
-          only saves when you tell it to.
+          Save the page you&apos;re currently viewing to KeepYourStack — a Chrome extension is{" "}
+          <strong className="text-text-primary font-medium">coming next</strong>. It won&apos;t run in the
+          background, sync automatically, or read your existing bookmarks; it only saves the one page you
+          click it on. Until it ships, use{" "}
+          <a href="/import" className="text-accent hover:text-accent-hover">
+            Import Bookmarks
+          </a>{" "}
+          to bring in what you&apos;ve already saved.
         </p>
       </div>
 

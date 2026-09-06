@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sun, Moon, Monitor, Download, Upload, Puzzle, Sparkles, LogOut, Trash2 } from "lucide-react";
+import { Sun, Moon, Monitor, Download, Upload, Puzzle, Sparkles, LogOut, Trash2, RotateCcw } from "lucide-react";
 import { useThemeStore, type Theme } from "@/lib/theme-store";
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
@@ -91,6 +91,7 @@ export default function SettingsPage() {
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
   const loadDemoData = useStore((s) => s.loadDemoData);
+  const clearAllData = useStore((s) => s.clearAllData);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -98,6 +99,8 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
   const [loadingDemoData, setLoadingDemoData] = useState(false);
+  const [confirmClearData, setConfirmClearData] = useState(false);
+  const [clearingData, setClearingData] = useState(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
@@ -161,6 +164,18 @@ export default function SettingsPage() {
       toast.error(e instanceof Error ? e.message : "Couldn't load demo data.");
     } finally {
       setLoadingDemoData(false);
+    }
+  }
+
+  async function handleClearAllData() {
+    setClearingData(true);
+    try {
+      await clearAllData();
+      toast.success("All resources, stacks, and tags removed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't clear your data.");
+    } finally {
+      setClearingData(false);
     }
   }
 
@@ -314,15 +329,27 @@ export default function SettingsPage() {
             <Sparkles size={14} /> {loadingDemoData ? "Loading…" : "Load Demo Data"}
           </Button>
           <p className="mt-1.5 text-[11.5px] text-text-muted">
-            Adds realistic sample resources and stacks to this account — safe to run any time; existing URLs won&apos;t be duplicated.
+            Demo/testing only — adds realistic sample resources and stacks to this account so it isn&apos;t empty
+            while trying things out. Safe to run any time; existing URLs won&apos;t be duplicated.
           </p>
         </div>
       </Section>
 
       <Section title="Danger Zone">
-        <Button variant="danger" size="sm" className="w-fit" onClick={() => setConfirmDeleteAccount(true)}>
-          <Trash2 size={14} /> Delete Account
-        </Button>
+        <div className="flex flex-col gap-3">
+          <div>
+            <Button variant="danger" size="sm" onClick={() => setConfirmClearData(true)}>
+              <RotateCcw size={14} /> Clear All Data
+            </Button>
+            <p className="mt-1.5 text-[11.5px] text-text-muted">
+              Permanently deletes every resource, stack, and tag in this account. Your login stays — this only
+              empties the toolbox.
+            </p>
+          </div>
+          <Button variant="danger" size="sm" className="w-fit" onClick={() => setConfirmDeleteAccount(true)}>
+            <Trash2 size={14} /> Delete Account
+          </Button>
+        </div>
       </Section>
 
       <Section title="About">
@@ -331,6 +358,16 @@ export default function SettingsPage() {
           <span className="font-mono text-[12px] text-text-muted">v{APP_VERSION}</span>
         </div>
       </Section>
+
+      <ConfirmDialog
+        open={confirmClearData}
+        onClose={() => setConfirmClearData(false)}
+        onConfirm={handleClearAllData}
+        title="Clear all your data?"
+        description="This will permanently remove every resource, stack, and tag from your KeepYourStack account. This cannot be undone."
+        confirmLabel={clearingData ? "Clearing…" : "Clear Data"}
+        danger
+      />
 
       <ConfirmDialog
         open={confirmDeleteAccount}

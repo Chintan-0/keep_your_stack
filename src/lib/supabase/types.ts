@@ -71,6 +71,8 @@ export interface Database {
           is_favorite: boolean;
           is_archived: boolean;
           use_count: number;
+          import_source: string | null;
+          import_folder: string | null;
           created_at: string;
           updated_at: string;
         };

@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { topLevelCategories } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { Pricing } from "@/lib/types";
-import { categories } from "@/lib/mock-data";
+import { categories } from "@/lib/categories";
 
 function categoryMatches(categoryId: string | null, filterId: string): boolean {
   if (!categoryId) return false;
