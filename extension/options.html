@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>KeepYourStack Settings</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body {
+        width: 420px;
+        padding: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand"><span class="mark">K</span> KeepYourStack Settings</div>
+    </header>
+    <section class="view">
+      <p id="status" class="muted"></p>
+
+      <label class="field">
+        <span class="field-label">KeepYourStack app URL</span>
+        <input id="appUrl" type="text" placeholder="http://localhost:3000" />
+      </label>
+      <p class="muted">Only origins listed in the extension's host permissions will work — see extension/README.md.</p>
+
+      <label class="field" style="flex-direction: row; align-items: center; gap: 8px">
+        <input id="openInNewTab" type="checkbox" style="width: auto" />
+        <span class="field-label" style="margin: 0">Open saved resources in a new tab</span>
+      </label>
+
+      <div class="actions">
+        <button id="saveBtn" class="btn btn-primary">Save Settings</button>
+        <button id="disconnectBtn" class="btn btn-secondary">Disconnect</button>
+      </div>
+    </section>
+    <script type="module" src="dist/options/options.js"></script>
+  </body>
+</html>

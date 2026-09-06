@@ -1,164 +1,158 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Puzzle, X } from "lucide-react";
-import { useStore } from "@/lib/store";
-import { Favicon } from "@/components/ui/favicon";
+import { useEffect, useState } from "react";
+import { Puzzle, CheckCircle2, Circle, FolderOpen } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { CategorySelector } from "@/components/category-selector";
-import { StackSelector } from "@/components/stack-selector";
-import { TagInput } from "@/components/tag-input";
 
-const DEMO_PAGE = {
-  title: "Bruno",
-  url: "https://usebruno.com/downloads",
-  description: "Download Bruno, the offline-first Git-friendly API client.",
-};
+type BridgeState = "idle" | "connecting" | "connected" | "unavailable";
 
 export default function ExtensionPage() {
-  const addResource = useStore((s) => s.addResource);
-  const [useCase, setUseCase] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [tags, setTags] = useState<string[]>([]);
-  const [stackIds, setStackIds] = useState<string[]>([]);
-  const [note, setNote] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [bridgeState, setBridgeState] = useState<BridgeState>("idle");
 
-  async function save() {
-    try {
-      const { duplicate } = await addResource({
-        url: DEMO_PAGE.url,
-        title: DEMO_PAGE.title,
-        description: DEMO_PAGE.description,
-        categoryId,
-        useCases: useCase ? [useCase] : [],
-        tagNames: tags,
-        stackIds,
-        notes: note,
-      });
-      if (duplicate) {
-        toast.message("Already in your stack.");
-      } else {
-        toast.success("Saved to KeepYourStack");
-      }
-      setSaved(true);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't save this page.");
+  useEffect(() => {
+    // Real, not assumed: this only flips to "connected" when the content
+    // script (extension/src/content/bridge.ts) actually relays the ack
+    // back — see the CustomEvent dance below. If the extension isn't
+    // installed, nothing ever answers and the button just re-enables.
+    function onConnected() {
+      setBridgeState("connected");
     }
+    window.addEventListener("keepyourstack:connected", onConnected);
+    return () => window.removeEventListener("keepyourstack:connected", onConnected);
+  }, []);
+
+  async function connectExtension() {
+    setBridgeState("connecting");
+    const supabase = createClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setBridgeState("unavailable");
+      return;
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("keepyourstack:connect", {
+        detail: {
+          accessToken: session.access_token,
+          refreshToken: session.refresh_token,
+          expiresAt: session.expires_at ?? null,
+          userEmail: session.user.email ?? null,
+        },
+      })
+    );
+
+    // No listener answers within a couple seconds → the extension isn't
+    // installed/loaded in this browser. We say so plainly rather than
+    // leaving the button spinning forever.
+    setTimeout(() => {
+      setBridgeState((s) => (s === "connecting" ? "unavailable" : s));
+    }, 2500);
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8">
+    <div className="mx-auto flex max-w-3xl flex-col gap-8 pb-16">
       <div className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-text-primary">
           <Puzzle size={19} /> Save from your browser
         </h1>
         <p className="max-w-xl text-[13px] text-text-secondary">
-          Save the page you&apos;re currently viewing to KeepYourStack — a Chrome extension is{" "}
-          <strong className="text-text-primary font-medium">coming next</strong>. It won&apos;t run in the
-          background, sync automatically, or read your existing bookmarks; it only saves the one page you
-          click it on. Until it ships, use{" "}
+          Save useful websites directly from Chrome without leaving the page.
+        </p>
+        <p className="max-w-xl text-[13px] font-medium text-text-primary">One click → saved to KeepYourStack</p>
+      </div>
+
+      {/* Connection status */}
+      <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            {bridgeState === "connected" ? (
+              <CheckCircle2 size={18} className="text-success" />
+            ) : (
+              <Circle size={18} className="text-text-muted" />
+            )}
+            <div>
+              <p className="text-[13.5px] font-medium text-text-primary">
+                {bridgeState === "connected" ? "Extension connected" : "Extension not detected"}
+              </p>
+              <p className="text-[12px] text-text-secondary">
+                {bridgeState === "connected"
+                  ? "Saves from the extension will land in this account."
+                  : bridgeState === "connecting"
+                    ? "Waiting for the extension to respond…"
+                    : bridgeState === "unavailable"
+                      ? "No response from an installed extension. Load it (below), then try again."
+                      : "Load the extension, then connect it to this account."}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant={bridgeState === "connected" ? "secondary" : "primary"}
+            size="sm"
+            onClick={connectExtension}
+            disabled={bridgeState === "connecting"}
+          >
+            {bridgeState === "connected" ? "Reconnect" : "Connect Extension"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Install instructions (local dev — not yet on the Chrome Web Store) */}
+      <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-5">
+        <h2 className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-text-secondary">
+          <FolderOpen size={14} /> Load unpacked extension
+        </h2>
+        <p className="text-[13px] text-text-secondary">
+          The extension isn&apos;t on the Chrome Web Store yet — for now, load it directly from this project:
+        </p>
+        <ol className="flex flex-col gap-1.5 text-[13px] text-text-primary">
+          <li>1. In the project, run <code className="font-mono text-[12px] text-accent">npm run build:extension</code>.</li>
+          <li>
+            2. Open <code className="font-mono text-[12px] text-accent">chrome://extensions</code> and turn on{" "}
+            <strong className="font-medium">Developer mode</strong> (top right).
+          </li>
+          <li>
+            3. Click <strong className="font-medium">Load unpacked</strong> and select this project&apos;s{" "}
+            <code className="font-mono text-[12px] text-accent">extension/</code> folder.
+          </li>
+          <li>4. Come back here and click Connect Extension above.</li>
+        </ol>
+        <p className="text-[12px] text-text-muted">Full steps: extension/README.md.</p>
+      </section>
+
+      {/* What it captures */}
+      <section className="flex flex-col gap-2.5">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">What it captures</h2>
+        <ul className="grid grid-cols-1 gap-1.5 text-[13.5px] text-text-primary sm:grid-cols-2">
+          <li>• Page title</li>
+          <li>• URL</li>
+          <li>• Favicon</li>
+          <li>• Optional Useful For</li>
+          <li>• Optional Stack</li>
+          <li>• Optional Tags</li>
+          <li>• Optional Note</li>
+        </ul>
+        <p className="text-[12.5px] text-text-secondary">
+          It won&apos;t run in the background, sync automatically, or read your existing bookmarks — it only saves
+          the one page you click it on.
+        </p>
+      </section>
+
+      {/* Separate from bookmark import */}
+      <section className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-surface-2 p-5">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">Chrome bookmarks</h2>
+        <p className="text-[13px] text-text-secondary">
+          If you want to bring in bookmarks you&apos;ve already saved, use{" "}
           <a href="/import" className="text-accent hover:text-accent-hover">
             Import Bookmarks
           </a>{" "}
-          to bring in what you&apos;ve already saved.
+          instead — that&apos;s a separate, one-time import from a browser export file, not something this
+          extension does automatically.
         </p>
-      </div>
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="flex flex-col gap-3 sm:w-72">
-          <p className="text-[12px] font-medium text-text-secondary">Live preview</p>
-          <p className="text-[12.5px] text-text-secondary">
-            This simulates clicking the KeepYourStack extension icon while viewing{" "}
-            <span className="font-mono text-text-primary">{DEMO_PAGE.url}</span>. Try filling it out and
-            saving — it writes to your real library.
-          </p>
-          <Button variant="secondary" size="sm" className="w-fit" disabled>
-            Install Extension — Coming Soon
-          </Button>
-        </div>
-
-        {/* Popup mockup */}
-        <div className="w-full max-w-sm overflow-hidden rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-5 w-5 items-center justify-center rounded-[5px] bg-gradient-to-br from-accent to-violet text-[10px] font-bold text-white">
-                K
-              </div>
-              <span className="text-[12.5px] font-semibold text-text-primary">KeepYourStack</span>
-            </div>
-            <X size={14} className="text-text-muted" />
-          </div>
-
-          {!saved ? (
-            <div className="flex flex-col gap-3 p-4">
-              <div className="flex items-center gap-2.5 rounded-[var(--radius-sm)] border border-border bg-surface-3 p-2.5">
-                <Favicon seed={DEMO_PAGE.title} size={28} />
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-medium text-text-primary">{DEMO_PAGE.title}</p>
-                  <p className="truncate font-mono text-[10.5px] text-text-muted">{DEMO_PAGE.url}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-medium text-text-secondary">Useful for</label>
-                <input
-                  value={useCase}
-                  onChange={(e) => setUseCase(e.target.value)}
-                  placeholder="Testing REST APIs"
-                  className="h-8 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2 text-[12.5px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-medium text-text-secondary">Category</label>
-                <CategorySelector value={categoryId} onChange={setCategoryId} />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-medium text-text-secondary">Tags</label>
-                <TagInput value={tags} onChange={setTags} />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-medium text-text-secondary">Stack</label>
-                <StackSelector value={stackIds} onChange={setStackIds} />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] font-medium text-text-secondary">Personal note</label>
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  rows={2}
-                  className="resize-none rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2 py-1.5 text-[12.5px] text-text-primary focus:border-accent focus:outline-none"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <Button size="sm" className="flex-1" onClick={save}>
-                  Save to KeepYourStack
-                </Button>
-              </div>
-              <button onClick={save} className="text-center text-[11.5px] text-text-muted hover:text-text-primary cursor-pointer">
-                Save &amp; Close
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 p-8 text-center">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-success/20 text-success">✓</div>
-              <p className="text-[13px] font-medium text-text-primary">Saved to KeepYourStack</p>
-              <button
-                onClick={() => setSaved(false)}
-                className="text-[11.5px] text-accent hover:text-accent-hover cursor-pointer"
-              >
-                Save another page
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

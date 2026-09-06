@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>KeepYourStack</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand"><span class="mark">K</span> KeepYourStack</div>
+      <button id="settingsBtn" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+    </header>
+
+    <!-- Checking active tab / connection -->
+    <section id="view-loading" class="view">
+      <p class="muted center">Checking…</p>
+    </section>
+
+    <!-- Not connected -->
+    <section id="view-disconnected" class="view" hidden>
+      <div class="empty">
+        <p class="empty-title">Connect KeepYourStack</p>
+        <p class="muted">Sign in to your KeepYourStack account to start saving pages.</p>
+        <button id="openAppBtn" class="btn btn-primary">Open KeepYourStack</button>
+      </div>
+    </section>
+
+    <!-- Session expired -->
+    <section id="view-expired" class="view" hidden>
+      <div class="empty">
+        <p class="empty-title">Session expired</p>
+        <p class="muted">Your KeepYourStack session has expired.</p>
+        <button id="signInAgainBtn" class="btn btn-primary">Sign in again</button>
+      </div>
+    </section>
+
+    <!-- Unsupported page -->
+    <section id="view-unsupported" class="view" hidden>
+      <div class="empty">
+        <p class="empty-title">Can't save this page</p>
+        <p class="muted">This page can't be saved to KeepYourStack.</p>
+      </div>
+    </section>
+
+    <!-- Network / API error -->
+    <section id="view-error" class="view" hidden>
+      <div class="empty">
+        <p class="empty-title">Couldn't connect to KeepYourStack</p>
+        <p id="errorMessage" class="muted">Check your connection and try again.</p>
+        <button id="retryBtn" class="btn btn-primary">Retry</button>
+      </div>
+    </section>
+
+    <!-- Already saved -->
+    <section id="view-duplicate" class="view" hidden>
+      <p class="section-label">Already saved</p>
+      <div class="page-card">
+        <img id="dupFavicon" class="favicon" alt="" />
+        <div class="page-meta">
+          <p id="dupTitle" class="page-title"></p>
+          <p id="dupMeta" class="page-url"></p>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="openResourceBtn" class="btn btn-primary">Open Resource</button>
+        <button id="editInAppBtn" class="btn btn-secondary">Edit in KeepYourStack</button>
+      </div>
+    </section>
+
+    <!-- New resource save form -->
+    <section id="view-new" class="view" hidden>
+      <div class="page-card">
+        <img id="newFavicon" class="favicon" alt="" />
+        <div class="page-meta">
+          <p id="newTitle" class="page-title"></p>
+          <p id="newUrl" class="page-url"></p>
+        </div>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Useful for</span>
+        <input id="useCase" type="text" placeholder="What is this useful for?" maxlength="140" />
+      </label>
+
+      <button id="toggleDetails" class="disclosure" type="button" aria-expanded="false">
+        Add details <span class="chev">▾</span>
+      </button>
+
+      <div id="detailsPanel" class="details" hidden>
+        <label class="field">
+          <span class="field-label">Stack</span>
+          <select id="stackSelect">
+            <option value="">No stack</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Tags</span>
+          <input id="tagsInput" type="text" placeholder="react, api (comma separated)" />
+        </label>
+        <label class="field">
+          <span class="field-label">Note</span>
+          <textarea id="noteInput" rows="2" placeholder="Personal note"></textarea>
+        </label>
+      </div>
+
+      <button id="saveBtn" class="btn btn-primary btn-block">Save to KeepYourStack</button>
+    </section>
+
+    <!-- Saving -->
+    <section id="view-saving" class="view" hidden>
+      <p class="muted center">Saving…</p>
+    </section>
+
+    <!-- Success -->
+    <section id="view-success" class="view" hidden>
+      <div class="empty">
+        <div class="check">✓</div>
+        <p class="empty-title">Saved to KeepYourStack</p>
+        <div class="actions">
+          <button id="openSavedBtn" class="btn btn-primary">Open Resource</button>
+          <button id="saveAnotherBtn" class="btn btn-secondary">Save another</button>
+        </div>
+      </div>
+    </section>
+
+    <script type="module" src="dist/popup/popup.js"></script>
+  </body>
+</html>

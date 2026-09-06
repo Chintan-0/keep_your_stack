@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Compiled extension output, and its plain-Node (CommonJS) build
+    // tooling — not app source, not run through the Next.js/TS toolchain.
+    "extension/dist/**",
+    "extension/scripts/**",
   ]),
 ]);
 

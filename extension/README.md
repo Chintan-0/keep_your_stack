@@ -1,0 +1,169 @@
+# KeepYourStack — Chrome Extension
+
+A Manifest V3 extension that saves the page you're viewing to your real
+KeepYourStack account in one click. It is **not** a bookmark manager and
+does **not** sync your existing Chrome bookmarks automatically — for that,
+use the web app's [Import Bookmarks](../src/app/(app)/import/page.tsx) flow
+instead. See the root `README.md` for the web app itself; this file only
+covers the extension.
+
+## 1. Building it
+
+From the repo root (the extension shares the root `node_modules` —
+`@types/chrome` is a root devDependency):
+
+```bash
+npm run build:extension
+```
+
+This compiles `extension/src/**/*.ts` to `extension/dist/` with `tsc`. No
+bundler, no npm packages inside the compiled output — every file is a
+dependency-free ES module, loaded by the browser directly.
+
+## 2. Loading it into Chrome
+
+1. `npm run build:extension`
+2. Open `chrome://extensions`
+3. Turn on **Developer mode** (top right)
+4. Click **Load unpacked** and select this `extension/` folder (not `dist/`
+   — the manifest lives at the extension root and references `dist/*.js`)
+5. Pin the KeepYourStack icon if you'd like it visible in the toolbar
+
+Re-run `npm run build:extension` after any source change, then click the
+refresh icon on the extension's card in `chrome://extensions` to pick it up
+(Chrome does not hot-reload unpacked extensions).
+
+## 3. How authentication works
+
+The extension does **not** implement a second login system, and never
+touches your Supabase service-role key or any other privileged credential —
+only your own short-lived, refreshable session, the same kind the web app
+itself holds.
+
+1. You sign in to the KeepYourStack **web app** normally (email/password,
+   same as always) — that's a cookie session, as before.
+2. On the web app's `/extension` page, clicking **Connect Extension**
+   reads your *own already-active* Supabase session client-side
+   (`supabase.auth.getSession()` — no new API call, no new credential) and
+   dispatches a `keepyourstack:connect` DOM event carrying its access +
+   refresh tokens.
+3. A content script (`extension/src/content/bridge.ts`) — injected **only**
+   on the KeepYourStack app's own origin, nowhere else — relays that one
+   event to the extension's background service worker.
+4. The service worker stores the session in `chrome.storage.local` (local
+   to this browser profile; never leaves the device except to `fetch` your
+   own API with it) and acks back to the page, which is the only thing that
+   flips the page's status to "Extension connected" — it's a real
+   confirmation, not an assumption.
+5. Every subsequent extension → backend request sends
+   `Authorization: Bearer <access_token>` instead of a cookie (the
+   extension's origin, `chrome-extension://...`, doesn't share the web
+   app's cookie jar). `src/lib/data/auth.ts`'s `requireUser()` accepts
+   either — cookie *or* bearer token — and RLS still scopes every query to
+   that same user either way. No bypass, no elevated privilege.
+6. If a request 401s, the extension calls `POST /api/auth/refresh` once
+   with its refresh token to get a new access token and retries — see
+   `extension/src/lib/api.ts`. If that also fails, the stored session is
+   cleared and the popup shows **"Your KeepYourStack session has
+   expired."**
+
+Disconnecting (Settings → Disconnect in the extension's options page)
+simply clears `chrome.storage.local` — it does not touch your account.
+
+## 4. How it talks to `/api/resources`
+
+The extension is a second **client** of the exact same backend contract
+the web app uses — it does not duplicate any business logic:
+
+| Extension action | Endpoint | Notes |
+|---|---|---|
+| Check connection | `GET /api/account` | "who am I" — 401 means not connected/expired |
+| Check for a duplicate | `GET /api/resources?url=...` | Same `normalizeUrl`/lookup the web app's own duplicate check uses |
+| List stacks (for the optional dropdown) | `GET /api/stacks` | Read-only from the extension — it can't create stacks |
+| Save a page | `POST /api/resources` | Identical body shape to the web app's `addResource` |
+| Refresh an expired token | `POST /api/auth/refresh` | Extension-only; wraps `supabase.auth.refreshSession` |
+
+All five got a small, backward-compatible addition on top of their
+existing (cookie-only, same-origin) behavior:
+`src/lib/cors.ts` adds CORS headers scoped to real `chrome-extension://`
+origins, and `requireUser()` accepts a Bearer token as an alternative to
+the cookie session. Nothing about the web app's own requests changed.
+
+`GET /api/resources?url=` is the one net-new capability (previously only a
+full list existed) — needed so the popup can ask "is this page already
+saved?" without pulling the user's entire library over the wire.
+
+URL normalization for duplicate detection lives in exactly one place
+conceptually — `src/lib/utils.ts`'s `normalizeUrl` — but is *duplicated* in
+`extension/src/lib/url.ts` because the extension can't resolve
+`clsx`/`tailwind-merge` (bare npm imports) as a browser ES module without a
+bundler. `extension/src/lib/url.test.ts` asserts both copies agree on the
+same inputs on every test run, so drift between them fails CI rather than
+silently causing a mismatched duplicate.
+
+## 5. Required configuration
+
+No environment variables are baked into the extension at build time — it
+never needs to know your Supabase URL or anon key. The only thing it needs
+is which KeepYourStack deployment to talk to, which is a **runtime**
+setting (extension Options page → "KeepYourStack app URL"), defaulting to
+`http://localhost:3000`.
+
+That origin must also be listed in `manifest.json`'s `host_permissions` and
+`content_scripts.matches` for both the API `fetch()` calls and the
+Connect-Extension bridge to work — Chrome doesn't grant cross-origin fetch
+or injection to an origin the manifest didn't declare. `localhost:3000` and
+`127.0.0.1:3000` are declared for local development. **Deploying the web
+app to a real domain and wanting the extension to work there requires
+adding that origin to both lists in `manifest.json` and rebuilding/reloading
+the extension** — this is a deliberate manual step (see §34 of the Phase 5
+spec — minimal permissions, no broad host access) rather than something the
+extension requests automatically.
+
+## 6. Testing locally
+
+Automated:
+
+```bash
+npm test          # includes extension/src/**/*.test.ts (url, api, view-state logic)
+npm run lint       # extension/dist and extension/scripts are build output/tooling, excluded
+npx tsc --noEmit -p tsconfig.json      # web app + extension/src (extension's own tests only, via the shared root tsconfig)
+npm run build:extension                # extension/tsconfig.json — compiles the shipped extension itself
+```
+
+Manual (see the Phase 5 final report for the actual run of this list):
+
+1. Fresh account, `npm run dev` running, extension loaded unpacked.
+2. Open a real website, click the KeepYourStack icon — verify title, URL,
+   favicon appear.
+3. Save it, confirm it appears in the web app and survives a refresh.
+4. Reopen the same page — verify "Already saved", and that no duplicate
+   was created.
+5. Save a different page with Useful For / Stack / Tags / Note filled in —
+   verify all of it persists.
+6. Right-click a page → "Save to KeepYourStack" — verify it saves and a
+   Chrome notification confirms it.
+7. Open `chrome://extensions` (or any browser-internal page) and click the
+   icon — verify "This page can't be saved to KeepYourStack." with no
+   crash.
+8. Stop the dev server mid-save — verify a clear error with a working
+   Retry, not a raw stack trace.
+9. Save a page whose metadata can't be fetched (e.g. an unreachable
+   domain) — verify the URL/title still save, with no invented
+   description.
+
+## 7. Packaging for later Chrome Web Store submission
+
+Not done in this phase (see §34/§36 of the Phase 5 spec — explicitly out of
+scope). When it's time:
+
+```bash
+npm run package:extension   # builds dist/ then writes extension/keepyourstack-extension.zip
+```
+
+Before actually submitting: swap `host_permissions`/`content_scripts` to
+the real production origin (not `localhost`), bump `manifest.json`'s
+`version`, and review permissions once more — the manifest currently
+requests only `activeTab`, `contextMenus`, `storage`, and `notifications`,
+plus host permissions for the app's own origin; no `bookmarks`, `tabs`, or
+`<all_urls>`.

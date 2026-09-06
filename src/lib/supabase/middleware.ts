@@ -34,8 +34,14 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   const isStaticAsset = pathname.startsWith("/_next") || pathname === "/favicon.ico";
+  // API routes handle their own auth (see src/lib/data/auth.ts's requireUser)
+  // and return a proper 401 JSON body — including for the Chrome extension's
+  // Authorization: Bearer requests, which this middleware only ever checks
+  // via cookies. Redirecting those to an HTML login page instead of letting
+  // the route respond would break every extension request.
+  const isApiRoute = pathname.startsWith("/api/");
 
-  if (!user && !isPublicPath && !isStaticAsset) {
+  if (!user && !isPublicPath && !isStaticAsset && !isApiRoute) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/auth/login";
     redirectUrl.searchParams.set("next", pathname);

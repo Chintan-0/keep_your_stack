@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { listStacks, createStack } from "@/lib/data/stacks";
+import { corsPreflight, withCors } from "@/lib/cors";
 
-export async function GET() {
-  const { supabase, user, unauthorized } = await requireUser();
-  if (unauthorized) return unauthorized;
+// GET is also called by the Chrome extension (optional Stack dropdown in
+// the popup), hence the Bearer-token support + CORS below. POST (creating
+// a stack) stays web-app-only for now — the extension only lets you pick
+// an existing stack, not create one, to keep its save form lightweight.
+export async function GET(request: NextRequest) {
+  const { supabase, user, unauthorized } = await requireUser(request);
+  if (unauthorized) return withCors(request, unauthorized);
 
   try {
     const stacks = await listStacks(supabase, user.id);
-    return NextResponse.json({ stacks });
+    return withCors(request, NextResponse.json({ stacks }));
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Failed to load stacks" }, { status: 500 });
+    return withCors(
+      request,
+      NextResponse.json({ error: e instanceof Error ? e.message : "Failed to load stacks" }, { status: 500 })
+    );
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return corsPreflight(request);
 }
 
 export async function POST(request: NextRequest) {
