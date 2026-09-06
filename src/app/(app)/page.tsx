@@ -22,6 +22,17 @@ export default function DashboardPage() {
   const stacks = useStore((s) => s.stacks);
   const hasHydrated = useStore((s) => s.hasHydrated);
   const openAddResource = useUIStore((s) => s.openAddResource);
+  const loadDemoData = useStore((s) => s.loadDemoData);
+  const [loadingDemoData, setLoadingDemoData] = useState(false);
+
+  async function handleLoadDemoData() {
+    setLoadingDemoData(true);
+    try {
+      await loadDemoData();
+    } finally {
+      setLoadingDemoData(false);
+    }
+  }
 
   const now = useNow();
   const active = useMemo(() => resources.filter((r) => !r.isArchived), [resources]);
@@ -107,9 +118,18 @@ export default function DashboardPage() {
             title="Your toolbox is empty."
             description="Save your first useful resource."
             action={
-              <Button onClick={() => openAddResource()} size="sm">
-                <Plus size={14} /> Add Resource
-              </Button>
+              <div className="flex flex-col items-center gap-2">
+                <Button onClick={() => openAddResource()} size="sm">
+                  <Plus size={14} /> Add Resource
+                </Button>
+                <button
+                  onClick={handleLoadDemoData}
+                  disabled={loadingDemoData}
+                  className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
+                >
+                  {loadingDemoData ? "Loading…" : "or load some example resources"}
+                </button>
+              </div>
             }
           />
         ) : (

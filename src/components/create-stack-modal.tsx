@@ -35,16 +35,20 @@ export function CreateStackModal() {
     setColor(COLORS[0].key);
   }
 
-  function save() {
+  async function save() {
     if (!name.trim()) {
       toast.error("Give your stack a name first.");
       return;
     }
-    const stack = addStack({ name, description, icon, color });
-    toast.success(`Created ${stack.name}`);
-    reset();
-    onClose();
-    router.push(`/stacks/${stack.id}`);
+    try {
+      const stack = await addStack({ name, description, icon, color });
+      toast.success(`Created ${stack.name}`);
+      reset();
+      onClose();
+      router.push(`/stacks/${stack.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't create the stack.");
+    }
   }
 
   return (

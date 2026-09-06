@@ -132,9 +132,8 @@ as $$
   limit 50;
 $$;
 
--- Callable by any authenticated user; RLS on the underlying tables still
--- applies to what the function can see because it runs as the function
--- owner but filters explicitly on p_user_id — callers can only pass their
--- own auth.uid(), enforced in the route handler that calls this function,
--- never trusting a client-supplied user id directly.
+-- Callable by any authenticated user. It's SECURITY DEFINER (see the
+-- function comment above), so it does NOT accept a user id parameter at
+-- all — it reads auth.uid() itself — which is what actually prevents a
+-- caller from ever seeing another user's resources here.
 grant execute on function public.search_resources(text) to authenticated;

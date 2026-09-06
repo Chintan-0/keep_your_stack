@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sun, Moon, Monitor, Download, Upload, Puzzle, RotateCcw } from "lucide-react";
+import { Sun, Moon, Monitor, Download, Upload, Puzzle, Sparkles, LogOut, Trash2 } from "lucide-react";
 import { useThemeStore, type Theme } from "@/lib/theme-store";
 import { useStore } from "@/lib/store";
-import { DEMO_USER } from "@/lib/user";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { cn, categoryPath } from "@/lib/utils";
@@ -90,22 +90,147 @@ export default function SettingsPage() {
   const resources = useStore((s) => s.resources);
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
-  const resetDemoData = useStore((s) => s.resetDemoData);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const loadDemoData = useStore((s) => s.loadDemoData);
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [loadingDemoData, setLoadingDemoData] = useState(false);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      setEmail(user.email ?? "");
+      const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle();
+      setName(profile?.name ?? "");
+    });
+  }, []);
+
+  async function saveProfile() {
+    setSavingProfile(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      toast.success("Profile saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save your profile.");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  async function changePassword() {
+    if (newPassword.length < 8) {
+      toast.error("Password needs to be at least 8 characters.");
+      return;
+    }
+    setSavingPassword(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSavingPassword(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setNewPassword("");
+    toast.success("Password updated");
+  }
+
+  async function signOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/auth/login");
+    router.refresh();
+  }
+
+  async function handleLoadDemoData() {
+    setLoadingDemoData(true);
+    try {
+      await loadDemoData();
+      toast.success("Demo resources added to your account");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't load demo data.");
+    } finally {
+      setLoadingDemoData(false);
+    }
+  }
+
+  async function deleteAccount() {
+    setDeletingAccount(true);
+    try {
+      const res = await fetch("/api/account", { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error);
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/auth/login");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't delete your account.");
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       <h1 className="text-xl font-semibold tracking-tight text-text-primary">Settings</h1>
 
-      <Section title="Your Profile">
+      <Section title="Profile">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-violet to-accent text-[20px] font-semibold text-white">
-            {DEMO_USER.name.charAt(0)}
+            {(name || email || "?").charAt(0).toUpperCase()}
           </div>
-          <div>
-            <p className="text-[14px] font-medium text-text-primary">{DEMO_USER.name}</p>
-            <p className="text-[12.5px] text-text-secondary">{DEMO_USER.tagline}</p>
-          </div>
+          <span className="text-[12.5px] text-text-secondary">{email}</span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Name">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary focus:border-accent focus:outline-none"
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              value={email}
+              disabled
+              title="Contact support to change your email"
+              className="h-9 cursor-not-allowed rounded-[var(--radius-sm)] border border-border bg-surface-2 px-2.5 text-[13px] text-text-muted"
+            />
+          </Field>
+        </div>
+        <Button size="sm" className="w-fit" onClick={saveProfile} disabled={savingProfile}>
+          {savingProfile ? "Saving…" : "Save Changes"}
+        </Button>
+      </Section>
+
+      <Section title="Account" description="Change your password.">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <Field label="New password">
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              className="h-9 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
+            />
+          </Field>
+          <Button size="sm" variant="secondary" onClick={changePassword} disabled={savingPassword || !newPassword}>
+            {savingPassword ? "Updating…" : "Update Password"}
+          </Button>
+        </div>
+        <div className="border-t border-border pt-4">
+          <Button variant="secondary" size="sm" onClick={signOut}>
+            <LogOut size={14} /> Sign Out
+          </Button>
         </div>
       </Section>
 
@@ -185,10 +310,19 @@ export default function SettingsPage() {
           </Button>
         </div>
         <div className="border-t border-border pt-4">
-          <Button variant="danger" size="sm" onClick={() => setConfirmReset(true)}>
-            <RotateCcw size={14} /> Reset Demo Data
+          <Button variant="secondary" size="sm" onClick={handleLoadDemoData} disabled={loadingDemoData}>
+            <Sparkles size={14} /> {loadingDemoData ? "Loading…" : "Load Demo Data"}
           </Button>
+          <p className="mt-1.5 text-[11.5px] text-text-muted">
+            Adds realistic sample resources and stacks to this account — safe to run any time; existing URLs won&apos;t be duplicated.
+          </p>
         </div>
+      </Section>
+
+      <Section title="Danger Zone">
+        <Button variant="danger" size="sm" className="w-fit" onClick={() => setConfirmDeleteAccount(true)}>
+          <Trash2 size={14} /> Delete Account
+        </Button>
       </Section>
 
       <Section title="About">
@@ -199,15 +333,12 @@ export default function SettingsPage() {
       </Section>
 
       <ConfirmDialog
-        open={confirmReset}
-        onClose={() => setConfirmReset(false)}
-        onConfirm={() => {
-          resetDemoData();
-          toast.success("Restored the demo dataset");
-        }}
-        title="Reset your local KeepYourStack data?"
-        description="This will remove your current local changes and restore the demo dataset."
-        confirmLabel="Reset"
+        open={confirmDeleteAccount}
+        onClose={() => setConfirmDeleteAccount(false)}
+        onConfirm={deleteAccount}
+        title="Delete your account?"
+        description="This permanently deletes your resources, stacks, and notes. This action cannot be undone."
+        confirmLabel={deletingAccount ? "Deleting…" : "Delete Account"}
         danger
       />
     </div>
