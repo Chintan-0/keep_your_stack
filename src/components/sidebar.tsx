@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Home,
   Layers,
   Star,
   Clock,
@@ -111,6 +112,10 @@ export function Sidebar() {
       >
         <Plus size={15} /> Add Resource
       </button>
+
+      <div className="flex flex-col gap-0.5">
+        <NavLink href="/" icon={Home} label="Home" />
+      </div>
 
       <div className="flex flex-col gap-0.5">
         <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Library</p>

@@ -8,12 +8,13 @@ import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@
 
 export default function FavoritesPage() {
   const resources = useStore((s) => s.resources);
+  const categories = useStore((s) => s.categories);
   const [filters, setFilters] = useState<Filters>({ ...DEFAULT_FILTERS, sort: "recent" });
   const [view, setView] = useState<"grid" | "list">("grid");
 
   const favorites = useMemo(
-    () => applyFiltersAndSort(resources.filter((r) => r.isFavorite && !r.isArchived), filters),
-    [resources, filters]
+    () => applyFiltersAndSort(resources.filter((r) => r.isFavorite && !r.isArchived), filters, categories),
+    [resources, filters, categories]
   );
 
   return (

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { toast } from "sonner";
-import type { Resource, Stack, Tag } from "./types";
+import type { Category, Resource, Stack, Tag } from "./types";
 import { normalizeUrl } from "./utils";
 
 // Application-state layer, not the database: Supabase is the source of
@@ -57,12 +57,26 @@ interface StoreState {
   resources: Resource[];
   stacks: Stack[];
   tags: Tag[];
+  categories: Category[];
   hasHydrated: boolean;
 
-  /** Fetches this user's resources/stacks/tags from Supabase. Call once per session (on login / app mount). */
+  /** Fetches this user's resources/stacks/tags/categories from Supabase. Call once per session (on login / app mount). */
   hydrate: () => Promise<void>;
   /** Re-fetches just the tag list — call after a save that might have minted new tags. */
   refreshTags: () => Promise<void>;
+  /** Re-fetches just the category list — call after creating one inline (e.g. during import). */
+  refreshCategories: () => Promise<void>;
+
+  addCategory: (input: { name: string; parentId?: string | null }) => Promise<Category>;
+  /** Optimistic. */
+  renameCategory: (id: string, name: string) => Promise<void>;
+  /** Optimistic — moves a subcategory to another top-level category, or promotes it (parentId: null). */
+  moveCategory: (id: string, parentId: string | null) => Promise<void>;
+  reorderCategory: (id: string, direction: "up" | "down") => Promise<void>;
+  /** Waits for server confirmation — never optimistic, since it can move resources and delete rows. */
+  deleteCategory: (id: string, reassignTo: string | null) => Promise<{ movedResources: number; deletedSubcategories: number }>;
+  /** Bulk "Move to" — one request, one local update. */
+  bulkMoveResources: (resourceIds: string[], categoryId: string | null) => Promise<number>;
 
   findByUrl: (url: string) => Resource | undefined;
   addResource: (
@@ -92,19 +106,22 @@ export const useStore = create<StoreState>()((set, get) => ({
   resources: [],
   stacks: [],
   tags: [],
+  categories: [],
   hasHydrated: false,
 
   hydrate: async () => {
     try {
-      const [resourcesRes, stacksRes, tagsRes] = await Promise.all([
+      const [resourcesRes, stacksRes, tagsRes, categoriesRes] = await Promise.all([
         api<{ resources: Resource[] }>("/api/resources"),
         api<{ stacks: Stack[] }>("/api/stacks"),
         api<{ tags: Tag[] }>("/api/tags"),
+        api<{ categories: Category[] }>("/api/categories"),
       ]);
       set({
         resources: resourcesRes.resources,
         stacks: stacksRes.stacks,
         tags: tagsRes.tags,
+        categories: categoriesRes.categories,
         hasHydrated: true,
       });
     } catch {
@@ -119,6 +136,15 @@ export const useStore = create<StoreState>()((set, get) => ({
       set({ tags });
     } catch {
       // Non-critical — the next full hydrate will pick up any new tags.
+    }
+  },
+
+  refreshCategories: async () => {
+    try {
+      const { categories } = await api<{ categories: Category[] }>("/api/categories");
+      set({ categories });
+    } catch {
+      // Non-critical — the next full hydrate will pick up any new categories.
     }
   },
 
@@ -237,6 +263,80 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   clearAllData: async () => {
     await api("/api/clear-data", { method: "DELETE" });
-    set({ resources: [], stacks: [], tags: [] });
+    set({ resources: [], stacks: [], tags: [], categories: [] });
+  },
+
+  addCategory: async (input) => {
+    const { category } = await api<{ category: Category }>("/api/categories", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    set({ categories: [...get().categories, category] });
+    return category;
+  },
+
+  renameCategory: async (id, name) => {
+    const prev = get().categories;
+    set({ categories: prev.map((c) => (c.id === id ? { ...c, name } : c)) });
+    try {
+      await api(`/api/categories/${id}`, { method: "PATCH", body: JSON.stringify({ name }) });
+    } catch (e) {
+      set({ categories: prev });
+      toast.error(e instanceof Error ? e.message : "Couldn't rename the category. Try again.");
+      throw e;
+    }
+  },
+
+  moveCategory: async (id, parentId) => {
+    const prev = get().categories;
+    set({ categories: prev.map((c) => (c.id === id ? { ...c, parentId } : c)) });
+    try {
+      await api(`/api/categories/${id}`, { method: "PATCH", body: JSON.stringify({ parentId }) });
+    } catch (e) {
+      set({ categories: prev });
+      toast.error(e instanceof Error ? e.message : "Couldn't move the category. Try again.");
+      throw e;
+    }
+  },
+
+  reorderCategory: async (id, direction) => {
+    const prev = get().categories;
+    try {
+      await api(`/api/categories/${id}`, { method: "PATCH", body: JSON.stringify({ reorder: direction }) });
+      await get().refreshCategories();
+    } catch (e) {
+      set({ categories: prev });
+      toast.error(e instanceof Error ? e.message : "Couldn't reorder categories. Try again.");
+      throw e;
+    }
+  },
+
+  deleteCategory: async (id, reassignTo) => {
+    const result = await api<{ movedResources: number; deletedSubcategories: number }>(
+      `/api/categories/${id}?reassignTo=${reassignTo ?? "none"}`,
+      { method: "DELETE" }
+    );
+    // Not optimistic (see the interface note) — refetch both since
+    // resources may have moved and subcategories may be gone.
+    await Promise.all([get().refreshCategories(), get().hydrate()]);
+    return result;
+  },
+
+  bulkMoveResources: async (resourceIds, categoryId) => {
+    const prev = get().resources;
+    set({
+      resources: prev.map((r) => (resourceIds.includes(r.id) ? { ...r, categoryId } : r)),
+    });
+    try {
+      const { moved } = await api<{ moved: number }>("/api/resources/bulk-move", {
+        method: "POST",
+        body: JSON.stringify({ resourceIds, categoryId }),
+      });
+      return moved;
+    } catch (e) {
+      set({ resources: prev });
+      toast.error(e instanceof Error ? e.message : "Couldn't move those resources. Try again.");
+      throw e;
+    }
   },
 }));

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export function AuthCard({
@@ -15,9 +16,7 @@ export function AuthCard({
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-8 flex items-center justify-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-gradient-to-br from-accent to-violet text-[15px] font-bold text-white">
-            K
-          </div>
+          <Image src="/logo-mark.png" alt="" width={36} height={36} className="h-9 w-9 rounded-[9px]" priority />
           <span className="text-[16px] font-semibold tracking-tight text-text-primary">KeepYourStack</span>
         </Link>
 

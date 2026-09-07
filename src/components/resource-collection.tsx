@@ -16,6 +16,9 @@ export function ResourceCollection({
   emptyDescription = "Resources you save will show up here.",
   emptyAction,
   showEdit = false,
+  selectable = false,
+  selectedIds,
+  onToggleSelect,
 }: {
   resources: Resource[];
   view: "grid" | "list";
@@ -24,6 +27,10 @@ export function ResourceCollection({
   emptyDescription?: string;
   emptyAction?: React.ReactNode;
   showEdit?: boolean;
+  /** Bulk-select mode — see the "Select" toggle on All Resources. */
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }) {
   const hasHydrated = useStore((s) => s.hasHydrated);
 
@@ -58,7 +65,15 @@ export function ResourceCollection({
       }
     >
       {resources.map((r) => (
-        <ResourceCard key={r.id} resource={r} view={view} showEdit={showEdit} />
+        <ResourceCard
+          key={r.id}
+          resource={r}
+          view={view}
+          showEdit={showEdit}
+          selectable={selectable}
+          selected={selectedIds?.has(r.id)}
+          onToggleSelect={() => onToggleSelect?.(r.id)}
+        />
       ))}
     </div>
   );

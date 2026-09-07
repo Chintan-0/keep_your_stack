@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, getDomain, categoryPath, categoryName } from "./utils";
+import { normalizeUrl, getDomain, categoryPath, categoryName, topLevelCategories, childCategories, needsReview } from "./utils";
+import type { Category } from "./types";
 
 describe("normalizeUrl", () => {
   it("adds https:// when no protocol is given", () => {
@@ -48,17 +49,54 @@ describe("getDomain", () => {
   });
 });
 
+// Categories are dynamic/per-user now — these helpers take the caller's
+// own category list rather than a fixed taxonomy (src/lib/data/categories.ts
+// is where creation/rename/move/delete actually happen; this just covers
+// the pure lookup/formatting logic against an arbitrary hierarchy).
+const categories: Category[] = [
+  { id: "development", name: "Development", parentId: null, sortOrder: 0 },
+  { id: "dev-images", name: "Image Tools", parentId: "development", sortOrder: 1 },
+  { id: "dev-frontend", name: "Frontend", parentId: "development", sortOrder: 0 },
+  { id: "design", name: "Design", parentId: null, sortOrder: 1 },
+];
+
 describe("category helpers", () => {
-  it("builds a readable parent → child path for a real seeded category", () => {
-    expect(categoryPath("dev-web-images")).toBe("Development → Image Tools");
+  it("builds a readable parent → child path for a subcategory", () => {
+    expect(categoryPath("dev-images", categories)).toBe("Development → Image Tools");
   });
 
   it("returns just the name for a top-level category", () => {
-    expect(categoryName("development")).toBe("Development");
+    expect(categoryName("development", categories)).toBe("Development");
   });
 
   it("falls back to Uncategorized for null or unknown ids", () => {
-    expect(categoryPath(null)).toBe("Uncategorized");
-    expect(categoryName("not-a-real-category")).toBe("Uncategorized");
+    expect(categoryPath(null, categories)).toBe("Uncategorized");
+    expect(categoryName("not-a-real-category", categories)).toBe("Uncategorized");
+  });
+
+  it("topLevelCategories returns only parentId:null rows, sorted", () => {
+    expect(topLevelCategories(categories).map((c) => c.id)).toEqual(["development", "design"]);
+  });
+
+  it("childCategories returns a parent's own children, sorted by sortOrder", () => {
+    expect(childCategories(categories, "development").map((c) => c.id)).toEqual(["dev-frontend", "dev-images"]);
+  });
+
+  it("childCategories returns an empty array for a category with none", () => {
+    expect(childCategories(categories, "design")).toEqual([]);
+  });
+});
+
+describe("needsReview", () => {
+  it("is true for a resource with no category and no useful-for", () => {
+    expect(needsReview({ categoryId: null, useCases: [] })).toBe(true);
+  });
+
+  it("is false once it has a category", () => {
+    expect(needsReview({ categoryId: "development", useCases: [] })).toBe(false);
+  });
+
+  it("is false once it has at least one useful-for entry", () => {
+    expect(needsReview({ categoryId: null, useCases: ["Test APIs"] })).toBe(false);
   });
 });

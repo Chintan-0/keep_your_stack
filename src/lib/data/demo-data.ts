@@ -1,9 +1,10 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
-import { buildResources, stacks as demoStacks, tags as demoTags } from "@/lib/demo-data";
+import { buildResources, stacks as demoStacks, tags as demoTags, resolveDefaultCategoryId } from "@/lib/demo-data";
 import { createStack } from "./stacks";
 import { createResource } from "./resources";
+import { listCategories } from "./categories";
 
 type Client = SupabaseClient<Database>;
 
@@ -25,6 +26,7 @@ export async function loadDemoData(client: Client, userId: string): Promise<{ st
     stackIdMap.set(stack.id, created.id);
   }
 
+  const userCategories = await listCategories(client, userId);
   const tagNameById = new Map(demoTags.map((t) => [t.id, t.name]));
   let resourceCount = 0;
 
@@ -33,7 +35,7 @@ export async function loadDemoData(client: Client, userId: string): Promise<{ st
       url: resource.url,
       title: resource.title,
       description: resource.description,
-      categoryId: resource.categoryId,
+      categoryId: resource.categoryId ? resolveDefaultCategoryId(resource.categoryId, userCategories) : null,
       useCases: resource.useCases,
       notes: resource.notes,
       tagNames: resource.tagIds.map((id) => tagNameById.get(id)).filter(Boolean) as string[],

@@ -9,6 +9,7 @@ interface ImportBookmark {
   folder?: string | null;
   categoryId?: string | null;
   stackIds?: string[];
+  tagNames?: string[];
 }
 
 // Imports a batch of parsed bookmarks. Each entry is saved independently —
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
         title: bookmark.title,
         categoryId: bookmark.categoryId ?? null,
         stackIds: Array.isArray(bookmark.stackIds) ? bookmark.stackIds : [],
+        tagNames: Array.isArray(bookmark.tagNames) ? bookmark.tagNames : [],
         importSource: "chrome-bookmarks",
         importFolder: bookmark.folder ?? null,
       });

@@ -21,7 +21,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jbmono.variable} dark h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${inter.variable} ${jbmono.variable} dark h-full antialiased`}
+      suppressHydrationWarning
+    >
       <body className="min-h-full bg-background">
         <ThemeProvider />
         {children}

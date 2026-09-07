@@ -5,6 +5,7 @@ export interface Category {
   id: string;
   name: string;
   parentId: string | null;
+  sortOrder: number;
 }
 
 export interface Tag {

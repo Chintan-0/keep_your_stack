@@ -19,6 +19,7 @@ function initialQueryFromLocation(): string {
 export default function SearchPage() {
   const [query, setQuery] = useState(initialQueryFromLocation);
   const toggleFavorite = useStore((s) => s.toggleFavorite);
+  const categories = useStore((s) => s.categories);
 
   const [results, setResults] = useState<SearchMatch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -138,7 +139,7 @@ export default function SearchPage() {
                 {matchedOn.map((m) => (
                   <Tag key={m}>{m}</Tag>
                 ))}
-                <span className="text-[11px] text-text-muted">· {categoryName(resource.categoryId)}</span>
+                <span className="text-[11px] text-text-muted">· {categoryName(resource.categoryId, categories)}</span>
               </div>
             </div>
           ))}

@@ -19,8 +19,19 @@ export interface Database {
         Relationships: [];
       };
       categories: {
-        Row: { id: string; name: string; parent_id: string | null };
-        Insert: Database["public"]["Tables"]["categories"]["Row"];
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          parent_id: string | null;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["categories"]["Row"]> & {
+          user_id: string;
+          name: string;
+        };
         Update: Partial<Database["public"]["Tables"]["categories"]["Row"]>;
         Relationships: [];
       };

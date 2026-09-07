@@ -21,6 +21,7 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
   const allResources = useMemo(() => storeResources.filter((r) => !r.isArchived), [storeResources]);
   const deleteStack = useStore((s) => s.deleteStack);
   const tags = useStore((s) => s.tags);
+  const categories = useStore((s) => s.categories);
 
   const [manageOpen, setManageOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -37,8 +38,8 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
     const base = query.trim()
       ? stackResources.filter((r) => r.title.toLowerCase().includes(query.toLowerCase()))
       : stackResources;
-    return applyFiltersAndSort(base, filters);
-  }, [stackResources, query, filters]);
+    return applyFiltersAndSort(base, filters, categories);
+  }, [stackResources, query, filters, categories]);
 
   const favorites = stackResources.filter((r) => r.isFavorite);
   const mostUsed = [...stackResources].sort((a, b) => b.useCount - a.useCount).slice(0, 1)[0];

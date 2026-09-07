@@ -110,6 +110,17 @@ export async function createResource(
     if (existing) return { resource: existing, duplicate: true };
   }
 
+  if (input.categoryId) {
+    const { data: owned, error: ownedError } = await client
+      .from("categories")
+      .select("id")
+      .eq("id", input.categoryId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ownedError) throw new Error(ownedError.message);
+    if (!owned) throw new Error("That category doesn't exist.");
+  }
+
   const domain = getDomain(normalized);
   const { data, error } = await client
     .from("resources")
@@ -170,6 +181,20 @@ export async function updateResource(
   id: string,
   patch: ResourcePatch
 ): Promise<Resource> {
+  // A foreign key alone doesn't enforce ownership (FK validation isn't
+  // RLS-scoped) — confirm a non-null category id is really this user's own
+  // before letting a resource point at it.
+  if (patch.categoryId) {
+    const { data: owned, error: ownedError } = await client
+      .from("categories")
+      .select("id")
+      .eq("id", patch.categoryId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ownedError) throw new Error(ownedError.message);
+    if (!owned) throw new Error("That category doesn't exist.");
+  }
+
   const dbPatch: Database["public"]["Tables"]["resources"]["Update"] = {};
   if (patch.title !== undefined) dbPatch.title = patch.title;
   if (patch.description !== undefined) dbPatch.description = patch.description;
@@ -208,6 +233,40 @@ export async function updateResource(
   const full = await getResource(client, userId, id);
   if (!full) throw new Error("Resource not found after update");
   return full;
+}
+
+/** Moves many resources to one category (or "No category") in a single statement. */
+export async function bulkMoveResources(
+  client: Client,
+  userId: string,
+  resourceIds: string[],
+  categoryId: string | null
+): Promise<number> {
+  if (resourceIds.length === 0) return 0;
+
+  // A foreign key check alone doesn't enforce ownership (FK validation
+  // isn't RLS-scoped), so without this a client could point resources at
+  // a category id that isn't theirs — never leaks that category's data,
+  // but leaves a dangling reference. Confirm it's really this user's own.
+  if (categoryId) {
+    const { data: owned, error: ownedError } = await client
+      .from("categories")
+      .select("id")
+      .eq("id", categoryId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (ownedError) throw new Error(ownedError.message);
+    if (!owned) throw new Error("That category doesn't exist.");
+  }
+
+  const { data, error } = await client
+    .from("resources")
+    .update({ category_id: categoryId })
+    .eq("user_id", userId)
+    .in("id", resourceIds)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
 }
 
 export async function deleteResource(client: Client, userId: string, id: string): Promise<void> {

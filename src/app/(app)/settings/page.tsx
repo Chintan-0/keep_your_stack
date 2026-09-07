@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sun, Moon, Monitor, Download, Upload, Puzzle, Sparkles, LogOut, Trash2, RotateCcw } from "lucide-react";
+import { Sun, Moon, Monitor, Download, Upload, Puzzle, Sparkles, LogOut, Trash2, RotateCcw, FolderTree } from "lucide-react";
 import { useThemeStore, type Theme } from "@/lib/theme-store";
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Dropdown } from "@/components/ui/dropdown";
 import { cn, categoryPath } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
@@ -43,7 +45,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function toCsv(
   resources: ReturnType<typeof useStore.getState>["resources"],
   tags: ReturnType<typeof useStore.getState>["tags"],
-  stacks: ReturnType<typeof useStore.getState>["stacks"]
+  stacks: ReturnType<typeof useStore.getState>["stacks"],
+  categories: ReturnType<typeof useStore.getState>["categories"]
 ): string {
   const header = [
     "Title",
@@ -63,7 +66,7 @@ function toCsv(
     r.description,
     r.useCases.join("; "),
     r.notes,
-    categoryPath(r.categoryId),
+    categoryPath(r.categoryId, categories),
     r.tagIds.map((id) => tags.find((t) => t.id === id)?.name ?? "").filter(Boolean).join("; "),
     r.stackIds.map((id) => stacks.find((s) => s.id === id)?.name ?? "").filter(Boolean).join("; "),
     r.createdAt,
@@ -90,6 +93,7 @@ export default function SettingsPage() {
   const resources = useStore((s) => s.resources);
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
+  const categories = useStore((s) => s.categories);
   const loadDemoData = useStore((s) => s.loadDemoData);
   const clearAllData = useStore((s) => s.clearAllData);
 
@@ -103,6 +107,7 @@ export default function SettingsPage() {
   const [clearingData, setClearingData] = useState(false);
   const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [defaultView, setDefaultView] = useState("grid");
 
   useEffect(() => {
     const supabase = createClient();
@@ -272,10 +277,16 @@ export default function SettingsPage() {
 
       <Section title="Preferences">
         <Field label="Default view for Resources / Favorites / Recently Added">
-          <select className="h-9 max-w-xs rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary focus:border-accent focus:outline-none">
-            <option>Grid</option>
-            <option>List</option>
-          </select>
+          <div className="max-w-xs">
+            <Dropdown
+              value={defaultView}
+              onChange={setDefaultView}
+              options={[
+                { value: "grid", label: "Grid" },
+                { value: "list", label: "List" },
+              ]}
+            />
+          </div>
         </Field>
         <div className="flex flex-wrap gap-x-6 gap-y-1.5 pt-1 font-mono text-[11.5px] text-text-muted">
           <span>⌘K Search</span>
@@ -285,6 +296,18 @@ export default function SettingsPage() {
           <span>G then F Favorites</span>
           <span>Esc Close modal</span>
         </div>
+      </Section>
+
+      <Section title="Organization" description="Categories and subcategories are entirely yours to shape.">
+        <Link
+          href="/settings/categories"
+          className="flex items-center justify-between rounded-[var(--radius-md)] border border-border bg-surface-2 px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:border-border-strong hover:bg-surface-3"
+        >
+          <span className="flex items-center gap-2">
+            <FolderTree size={15} className="text-text-muted" /> Manage Categories
+          </span>
+          <span className="text-[12px] text-text-muted">{categories.length} total →</span>
+        </Link>
       </Section>
 
       <Section title="Browser Extension" description="Save the page you're viewing without leaving your browser.">
@@ -314,7 +337,7 @@ export default function SettingsPage() {
             variant="secondary"
             size="sm"
             onClick={() => {
-              download("keepyourstack-export.csv", toCsv(resources, tags, stacks), "text/csv");
+              download("keepyourstack-export.csv", toCsv(resources, tags, stacks, categories), "text/csv");
               toast.success("Exported resources.csv");
             }}
           >

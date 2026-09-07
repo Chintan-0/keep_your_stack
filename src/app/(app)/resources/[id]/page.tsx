@@ -10,9 +10,11 @@ import {
   Archive,
   Trash2,
   ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   MoreHorizontal,
   Copy,
+  FolderInput,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
@@ -20,8 +22,11 @@ import { useUIStore } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
 import { Tag } from "@/components/ui/tag";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Modal, ModalHeader } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { CategorySelector } from "@/components/category-selector";
 import { ResourceCard } from "@/components/resource-card";
-import { categoryPath, formatAbsoluteDate, PRICING_LABELS, PLATFORM_LABELS, cn } from "@/lib/utils";
+import { formatAbsoluteDate, PRICING_LABELS, PLATFORM_LABELS, cn } from "@/lib/utils";
 
 export default function ResourceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -29,14 +34,18 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const resources = useStore((s) => s.resources);
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
+  const categories = useStore((s) => s.categories);
   const hasHydrated = useStore((s) => s.hasHydrated);
   const toggleFavorite = useStore((s) => s.toggleFavorite);
   const archiveResource = useStore((s) => s.archiveResource);
   const deleteResourcePermanently = useStore((s) => s.deleteResourcePermanently);
+  const updateResource = useStore((s) => s.updateResource);
   const openEditResource = useUIStore((s) => s.openEditResource);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveCategoryId, setMoveCategoryId] = useState<string | null>(null);
 
   const resource = resources.find((r) => r.id === id);
 
@@ -133,6 +142,16 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
                 </button>
                 <button
                   onClick={() => {
+                    setMoveCategoryId(resource.categoryId);
+                    setMoveOpen(true);
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-surface-3 cursor-pointer"
+                >
+                  <FolderInput size={14} /> Move
+                </button>
+                <button
+                  onClick={() => {
                     archiveResource(resource.id);
                     toast.success("Archived");
                     setMenuOpen(false);
@@ -203,7 +222,30 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <h3 className="text-[11.5px] font-semibold uppercase tracking-wide text-text-muted">Category</h3>
-          <p className="text-[13px] text-text-primary">{categoryPath(resource.categoryId)}</p>
+          {(() => {
+            const leaf = resource.categoryId ? categories.find((c) => c.id === resource.categoryId) : null;
+            if (!leaf) return <p className="text-[13px] text-text-muted">Uncategorized</p>;
+            const parent = leaf.parentId ? categories.find((c) => c.id === leaf.parentId) : null;
+            return (
+              <p className="flex flex-wrap items-center gap-1 text-[13px]">
+                {parent ? (
+                  <>
+                    <Link href={`/resources?category=${parent.id}`} className="text-text-primary hover:text-accent">
+                      {parent.name}
+                    </Link>
+                    <ChevronRight size={12} className="text-text-muted" />
+                    <Link href={`/resources?subcategory=${leaf.id}`} className="text-text-primary hover:text-accent">
+                      {leaf.name}
+                    </Link>
+                  </>
+                ) : (
+                  <Link href={`/resources?category=${leaf.id}`} className="text-text-primary hover:text-accent">
+                    {leaf.name}
+                  </Link>
+                )}
+              </p>
+            );
+          })()}
         </div>
         <div className="flex flex-col gap-1.5">
           <h3 className="text-[11.5px] font-semibold uppercase tracking-wide text-text-muted">Tags</h3>
@@ -274,6 +316,33 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
         confirmLabel="Delete"
         danger
       />
+
+      <Modal open={moveOpen} onClose={() => setMoveOpen(false)} className="max-w-md" labelledBy="move-resource-title">
+        <ModalHeader title="Move Resource" subtitle={resource.title} onClose={() => setMoveOpen(false)} />
+        <div className="flex flex-col gap-4 p-5">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[12px] font-medium text-text-secondary">Category</label>
+            <CategorySelector value={moveCategoryId} onChange={setMoveCategoryId} />
+          </div>
+          <p className="text-[12px] text-text-muted">
+            Stack, tags, note, and Useful For stay exactly as they are — only the category changes.
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+          <Button variant="ghost" onClick={() => setMoveOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              updateResource(resource.id, { categoryId: moveCategoryId });
+              toast.success("Resource moved");
+              setMoveOpen(false);
+            }}
+          >
+            Move Resource
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { categories } from "./categories";
+import type { Category } from "./types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -31,7 +31,12 @@ export function getDomain(url: string): string {
   }
 }
 
-export function categoryPath(categoryId: string | null): string {
+// Categories are dynamic and per-user now (src/lib/data/categories.ts) —
+// every helper below takes the caller's own current category list rather
+// than reading a fixed taxonomy, so they work for whatever hierarchy that
+// user actually has.
+
+export function categoryPath(categoryId: string | null, categories: Category[]): string {
   if (!categoryId) return "Uncategorized";
   const chain: string[] = [];
   let current = categories.find((c) => c.id === categoryId);
@@ -42,17 +47,26 @@ export function categoryPath(categoryId: string | null): string {
   return chain.join(" → ") || "Uncategorized";
 }
 
-export function categoryName(categoryId: string | null): string {
+export function categoryName(categoryId: string | null, categories: Category[]): string {
   if (!categoryId) return "Uncategorized";
   return categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
 }
 
-export function topLevelCategories() {
-  return categories.filter((c) => c.parentId === null);
+export function topLevelCategories(categories: Category[]) {
+  return [...categories.filter((c) => c.parentId === null)].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
+  );
 }
 
-export function childCategories(parentId: string) {
-  return categories.filter((c) => c.parentId === parentId);
+export function childCategories(categories: Category[], parentId: string) {
+  return [...categories.filter((c) => c.parentId === parentId)].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
+  );
+}
+
+/** A resource "needs review" once it's imported/created with nothing to classify it by yet. */
+export function needsReview(resource: { categoryId: string | null; useCases: string[] }): boolean {
+  return !resource.categoryId && resource.useCases.length === 0;
 }
 
 export function formatRelativeDate(iso: string): string {

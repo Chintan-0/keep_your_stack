@@ -16,6 +16,7 @@ export default function ArchivePage() {
   const hasHydrated = useStore((s) => s.hasHydrated);
   const restoreResource = useStore((s) => s.restoreResource);
   const deleteResourcePermanently = useStore((s) => s.deleteResourcePermanently);
+  const categories = useStore((s) => s.categories);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   return (
@@ -52,7 +53,7 @@ export default function ArchivePage() {
               <div className="min-w-0 flex-1">
                 <h3 className="truncate text-[13.5px] font-medium text-text-primary">{r.title}</h3>
                 <p className="truncate text-[12px] text-text-secondary">
-                  {categoryName(r.categoryId)} · archived {formatAbsoluteDate(r.updatedAt)}
+                  {categoryName(r.categoryId, categories)} · archived {formatAbsoluteDate(r.updatedAt)}
                 </p>
               </div>
               <button

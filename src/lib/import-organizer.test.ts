@@ -4,9 +4,9 @@ import type { Category, Stack } from "./types";
 import type { ParsedBookmark } from "./bookmark-import";
 
 const categories: Category[] = [
-  { id: "development", name: "Development", parentId: null },
-  { id: "dev-frontend", name: "Frontend", parentId: "development" },
-  { id: "design", name: "Design", parentId: null },
+  { id: "development", name: "Development", parentId: null, sortOrder: 0 },
+  { id: "dev-frontend", name: "Frontend", parentId: "development", sortOrder: 0 },
+  { id: "design", name: "Design", parentId: null, sortOrder: 1 },
 ];
 
 const stacks: Stack[] = [

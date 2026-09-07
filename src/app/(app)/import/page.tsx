@@ -2,16 +2,17 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileUp, Check, ArrowLeft, AlertTriangle, FolderOpen } from "lucide-react";
+import { Upload, FileUp, Check, ArrowLeft, AlertTriangle, FolderOpen, Pencil } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { parseBookmarksHtml, looksLikeBookmarkExport, type ParsedBookmark } from "@/lib/bookmark-import";
 import { groupByFolder, suggestCategoryForFolder, suggestStackForFolder } from "@/lib/import-organizer";
 import { runWithConcurrency } from "@/lib/concurrency";
 import { normalizeUrl, getDomain, cn } from "@/lib/utils";
-import { categories } from "@/lib/categories";
 import { Favicon } from "@/components/ui/favicon";
 import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
+import { Dropdown } from "@/components/ui/dropdown";
+import { TagInput } from "@/components/tag-input";
 import type { Resource } from "@/lib/types";
 import type { FetchedMetadata } from "@/lib/data/metadata";
 
@@ -25,6 +26,12 @@ interface GroupChoice {
   stackMode: "none" | "existing" | "new";
   existingStackId: string;
   newStackName: string;
+  tagNames: string[];
+}
+
+/** A bookmark's own choice, when it's been individually corrected away from its group's. */
+interface BookmarkOverride {
+  categoryId: string | null;
 }
 
 export default function ImportPage() {
@@ -32,6 +39,7 @@ export default function ImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const findByUrl = useStore((s) => s.findByUrl);
   const stacks = useStore((s) => s.stacks);
+  const categories = useStore((s) => s.categories);
   const addStack = useStore((s) => s.addStack);
   const hydrate = useStore((s) => s.hydrate);
 
@@ -41,12 +49,14 @@ export default function ImportPage() {
   const [bookmarks, setBookmarks] = useState<ParsedBookmark[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [groupChoices, setGroupChoices] = useState<Map<string, GroupChoice>>(new Map());
+  const [overrides, setOverrides] = useState<Map<string, BookmarkOverride>>(new Map());
+  const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
   const [progress, setProgress] = useState<{ phase: "saving" | "enriching"; done: number; total: number } | null>(
     null
   );
-  const [summary, setSummary] = useState({ imported: 0, duplicates: 0, failed: 0, enrichFailed: 0 });
+  const [summary, setSummary] = useState({ imported: 0, duplicates: 0, failed: 0, enrichFailed: 0, categorized: 0 });
 
   const duplicateUrls = useMemo(() => {
     const set = new Set<string>();
@@ -58,6 +68,18 @@ export default function ImportPage() {
 
   const newCount = bookmarks.length - duplicateUrls.size;
   const groups = useMemo(() => groupByFolder(bookmarks), [bookmarks]);
+
+  function effectiveCategoryId(url: string, groupKey: string): string | null {
+    const override = overrides.get(url);
+    if (override) return override.categoryId;
+    return groupChoices.get(groupKey)?.categoryId ?? null;
+  }
+
+  const suggestedCount = useMemo(
+    () => bookmarks.filter((b) => selected.has(b.url) && effectiveCategoryId(b.url, GROUP_KEY(b.folder))).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [bookmarks, selected, groupChoices, overrides]
+  );
 
   async function handleFile(file: File) {
     setFileError(null);
@@ -82,6 +104,7 @@ export default function ImportPage() {
     setFileName(file.name);
     setBookmarks(parsed);
     setSelected(new Set(parsed.filter((b) => !findByUrl(b.url)).map((b) => b.url)));
+    setOverrides(new Map());
 
     // Seed each folder group's organization choice from a real suggestion —
     // an existing category/stack it actually matches, never an invented one.
@@ -95,6 +118,7 @@ export default function ImportPage() {
         stackMode: stackSuggestion.existingStackId ? "existing" : stackSuggestion.suggestedName ? "new" : "none",
         existingStackId: stackSuggestion.existingStackId ?? "",
         newStackName: stackSuggestion.suggestedName ?? "",
+        tagNames: [],
       });
     }
     setGroupChoices(choices);
@@ -124,8 +148,30 @@ export default function ImportPage() {
   function updateGroupChoice(key: string, patch: Partial<GroupChoice>) {
     setGroupChoices((prev) => {
       const next = new Map(prev);
-      const current = next.get(key) ?? { categoryId: null, stackMode: "none", existingStackId: "", newStackName: "" };
+      const current = next.get(key) ?? {
+        categoryId: null,
+        stackMode: "none" as const,
+        existingStackId: "",
+        newStackName: "",
+        tagNames: [],
+      };
       next.set(key, { ...current, ...patch });
+      return next;
+    });
+  }
+
+  function setOverride(url: string, categoryId: string | null) {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(url, { categoryId });
+      return next;
+    });
+  }
+
+  function clearOverride(url: string) {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      next.delete(url);
       return next;
     });
   }
@@ -177,12 +223,14 @@ export default function ImportPage() {
               const key = GROUP_KEY(b.folder);
               const choice = groupChoices.get(key);
               const stackId = stackIdByGroupKey.get(key);
+              const override = overrides.get(b.url);
               return {
                 title: b.title,
                 url: b.url,
                 folder: b.folder,
-                categoryId: choice?.categoryId ?? null,
+                categoryId: override ? override.categoryId : (choice?.categoryId ?? null),
                 stackIds: stackId ? [stackId] : [],
+                tagNames: choice?.tagNames ?? [],
               };
             }),
           }),
@@ -240,7 +288,8 @@ export default function ImportPage() {
       await hydrate();
     }
 
-    setSummary({ imported: importedCount, duplicates: duplicateCount, failed: failedCount, enrichFailed });
+    const categorizedCount = created.filter((r) => r.categoryId).length;
+    setSummary({ imported: importedCount, duplicates: duplicateCount, failed: failedCount, enrichFailed, categorized: categorizedCount });
     setProgress(null);
     setStage("done");
   }
@@ -332,6 +381,12 @@ export default function ImportPage() {
             <span className="text-text-muted">·</span>
             <span className="text-accent">{selected.size} selected</span>
           </div>
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11.5px] text-text-muted">
+            <span>Organization:</span>
+            <span className="text-text-secondary">{suggestedCount} suggested</span>
+            <span>·</span>
+            <span>{Math.max(selected.size - suggestedCount, 0)} uncategorized</span>
+          </div>
 
           <div className="flex items-center justify-between">
             <p className="truncate text-[12.5px] text-text-secondary">{fileName}</p>
@@ -359,7 +414,7 @@ export default function ImportPage() {
             </div>
           </div>
 
-          <div className="flex max-h-[520px] flex-col gap-3 overflow-y-auto">
+          <div className="flex max-h-[560px] flex-col gap-3 overflow-y-auto">
             {groups.map((group) => {
               const key = GROUP_KEY(group.folder);
               const choice = groupChoices.get(key);
@@ -392,42 +447,61 @@ export default function ImportPage() {
                   </div>
 
                   {choice && (
-                    <div className="flex flex-wrap items-center gap-2 border-b border-border/60 bg-surface-2/50 px-3.5 py-2.5">
-                      <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">Apply to group:</span>
-                      <div className="w-44">
-                        <CategorySelector
-                          value={choice.categoryId}
-                          onChange={(categoryId) => updateGroupChoice(key, { categoryId })}
-                        />
+                    <div className="flex flex-col gap-2 border-b border-border/60 bg-surface-2/50 px-3.5 py-2.5">
+                      <span className="text-[11px] font-medium uppercase tracking-wide text-text-muted">
+                        Organize selected
+                      </span>
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10.5px] text-text-muted">Category / Subcategory</span>
+                          <div className="w-52">
+                            <CategorySelector
+                              value={choice.categoryId}
+                              onChange={(categoryId) => updateGroupChoice(key, { categoryId })}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10.5px] text-text-muted">Stack</span>
+                          <div className="w-44">
+                            <Dropdown
+                              size="sm"
+                              value={choice.stackMode === "existing" ? `existing:${choice.existingStackId}` : choice.stackMode}
+                              onChange={(v) => {
+                                if (v === "none") updateGroupChoice(key, { stackMode: "none" });
+                                else if (v === "new") updateGroupChoice(key, { stackMode: "new" });
+                                else updateGroupChoice(key, { stackMode: "existing", existingStackId: v.replace("existing:", "") });
+                              }}
+                              options={[
+                                { value: "none", label: "No stack" },
+                                ...stacks.map((s) => ({ value: `existing:${s.id}`, label: `${s.icon} ${s.name}` })),
+                                {
+                                  value: "new",
+                                  label: `+ Create stack${choice.newStackName ? `: ${choice.newStackName}` : ""}`,
+                                },
+                              ]}
+                            />
+                          </div>
+                        </div>
+                        {choice.stackMode === "new" && (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10.5px] text-text-muted">New stack name</span>
+                            <input
+                              value={choice.newStackName}
+                              onChange={(e) => updateGroupChoice(key, { newStackName: e.target.value })}
+                              placeholder="New stack name"
+                              className="h-8 w-36 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2 text-[12.5px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
+                            />
+                          </div>
+                        )}
+                        <div className="flex min-w-[160px] flex-1 flex-col gap-1">
+                          <span className="text-[10.5px] text-text-muted">Tags</span>
+                          <TagInput
+                            value={choice.tagNames}
+                            onChange={(tagNames) => updateGroupChoice(key, { tagNames })}
+                          />
+                        </div>
                       </div>
-                      <select
-                        value={choice.stackMode === "existing" ? `existing:${choice.existingStackId}` : choice.stackMode}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (v === "none") updateGroupChoice(key, { stackMode: "none" });
-                          else if (v === "new") updateGroupChoice(key, { stackMode: "new" });
-                          else updateGroupChoice(key, { stackMode: "existing", existingStackId: v.replace("existing:", "") });
-                        }}
-                        className="h-8 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2 text-[12.5px] text-text-primary focus:border-accent focus:outline-none"
-                      >
-                        <option value="none">No stack</option>
-                        {stacks.map((s) => (
-                          <option key={s.id} value={`existing:${s.id}`}>
-                            {s.icon} {s.name}
-                          </option>
-                        ))}
-                        <option value="new">
-                          + Create stack{choice.newStackName ? `: ${choice.newStackName}` : ""}
-                        </option>
-                      </select>
-                      {choice.stackMode === "new" && (
-                        <input
-                          value={choice.newStackName}
-                          onChange={(e) => updateGroupChoice(key, { newStackName: e.target.value })}
-                          placeholder="New stack name"
-                          className="h-8 w-36 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2 text-[12.5px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
-                        />
-                      )}
                     </div>
                   )}
 
@@ -435,31 +509,66 @@ export default function ImportPage() {
                     {group.bookmarks.map((b) => {
                       const isDup = duplicateUrls.has(b.url);
                       const isSelected = selected.has(b.url);
+                      const override = overrides.get(b.url);
+                      const isExpanded = expandedUrl === b.url;
+                      const effective = effectiveCategoryId(b.url, key);
                       return (
-                        <button
-                          key={b.url}
-                          onClick={() => toggle(b.url)}
-                          className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-left hover:bg-surface-3 cursor-pointer"
-                        >
-                          <span
-                            className={cn(
-                              "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border",
-                              isSelected ? "border-accent bg-accent text-white" : "border-border-strong text-transparent"
+                        <div key={b.url} className="rounded-[var(--radius-sm)]">
+                          <div className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 hover:bg-surface-3">
+                            <button
+                              onClick={() => toggle(b.url)}
+                              className={cn(
+                                "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border cursor-pointer",
+                                isSelected ? "border-accent bg-accent text-white" : "border-border-strong text-transparent"
+                              )}
+                            >
+                              <Check size={12} />
+                            </button>
+                            <Favicon seed={b.title} size={24} />
+                            <button
+                              onClick={() => toggle(b.url)}
+                              className="min-w-0 flex-1 text-left cursor-pointer"
+                            >
+                              <p className="truncate text-[13px] text-text-primary">{b.title}</p>
+                              <p className="truncate font-mono text-[11px] text-text-muted">{getDomain(b.url)}</p>
+                            </button>
+                            {override && (
+                              <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
+                                Overridden
+                              </span>
                             )}
-                          >
-                            <Check size={12} />
-                          </span>
-                          <Favicon seed={b.title} size={24} />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[13px] text-text-primary">{b.title}</p>
-                            <p className="truncate font-mono text-[11px] text-text-muted">{getDomain(b.url)}</p>
+                            {isDup && (
+                              <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
+                                Already saved
+                              </span>
+                            )}
+                            <button
+                              onClick={() => setExpandedUrl(isExpanded ? null : b.url)}
+                              className="shrink-0 rounded-md p-1.5 text-text-muted hover:bg-surface-hover hover:text-text-primary cursor-pointer"
+                              aria-label="Edit this bookmark's organization"
+                            >
+                              <Pencil size={13} />
+                            </button>
                           </div>
-                          {isDup && (
-                            <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
-                              Already saved
-                            </span>
+                          {isExpanded && (
+                            <div className="ml-9 flex flex-col gap-2 border-l border-border/60 pb-2 pl-3.5">
+                              <span className="text-[10.5px] font-medium uppercase tracking-wide text-text-muted">
+                                Override for this bookmark only
+                              </span>
+                              <div className="w-56">
+                                <CategorySelector value={effective} onChange={(categoryId) => setOverride(b.url, categoryId)} />
+                              </div>
+                              {override && (
+                                <button
+                                  onClick={() => clearOverride(b.url)}
+                                  className="w-fit text-[11.5px] text-text-muted hover:text-text-primary cursor-pointer"
+                                >
+                                  Use group&apos;s category instead
+                                </button>
+                              )}
+                            </div>
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -511,6 +620,11 @@ export default function ImportPage() {
           <div>
             <p className="text-[15px] font-semibold text-text-primary">Import complete</p>
             <p className="mt-1 text-[13px] text-text-secondary">{summary.imported} resources added</p>
+            {summary.imported > 0 && (
+              <p className="text-[12.5px] text-text-secondary">
+                {summary.categorized} categorized · {summary.imported - summary.categorized} need review
+              </p>
+            )}
             {summary.duplicates > 0 && (
               <p className="text-[12.5px] text-text-secondary">{summary.duplicates} duplicates skipped</p>
             )}
@@ -530,7 +644,11 @@ export default function ImportPage() {
             <Button variant="secondary" onClick={() => setStage("upload")}>
               Import Another File
             </Button>
-            <Button onClick={() => router.push("/resources")}>View Imported Resources</Button>
+            {summary.imported - summary.categorized > 0 ? (
+              <Button onClick={() => router.push("/resources?needsReview=1")}>Review Uncategorized</Button>
+            ) : (
+              <Button onClick={() => router.push("/resources")}>View Imported Resources</Button>
+            )}
           </div>
         </div>
       )}

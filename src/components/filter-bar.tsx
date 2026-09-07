@@ -1,13 +1,12 @@
 "use client";
 
-import { LayoutGrid, List, ChevronDown } from "lucide-react";
+import { LayoutGrid, List, HelpCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { topLevelCategories } from "@/lib/utils";
-import { cn } from "@/lib/utils";
-import type { Pricing } from "@/lib/types";
-import { categories } from "@/lib/categories";
+import { topLevelCategories, childCategories, needsReview as isNeedsReview, cn } from "@/lib/utils";
+import type { Category, Pricing } from "@/lib/types";
+import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
 
-function categoryMatches(categoryId: string | null, filterId: string): boolean {
+function categoryMatches(categoryId: string | null, filterId: string, categories: Category[]): boolean {
   if (!categoryId) return false;
   let current = categories.find((c) => c.id === categoryId);
   while (current) {
@@ -21,18 +20,22 @@ export type SortOption = "recent" | "updated" | "name" | "most-used" | "favorite
 
 export interface Filters {
   categoryId: string;
+  subcategoryId: string;
   stackId: string;
   tagId: string;
   pricing: string;
   sort: SortOption;
+  needsReview: boolean;
 }
 
 export const DEFAULT_FILTERS: Filters = {
   categoryId: "",
+  subcategoryId: "",
   stackId: "",
   tagId: "",
   pricing: "",
   sort: "recent",
+  needsReview: false,
 };
 
 const PRICING_OPTIONS: { value: Pricing | ""; label: string }[] = [
@@ -51,26 +54,23 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "favorites", label: "Favorites First" },
 ];
 
-function Select({
+function FilterSelect({
   value,
   onChange,
-  children,
+  options,
 }: {
   value: string;
   onChange: (v: string) => void;
-  children: React.ReactNode;
+  options: DropdownOption[];
 }) {
   return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8 appearance-none rounded-[var(--radius-sm)] border border-border bg-surface-2 py-0 pl-2.5 pr-7 text-[12.5px] text-text-secondary hover:border-border-strong focus:border-accent focus:outline-none"
-      >
-        {children}
-      </select>
-      <ChevronDown size={12} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-text-muted" />
-    </div>
+    <Dropdown
+      value={value}
+      onChange={onChange}
+      options={options}
+      size="sm"
+      className="w-auto min-w-0 border-border bg-surface-2 text-text-secondary hover:border-border-strong"
+    />
   );
 }
 
@@ -91,52 +91,78 @@ export function FilterBar({
 }) {
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
-  const categories = topLevelCategories();
+  const categories = useStore((s) => s.categories);
+  const tops = topLevelCategories(categories);
+  const subcats = filters.categoryId ? childCategories(categories, filters.categoryId) : [];
 
   function set<K extends keyof Filters>(key: K, value: Filters[K]) {
     onChange({ ...filters, [key]: value });
   }
 
+  const hasActiveFilters =
+    filters.categoryId || filters.stackId || filters.tagId || filters.pricing || filters.needsReview;
+
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
-      <Select value={filters.categoryId} onChange={(v) => set("categoryId", v)}>
-        <option value="">All categories</option>
-        {categories.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </Select>
+      <FilterSelect
+        value={filters.categoryId}
+        onChange={(v) => onChange({ ...filters, categoryId: v, subcategoryId: "" })}
+        options={[
+          { value: "", label: "All categories" },
+          ...tops.map((c) => ({ value: c.id, label: c.name })),
+        ]}
+      />
 
-      <Select value={filters.stackId} onChange={(v) => set("stackId", v)}>
-        <option value="">All stacks</option>
-        {stacks.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.icon} {s.name}
-          </option>
-        ))}
-      </Select>
-
-      {showTagFilter && (
-        <Select value={filters.tagId} onChange={(v) => set("tagId", v)}>
-          <option value="">All tags</option>
-          {tags.map((t) => (
-            <option key={t.id} value={t.id}>
-              #{t.name}
-            </option>
-          ))}
-        </Select>
+      {subcats.length > 0 && (
+        <FilterSelect
+          value={filters.subcategoryId}
+          onChange={(v) => set("subcategoryId", v)}
+          options={[
+            { value: "", label: "All subcategories" },
+            ...subcats.map((c) => ({ value: c.id, label: c.name })),
+          ]}
+        />
       )}
 
-      <Select value={filters.pricing} onChange={(v) => set("pricing", v)}>
-        {PRICING_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </Select>
+      <FilterSelect
+        value={filters.stackId}
+        onChange={(v) => set("stackId", v)}
+        options={[
+          { value: "", label: "All stacks" },
+          ...stacks.map((s) => ({ value: s.id, label: `${s.icon} ${s.name}` })),
+        ]}
+      />
 
-      {(filters.categoryId || filters.stackId || filters.tagId || filters.pricing) && (
+      {showTagFilter && (
+        <FilterSelect
+          value={filters.tagId}
+          onChange={(v) => set("tagId", v)}
+          options={[
+            { value: "", label: "All tags" },
+            ...tags.map((t) => ({ value: t.id, label: `#${t.name}` })),
+          ]}
+        />
+      )}
+
+      <FilterSelect
+        value={filters.pricing}
+        onChange={(v) => set("pricing", v)}
+        options={PRICING_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      />
+
+      <button
+        onClick={() => set("needsReview", !filters.needsReview)}
+        className={cn(
+          "flex h-8 items-center gap-1.5 rounded-[var(--radius-sm)] border px-2.5 text-[12.5px] transition-colors cursor-pointer",
+          filters.needsReview
+            ? "border-warning/40 bg-warning/10 text-warning"
+            : "border-border bg-surface-2 text-text-secondary hover:border-border-strong"
+        )}
+      >
+        <HelpCircle size={13} /> Needs Review
+      </button>
+
+      {hasActiveFilters && (
         <button
           onClick={() => onChange(DEFAULT_FILTERS)}
           className="text-[12px] text-text-muted hover:text-danger cursor-pointer"
@@ -149,13 +175,11 @@ export function FilterBar({
         {typeof resultCount === "number" && (
           <span className="font-mono text-[11.5px] text-text-muted">{resultCount} results</span>
         )}
-        <Select value={filters.sort} onChange={(v) => set("sort", v as SortOption)}>
-          {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </Select>
+        <FilterSelect
+          value={filters.sort}
+          onChange={(v) => set("sort", v as SortOption)}
+          options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+        />
         <div className="flex items-center rounded-[var(--radius-sm)] border border-border bg-surface-2 p-0.5">
           <button
             onClick={() => onViewChange("grid")}
@@ -183,15 +207,30 @@ export function FilterBar({
   );
 }
 
-export function applyFiltersAndSort<T extends { categoryId: string | null; stackIds: string[]; tagIds: string[]; pricing: string | null; title: string; createdAt: string; updatedAt: string; isFavorite: boolean; useCount: number }>(
-  items: T[],
-  filters: Filters
-): T[] {
+export function applyFiltersAndSort<
+  T extends {
+    categoryId: string | null;
+    stackIds: string[];
+    tagIds: string[];
+    pricing: string | null;
+    title: string;
+    createdAt: string;
+    updatedAt: string;
+    isFavorite: boolean;
+    useCount: number;
+    useCases: string[];
+  },
+>(items: T[], filters: Filters, categories: Category[]): T[] {
   let result = items.filter((r) => {
-    if (filters.categoryId && !categoryMatches(r.categoryId, filters.categoryId)) return false;
+    if (filters.subcategoryId) {
+      if (r.categoryId !== filters.subcategoryId) return false;
+    } else if (filters.categoryId && !categoryMatches(r.categoryId, filters.categoryId, categories)) {
+      return false;
+    }
     if (filters.stackId && !r.stackIds.includes(filters.stackId)) return false;
     if (filters.tagId && !r.tagIds.includes(filters.tagId)) return false;
     if (filters.pricing && r.pricing !== filters.pricing) return false;
+    if (filters.needsReview && !isNeedsReview(r)) return false;
     return true;
   });
 

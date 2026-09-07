@@ -2,7 +2,28 @@
 // action (see src/lib/data/demo-data.ts + the Settings/empty-dashboard
 // entry points). Never seeded automatically: a real account starts
 // with zero resources, zero stacks, zero tags.
-import type { Resource, Stack, Tag } from "./types";
+import type { Category, Resource, Stack, Tag } from "./types";
+import { categories as defaultTaxonomy } from "./categories";
+
+// Demo resources reference the default taxonomy's old slug-style ids
+// (e.g. "dev-frontend") — resolve each to whichever real category this
+// user's own "Frontend" (under "Development") row actually has. If they've
+// renamed or deleted it, the resource just gets no category rather than
+// resurrecting a category the user chose to get rid of. Pure — used by
+// src/lib/data/demo-data.ts, exported here (a dependency-free module) so
+// it's unit-testable without a database.
+export function resolveDefaultCategoryId(slug: string, userCategories: Category[]): string | null {
+  const ref = defaultTaxonomy.find((c) => c.id === slug);
+  if (!ref) return null;
+  const parentRef = ref.parentId ? defaultTaxonomy.find((c) => c.id === ref.parentId) : null;
+  const match = userCategories.find((c) => {
+    if (c.name.toLowerCase() !== ref.name.toLowerCase()) return false;
+    if (!parentRef) return c.parentId === null;
+    const parent = userCategories.find((p) => p.id === c.parentId);
+    return parent?.name.toLowerCase() === parentRef.name.toLowerCase();
+  });
+  return match?.id ?? null;
+}
 
 const daysAgo = (n: number, hourOffset = 9) => {
   const d = new Date();
