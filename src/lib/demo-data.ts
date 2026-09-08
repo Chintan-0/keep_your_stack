@@ -677,6 +677,7 @@ export function buildResources(): Resource[] {
       enrichmentStatus: "enriched",
       enrichmentAttempts: 0,
       enrichmentAttemptedAt: null,
+      needsReviewDismissed: false,
     } satisfies Resource;
   });
 }

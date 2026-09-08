@@ -71,6 +71,7 @@ export default function SearchPage() {
   const categories = useStore((s) => s.categories);
   const allResources = useStore((s) => s.resources);
   const hasHydrated = useStore((s) => s.hasHydrated);
+  const linkChecks = useStore((s) => s.linkChecks);
 
   const [results, setResults] = useState<SearchMatch[]>([]);
   const [didYouMean, setDidYouMean] = useState<string[]>([]);
@@ -175,12 +176,17 @@ export default function SearchPage() {
     return [...titles, ...tagNames].slice(0, 6);
   }, [query, allResources]);
 
+  const linkStatusById = useMemo(
+    () => new Map(Object.entries(linkChecks).map(([id, health]) => [id, health.status])),
+    [linkChecks]
+  );
+
   const filteredResults = useMemo(() => {
     const asResources = results.map((r) => r.resource);
-    const filtered = applyFiltersAndSort(asResources, filters, categories);
+    const filtered = applyFiltersAndSort(asResources, filters, categories, linkStatusById);
     const byId = new Map(results.map((r) => [r.resource.id, r]));
     return filtered.map((r) => byId.get(r.id)!).filter(Boolean);
-  }, [results, filters, categories]);
+  }, [results, filters, categories, linkStatusById]);
 
   const active = useMemo(() => allResources.filter((r) => !r.isArchived), [allResources]);
   const favorites = useMemo(() => active.filter((r) => r.isFavorite).slice(0, 4), [active]);

@@ -2,8 +2,8 @@
 
 import { create } from "zustand";
 import { toast } from "sonner";
-import type { Category, Resource, Stack, Tag } from "./types";
-import { normalizeUrl } from "./utils";
+import type { Category, LinkHealth, Resource, Stack, Tag } from "./types";
+import { normalizeUrl, getDomain } from "./utils";
 
 // Application-state layer, not the database: Supabase is the source of
 // truth (see src/lib/data + src/app/api). This store just caches what the
@@ -40,6 +40,7 @@ interface AddResourceInput {
 }
 
 interface UpdateResourcePatch {
+  url?: string;
   title?: string;
   description?: string;
   useCases?: string[];
@@ -51,6 +52,7 @@ interface UpdateResourcePatch {
   platform?: Resource["platform"];
   tagNames?: string[];
   stackIds?: string[];
+  needsReviewDismissed?: boolean;
 }
 
 interface StoreState {
@@ -102,6 +104,18 @@ interface StoreState {
   loadDemoData: () => Promise<void>;
   /** Permanently deletes every resource/stack/tag this user has — the account itself stays. */
   clearAllData: () => Promise<void>;
+
+  linkChecks: Record<string, LinkHealth>;
+  /** Re-fetches link health for every resource — call after a recheck batch, or on demand. */
+  refreshLinkChecks: () => Promise<void>;
+  /** Checks one resource's URL now (SSRF-guarded server-side) and stores the result. */
+  checkResourceLink: (id: string) => Promise<LinkHealth>;
+  /** Checks a batch (explicit ids, or a server-chosen priority batch when omitted). */
+  recheckLibrary: (resourceIds?: string[]) => Promise<{ checked: number }>;
+  /** Merges `loserId` into `keeperId` (union tags/stacks, prefer user-owned fields, preserve notes/favorite) and deletes the loser. */
+  mergeResources: (keeperId: string, loserId: string) => Promise<Resource>;
+  /** Hides a resource from Needs Review until it's next edited or its link is rechecked. */
+  dismissNeedsReview: (id: string) => void;
 }
 
 export const useStore = create<StoreState>()((set, get) => ({
@@ -109,21 +123,24 @@ export const useStore = create<StoreState>()((set, get) => ({
   stacks: [],
   tags: [],
   categories: [],
+  linkChecks: {},
   hasHydrated: false,
 
   hydrate: async () => {
     try {
-      const [resourcesRes, stacksRes, tagsRes, categoriesRes] = await Promise.all([
+      const [resourcesRes, stacksRes, tagsRes, categoriesRes, linkChecksRes] = await Promise.all([
         api<{ resources: Resource[] }>("/api/resources"),
         api<{ stacks: Stack[] }>("/api/stacks"),
         api<{ tags: Tag[] }>("/api/tags"),
         api<{ categories: Category[] }>("/api/categories"),
+        api<{ linkChecks: Record<string, LinkHealth> }>("/api/library/link-checks").catch(() => ({ linkChecks: {} })),
       ]);
       set({
         resources: resourcesRes.resources,
         stacks: stacksRes.stacks,
         tags: tagsRes.tags,
         categories: categoriesRes.categories,
+        linkChecks: linkChecksRes.linkChecks,
         hasHydrated: true,
       });
     } catch {
@@ -170,19 +187,34 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   updateResource: (id, patch) => {
     const prev = get().resources;
+    const prevLinkChecks = get().linkChecks;
+    const normalizedUrl = patch.url !== undefined ? normalizeUrl(patch.url) : undefined;
     set({
       resources: prev.map((r) =>
-        r.id === id ? { ...r, ...patch, updatedAt: new Date().toISOString() } : r
+        r.id === id
+          ? {
+              ...r,
+              ...patch,
+              ...(normalizedUrl ? { url: normalizedUrl, domain: getDomain(normalizedUrl) } : {}),
+              updatedAt: new Date().toISOString(),
+            }
+          : r
       ),
+      // A changed URL invalidates any stored link-health result for it —
+      // the server clears the row too; drop it locally so the UI doesn't
+      // keep showing a status that referred to the old address.
+      ...(patch.url !== undefined
+        ? { linkChecks: Object.fromEntries(Object.entries(get().linkChecks).filter(([rid]) => rid !== id)) }
+        : {}),
     });
 
     api<{ resource: Resource }>(`/api/resources/${id}`, { method: "PATCH", body: JSON.stringify(patch) })
       .then(() => {
         if (patch.tagNames?.length) void get().refreshTags();
       })
-      .catch(() => {
-        set({ resources: prev });
-        toast.error("Couldn't save your changes. Try again.");
+      .catch((e) => {
+        set({ resources: prev, linkChecks: prevLinkChecks });
+        toast.error(e instanceof Error ? e.message : "Couldn't save your changes. Try again.");
       });
   },
 
@@ -350,5 +382,50 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({ resources: get().resources.map((r) => (r.id === id ? resource : r)) });
     if (resource.tagIds.length) void get().refreshTags();
     return status;
+  },
+
+  refreshLinkChecks: async () => {
+    try {
+      const { linkChecks } = await api<{ linkChecks: Record<string, LinkHealth> }>("/api/library/link-checks");
+      set({ linkChecks });
+    } catch {
+      // Non-critical — the next full hydrate will pick these up.
+    }
+  },
+
+  checkResourceLink: async (id) => {
+    const { linkHealth } = await api<{ linkHealth: LinkHealth }>(`/api/resources/${id}/check-link`, { method: "POST" });
+    set({ linkChecks: { ...get().linkChecks, [id]: linkHealth } });
+    // A link that flipped healthy<->broken clears any dismissed review
+    // flag server-side — reflect that locally too, no extra round trip.
+    set({
+      resources: get().resources.map((r) => (r.id === id ? { ...r, needsReviewDismissed: false } : r)),
+    });
+    return linkHealth;
+  },
+
+  recheckLibrary: async (resourceIds) => {
+    const { checked } = await api<{ checked: number; results: Record<string, string> }>("/api/library/recheck", {
+      method: "POST",
+      body: JSON.stringify({ resourceIds }),
+    });
+    await get().refreshLinkChecks();
+    return { checked };
+  },
+
+  mergeResources: async (keeperId, loserId) => {
+    const { resource } = await api<{ resource: Resource }>("/api/library/merge", {
+      method: "POST",
+      body: JSON.stringify({ keeperId, loserId }),
+    });
+    set({
+      resources: get().resources.filter((r) => r.id !== loserId).map((r) => (r.id === keeperId ? resource : r)),
+    });
+    void get().refreshTags();
+    return resource;
+  },
+
+  dismissNeedsReview: (id) => {
+    get().updateResource(id, { needsReviewDismissed: true });
   },
 }));

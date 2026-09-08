@@ -34,6 +34,7 @@ export default function AllResourcesPage() {
   const initialTag = useState(initialTagFromLocation)[0];
   const resources = useStore((s) => s.resources);
   const categories = useStore((s) => s.categories);
+  const linkChecks = useStore((s) => s.linkChecks);
   const bulkMoveResources = useStore((s) => s.bulkMoveResources);
   const enrichResource = useStore((s) => s.enrichResource);
   const openAddResource = useUIStore((s) => s.openAddResource);
@@ -66,6 +67,10 @@ export default function AllResourcesPage() {
   const [enriching, setEnriching] = useState<{ done: number; total: number } | null>(null);
 
   const active = useMemo(() => resources.filter((r) => !r.isArchived), [resources]);
+  const linkStatusById = useMemo(
+    () => new Map(Object.entries(linkChecks).map(([id, health]) => [id, health.status])),
+    [linkChecks]
+  );
 
   const filtered = useMemo(() => {
     const base = query.trim()
@@ -78,8 +83,8 @@ export default function AllResourcesPage() {
           );
         })
       : active;
-    return applyFiltersAndSort(base, filters, categories);
-  }, [active, query, filters, categories]);
+    return applyFiltersAndSort(base, filters, categories, linkStatusById);
+  }, [active, query, filters, categories, linkStatusById]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {

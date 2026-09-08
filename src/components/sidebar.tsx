@@ -12,11 +12,12 @@ import {
   Puzzle,
   SlidersHorizontal,
   Plus,
+  Activity,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { useNow } from "@/lib/use-now";
-import { cn } from "@/lib/utils";
+import { cn, needsReview as isNeedsReview } from "@/lib/utils";
 
 const COLOR_DOT: Record<string, string> = {
   accent: "bg-accent",
@@ -68,6 +69,7 @@ export function Sidebar() {
   const resources = useStore((s) => s.resources);
   const stacks = useStore((s) => s.stacks);
   const tags = useStore((s) => s.tags);
+  const linkChecks = useStore((s) => s.linkChecks);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const now = useNow();
 
@@ -78,6 +80,7 @@ export function Sidebar() {
     const d = (now - new Date(r.createdAt).getTime()) / 86400000;
     return d <= 14;
   }).length;
+  const needsReviewCount = active.filter((r) => isNeedsReview(r, linkChecks[r.id]?.status)).length;
 
   const popularTagIds = new Map<string, number>();
   for (const r of active) {
@@ -123,6 +126,13 @@ export function Sidebar() {
         <NavLink href="/favorites" icon={Star} label="Favorites" count={favoriteCount} iconClassName="text-warning" />
         <NavLink href="/recent" icon={Clock} label="Recently Added" count={recentCount} iconClassName="text-cyan" />
         <NavLink href="/archive" icon={Archive} label="Archived" count={archivedCount} />
+        <NavLink
+          href="/library"
+          icon={Activity}
+          label="Library Health"
+          count={needsReviewCount || undefined}
+          iconClassName={needsReviewCount > 0 ? "text-warning" : undefined}
+        />
       </div>
 
       <div className="flex flex-col gap-0.5">

@@ -210,6 +210,7 @@ export function FilterBar({
 
 export function applyFiltersAndSort<
   T extends {
+    id: string;
     categoryId: string | null;
     stackIds: string[];
     tagIds: string[];
@@ -220,8 +221,9 @@ export function applyFiltersAndSort<
     isFavorite: boolean;
     useCount: number;
     useCases: string[];
+    needsReviewDismissed: boolean;
   },
->(items: T[], filters: Filters, categories: Category[]): T[] {
+>(items: T[], filters: Filters, categories: Category[], linkStatusById?: Map<string, string>): T[] {
   let result = items.filter((r) => {
     if (filters.subcategoryId) {
       if (r.categoryId !== filters.subcategoryId) return false;
@@ -231,7 +233,10 @@ export function applyFiltersAndSort<
     if (filters.stackId && !r.stackIds.includes(filters.stackId)) return false;
     if (filters.tagId && !r.tagIds.includes(filters.tagId)) return false;
     if (filters.pricing && r.pricing !== filters.pricing) return false;
-    if (filters.needsReview && !isNeedsReview(r)) return false;
+    if (filters.needsReview) {
+      const linkStatus = linkStatusById?.get(r.id) as Parameters<typeof isNeedsReview>[1];
+      if (!isNeedsReview(r, linkStatus)) return false;
+    }
     return true;
   });
 

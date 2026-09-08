@@ -89,6 +89,7 @@ export interface Database {
           enrichment_status: string;
           enrichment_attempts: number;
           enrichment_attempted_at: string | null;
+          needs_review_dismissed: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -139,6 +140,33 @@ export interface Database {
             columns: ["stack_id"];
             isOneToOne: false;
             referencedRelation: "stacks";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      resource_link_checks: {
+        Row: {
+          resource_id: string;
+          user_id: string;
+          status: string;
+          http_status: number | null;
+          final_url: string | null;
+          redirect_count: number;
+          error: string | null;
+          consecutive_failures: number;
+          checked_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["resource_link_checks"]["Row"]> & {
+          resource_id: string;
+          user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["resource_link_checks"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "resource_link_checks_resource_id_fkey";
+            columns: ["resource_id"];
+            isOneToOne: true;
+            referencedRelation: "resources";
             referencedColumns: ["id"];
           },
         ];

@@ -19,8 +19,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 // useCases edits to "user" whenever a caller doesn't specify otherwise,
 // which is exactly right for this route (a human editing their resource).
 const EDITABLE_FIELDS = [
-  "title", "description", "useCases", "categoryId", "notes",
+  "url", "title", "description", "useCases", "categoryId", "notes",
   "isFavorite", "isArchived", "pricing", "platform", "tagNames", "stackIds",
+  "needsReviewDismissed",
 ] as const;
 
 function sanitizePatch(body: Record<string, unknown>): ResourcePatch {

@@ -22,6 +22,7 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
   const deleteStack = useStore((s) => s.deleteStack);
   const tags = useStore((s) => s.tags);
   const categories = useStore((s) => s.categories);
+  const linkChecks = useStore((s) => s.linkChecks);
 
   const [manageOpen, setManageOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -34,12 +35,17 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
     [allResources, id]
   );
 
+  const linkStatusById = useMemo(
+    () => new Map(Object.entries(linkChecks).map(([id, health]) => [id, health.status])),
+    [linkChecks]
+  );
+
   const filtered = useMemo(() => {
     const base = query.trim()
       ? stackResources.filter((r) => r.title.toLowerCase().includes(query.toLowerCase()))
       : stackResources;
-    return applyFiltersAndSort(base, filters, categories);
-  }, [stackResources, query, filters, categories]);
+    return applyFiltersAndSort(base, filters, categories, linkStatusById);
+  }, [stackResources, query, filters, categories, linkStatusById]);
 
   const favorites = stackResources.filter((r) => r.isFavorite);
   const mostUsed = [...stackResources].sort((a, b) => b.useCount - a.useCount).slice(0, 1)[0];

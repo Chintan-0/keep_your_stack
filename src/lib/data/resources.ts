@@ -181,6 +181,8 @@ export async function createResource(
 }
 
 export interface ResourcePatch {
+  /** Manual URL correction — e.g. accepting a detected redirect's destination. Never applied automatically. */
+  url?: string;
   title?: string;
   description?: string;
   useCases?: string[];
@@ -198,6 +200,8 @@ export interface ResourcePatch {
   enrichmentStatus?: Resource["enrichmentStatus"];
   enrichmentAttempts?: number;
   enrichmentAttemptedAt?: string;
+  /** Explicit "dismiss from Needs Review" / "un-dismiss" — any OTHER edit already clears a dismissal automatically (see below). */
+  needsReviewDismissed?: boolean;
 }
 
 export async function updateResource(
@@ -221,6 +225,20 @@ export async function updateResource(
   }
 
   const dbPatch: Database["public"]["Tables"]["resources"]["Update"] = {};
+  if (patch.url !== undefined) {
+    const normalized = normalizeUrl(patch.url);
+    if (!normalized) throw new Error("Invalid URL");
+    // Same uniqueness rule as creating a resource — never silently merge
+    // into an existing one; the user can use Merge in the Duplicate Center
+    // for that instead.
+    const existing = await findResourceByUrl(client, userId, normalized);
+    if (existing && existing.id !== id) {
+      throw new Error("You already have a resource saved at that URL.");
+    }
+    dbPatch.url = normalized;
+    dbPatch.normalized_url = normalized;
+    dbPatch.domain = getDomain(normalized);
+  }
   if (patch.title !== undefined) dbPatch.title = patch.title;
   if (patch.description !== undefined) {
     dbPatch.description = patch.description;
@@ -242,9 +260,35 @@ export async function updateResource(
   if (patch.enrichmentAttempts !== undefined) dbPatch.enrichment_attempts = patch.enrichmentAttempts;
   if (patch.enrichmentAttemptedAt !== undefined) dbPatch.enrichment_attempted_at = patch.enrichmentAttemptedAt;
 
+  if (patch.needsReviewDismissed !== undefined) {
+    dbPatch.needs_review_dismissed = patch.needsReviewDismissed;
+  } else if (
+    // Any other real edit is a natural point to re-surface a previously
+    // dismissed review item — the thing the user dismissed may no longer
+    // even be true. Bookkeeping-only patches (enrichment status/attempts)
+    // don't count as "the user did something", so they're excluded.
+    patch.url !== undefined ||
+    patch.title !== undefined ||
+    patch.description !== undefined ||
+    patch.useCases !== undefined ||
+    patch.categoryId !== undefined ||
+    patch.notes !== undefined ||
+    patch.tagNames !== undefined ||
+    patch.stackIds !== undefined
+  ) {
+    dbPatch.needs_review_dismissed = false;
+  }
+
   if (Object.keys(dbPatch).length > 0) {
     const { error } = await client.from("resources").update(dbPatch).eq("id", id).eq("user_id", userId);
     if (error) throw new Error(error.message);
+  }
+
+  if (patch.url !== undefined) {
+    // The URL changed, so any stored link-health result now refers to a
+    // stale address — clear it rather than keep showing (say) "healthy"
+    // for a URL that was never actually checked.
+    await client.from("resource_link_checks").delete().eq("resource_id", id).eq("user_id", userId);
   }
 
   if (patch.tagNames !== undefined) {

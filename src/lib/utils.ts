@@ -64,9 +64,22 @@ export function childCategories(categories: Category[], parentId: string) {
   );
 }
 
-/** A resource "needs review" once it's imported/created with nothing to classify it by yet. */
-export function needsReview(resource: { categoryId: string | null; useCases: string[] }): boolean {
-  return !resource.categoryId && resource.useCases.length === 0;
+/**
+ * A resource needs review once it's imported/created with nothing to
+ * classify it by yet — unless the user explicitly dismissed that (which
+ * itself gets cleared the moment anything about the resource actually
+ * changes; see updateResource's needs_review_dismissed handling). Link
+ * health lives in a separate map (not on Resource), so callers that also
+ * want "broken/blocked link" folded into the same queue pass it in.
+ */
+export function needsReview(
+  resource: { categoryId: string | null; useCases: string[]; needsReviewDismissed: boolean },
+  linkStatus?: "healthy" | "redirected" | "unavailable" | "timeout" | "blocked" | "unknown"
+): boolean {
+  if (resource.needsReviewDismissed) return false;
+  const missingMetadata = !resource.categoryId && resource.useCases.length === 0;
+  const linkIssue = linkStatus === "unavailable" || linkStatus === "blocked";
+  return missingMetadata || linkIssue;
 }
 
 export function formatRelativeDate(iso: string): string {

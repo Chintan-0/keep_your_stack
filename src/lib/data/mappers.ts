@@ -33,6 +33,7 @@ export function mapResourceRow(row: ResourceRow): Resource {
     enrichmentStatus: (row.enrichment_status as Resource["enrichmentStatus"]) ?? "pending",
     enrichmentAttempts: row.enrichment_attempts ?? 0,
     enrichmentAttemptedAt: row.enrichment_attempted_at,
+    needsReviewDismissed: row.needs_review_dismissed ?? false,
   };
 }
 

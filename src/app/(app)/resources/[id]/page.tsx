@@ -17,6 +17,10 @@ import {
   FolderInput,
   Sparkles,
   Loader2,
+  Link2,
+  AlertTriangle,
+  EyeOff,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
@@ -28,7 +32,7 @@ import { Modal, ModalHeader } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
 import { ResourceCard } from "@/components/resource-card";
-import { formatAbsoluteDate, PRICING_LABELS, PLATFORM_LABELS, cn } from "@/lib/utils";
+import { formatAbsoluteDate, formatRelativeDate, PRICING_LABELS, PLATFORM_LABELS, cn } from "@/lib/utils";
 import { tokenizeQuery } from "@/lib/search-highlight";
 
 export default function ResourceDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -45,14 +49,19 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const updateResource = useStore((s) => s.updateResource);
   const enrichResource = useStore((s) => s.enrichResource);
   const openEditResource = useUIStore((s) => s.openEditResource);
+  const linkChecks = useStore((s) => s.linkChecks);
+  const checkResourceLink = useStore((s) => s.checkResourceLink);
+  const dismissNeedsReview = useStore((s) => s.dismissNeedsReview);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveCategoryId, setMoveCategoryId] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [checkingLink, setCheckingLink] = useState(false);
 
   const resource = resources.find((r) => r.id === id);
+  const linkHealth = resource ? linkChecks[resource.id] : undefined;
 
   const related = useMemo(() => {
     if (!resource) return [];
@@ -213,6 +222,97 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
           {resource.platform?.map((p) => <Tag key={p}>{PLATFORM_LABELS[p]}</Tag>)}
         </div>
       </div>
+
+      {/* Link health */}
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+        <div className="flex items-center gap-2.5">
+          {!linkHealth || linkHealth.status === "unknown" || !linkHealth.checkedAt ? (
+            <>
+              <Link2 size={15} className="text-text-muted" />
+              <p className="text-[13px] text-text-secondary">
+                Link not checked yet.
+              </p>
+            </>
+          ) : linkHealth.status === "healthy" ? (
+            <>
+              <CheckCircle2 size={15} className="text-success" />
+              <p className="text-[13px] text-text-secondary">
+                Link healthy · Checked {formatRelativeDate(linkHealth.checkedAt)}
+              </p>
+            </>
+          ) : linkHealth.status === "redirected" ? (
+            <>
+              <AlertTriangle size={15} className="text-warning" />
+              <p className="text-[13px] text-text-secondary">
+                Redirects to{" "}
+                <span className="text-text-primary">{linkHealth.finalUrl ?? "a different address"}</span> · Checked{" "}
+                {formatRelativeDate(linkHealth.checkedAt)}
+              </p>
+            </>
+          ) : linkHealth.status === "unavailable" ? (
+            <>
+              <AlertTriangle size={15} className="text-danger" />
+              <p className="text-[13px] text-text-secondary">
+                Link unavailable · Checked {formatRelativeDate(linkHealth.checkedAt)}
+              </p>
+            </>
+          ) : linkHealth.status === "blocked" ? (
+            <>
+              <AlertTriangle size={15} className="text-warning" />
+              <p className="text-[13px] text-text-secondary">
+                Site blocked our check (may still work in your browser) · Checked{" "}
+                {formatRelativeDate(linkHealth.checkedAt)}
+              </p>
+            </>
+          ) : (
+            <>
+              <Link2 size={15} className="text-text-muted" />
+              <p className="text-[13px] text-text-secondary">
+                Couldn&apos;t confirm link status · Checked {formatRelativeDate(linkHealth.checkedAt)}
+              </p>
+            </>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {linkHealth?.status === "redirected" && linkHealth.finalUrl && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                updateResource(resource.id, { url: linkHealth.finalUrl! });
+                toast.success("URL updated");
+              }}
+            >
+              Update URL
+            </Button>
+          )}
+          {(linkHealth?.status === "unavailable" || linkHealth?.status === "blocked") &&
+            !resource.needsReviewDismissed && (
+              <Button variant="ghost" size="sm" onClick={() => dismissNeedsReview(resource.id)}>
+                <EyeOff size={13} /> Ignore
+              </Button>
+            )}
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={checkingLink}
+            onClick={async () => {
+              setCheckingLink(true);
+              try {
+                await checkResourceLink(resource.id);
+                toast.success("Link checked");
+              } catch {
+                toast.error("Couldn't check this link. Try again.");
+              } finally {
+                setCheckingLink(false);
+              }
+            }}
+          >
+            {checkingLink ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {linkHealth?.checkedAt ? "Recheck" : "Check now"}
+          </Button>
+        </div>
+      </section>
 
       {/* Enrichment status */}
       {(resource.enrichmentStatus === "pending" ||

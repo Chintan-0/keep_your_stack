@@ -51,6 +51,20 @@ export interface Resource {
   enrichmentStatus: "pending" | "enriched" | "partial" | "failed" | "user_completed";
   enrichmentAttempts: number;
   enrichmentAttemptedAt: string | null;
+  /** User dismissed this from the Needs Review queue — cleared automatically on any real edit or link recheck. */
+  needsReviewDismissed: boolean;
+}
+
+export type LinkStatus = "healthy" | "redirected" | "unavailable" | "timeout" | "blocked" | "unknown";
+
+export interface LinkHealth {
+  status: LinkStatus;
+  httpStatus: number | null;
+  finalUrl: string | null;
+  redirectCount: number;
+  error: string | null;
+  consecutiveFailures: number;
+  checkedAt: string | null;
 }
 
 export interface SearchMatch {
