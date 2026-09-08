@@ -150,17 +150,23 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
         },
         { force }
       );
-      if (duplicate) {
+      if (duplicate && !force) {
         setDuplicateOf(resource);
         setStage("duplicate");
         return;
       }
-      toast.success(`Saved ${resource.title} to your stack`, {
-        action: {
-          label: "View",
-          onClick: () => router.push(`/resources/${resource.id}`),
-        },
-      });
+      // A forced save on a URL that already existed never creates a second
+      // resource (see createResource's own doc comment) — whatever was
+      // just entered was merged into the existing one instead, additively.
+      toast.success(
+        duplicate ? `Added your details to the existing ${resource.title}` : `Saved ${resource.title} to your stack`,
+        {
+          action: {
+            label: "View",
+            onClick: () => router.push(`/resources/${resource.id}`),
+          },
+        }
+      );
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save your resource. Try again.");

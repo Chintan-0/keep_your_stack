@@ -71,4 +71,10 @@ describe("isSupportedUrl", () => {
   it("rejects malformed URLs without throwing", () => {
     expect(isSupportedUrl("not a url")).toBe(false);
   });
+
+  it("rejects dangerous schemes a malicious link or context-menu target could carry", () => {
+    expect(isSupportedUrl("javascript:alert(1)")).toBe(false);
+    expect(isSupportedUrl("data:text/html,<script>alert(1)</script>")).toBe(false);
+    expect(isSupportedUrl("vbscript:msgbox(1)")).toBe(false);
+  });
 });

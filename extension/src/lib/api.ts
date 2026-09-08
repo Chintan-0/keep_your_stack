@@ -1,5 +1,5 @@
 import { getSession, getSettings, setSession } from "./storage";
-import type { ExtStack, SaveInput, SaveResult } from "./types";
+import type { ExtCategory, ExtStack, SaveInput, SaveResult } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -95,6 +95,13 @@ export async function listStacks(): Promise<ExtStack[]> {
   return data.stacks ?? [];
 }
 
+export async function listCategories(): Promise<ExtCategory[]> {
+  const res = await authedFetch("/api/categories");
+  if (!res.ok) throw new ApiError("Couldn't load your categories.", res.status);
+  const data = await res.json();
+  return data.categories ?? [];
+}
+
 export async function saveResource(input: SaveInput): Promise<SaveResult> {
   const res = await authedFetch("/api/resources", {
     method: "POST",
@@ -105,6 +112,21 @@ export async function saveResource(input: SaveInput): Promise<SaveResult> {
     throw new ApiError(body?.error || "Couldn't save this page.", res.status);
   }
   return res.json();
+}
+
+/** Un-archives a resource — used by the "Already saved in Archive" duplicate view's Restore action. */
+export async function restoreResource(resourceId: string): Promise<void> {
+  const res = await authedFetch(`/api/resources/${resourceId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ isArchived: false }),
+  });
+  if (!res.ok) throw new ApiError("Couldn't restore this resource.", res.status);
+}
+
+/** Reverses a just-made save — the success view's optional Undo. Never used for anything but a resource this popup session itself just created. */
+export async function deleteResource(resourceId: string): Promise<void> {
+  const res = await authedFetch(`/api/resources/${resourceId}`, { method: "DELETE" });
+  if (!res.ok) throw new ApiError("Couldn't undo this save.", res.status);
 }
 
 /**

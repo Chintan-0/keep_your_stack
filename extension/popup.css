@@ -266,3 +266,47 @@ textarea {
 .actions .btn {
   flex: 1;
 }
+
+.recent-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.recent-item {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 2px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: var(--radius-sm);
+}
+.recent-item:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+.recent-item .recent-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.recent-item .recent-time {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-size: 11px;
+}

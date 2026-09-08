@@ -123,6 +123,29 @@ export default function ExtensionPage() {
         <p className="text-[12px] text-text-muted">Full steps: extension/README.md.</p>
       </section>
 
+      {/* Ways to save */}
+      <section className="flex flex-col gap-2.5">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">Ways to save</h2>
+        <ul className="grid grid-cols-1 gap-1.5 text-[13.5px] text-text-primary sm:grid-cols-2">
+          <li>• Click the toolbar icon → Save</li>
+          <li>• Right-click a page → Save to KeepYourStack</li>
+          <li>• Right-click a link → Save link to KeepYourStack</li>
+          <li>
+            •{" "}
+            <kbd className="rounded border border-border bg-surface-3 px-1 py-0.5 font-mono text-[11px]">
+              Ctrl/Cmd+Shift+K
+            </kbd>{" "}
+            keyboard shortcut
+          </li>
+        </ul>
+        <p className="text-[12.5px] text-text-secondary">
+          A context-menu or shortcut save shows a quiet Chrome notification instead of the popup (toggle it off in
+          the extension&apos;s Options if you&apos;d rather stay silent). Chrome may already use that shortcut for
+          something else — check <code className="font-mono text-[11.5px] text-accent">chrome://extensions/shortcuts</code> if
+          it doesn&apos;t fire.
+        </p>
+      </section>
+
       {/* What it captures */}
       <section className="flex flex-col gap-2.5">
         <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">What it captures</h2>
@@ -132,12 +155,15 @@ export default function ExtensionPage() {
           <li>• Favicon</li>
           <li>• Optional Useful For</li>
           <li>• Optional Stack</li>
+          <li>• Optional Category</li>
           <li>• Optional Tags</li>
           <li>• Optional Note</li>
         </ul>
         <p className="text-[12.5px] text-text-secondary">
           It won&apos;t run in the background, sync automatically, or read your existing bookmarks — it only saves
-          the one page you click it on.
+          the one page (or link) you tell it to. A description, tags, and Useful For are found automatically after
+          the save, the same way importing or adding a resource in the web app already works — that never blocks the
+          save itself.
         </p>
       </section>
 

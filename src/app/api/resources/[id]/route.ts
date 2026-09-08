@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { getResource, updateResource, deleteResource, type ResourcePatch } from "@/lib/data/resources";
+import { corsPreflight, withCors } from "@/lib/cors";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user, unauthorized } = await requireUser(request);
-  if (unauthorized) return unauthorized;
+  if (unauthorized) return withCors(request, unauthorized);
 
   const resource = await getResource(supabase, user.id, id);
-  if (!resource) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json({ resource });
+  if (!resource) return withCors(request, NextResponse.json({ error: "Not found" }, { status: 404 }));
+  return withCors(request, NextResponse.json({ resource }));
 }
 
 // Fields a client is actually allowed to set. Deliberately excludes
@@ -35,28 +36,38 @@ function sanitizePatch(body: Record<string, unknown>): ResourcePatch {
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user, unauthorized } = await requireUser(request);
-  if (unauthorized) return unauthorized;
+  if (unauthorized) return withCors(request, unauthorized);
 
   const body = await request.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  if (!body) return withCors(request, NextResponse.json({ error: "Invalid request body" }, { status: 400 }));
 
   try {
     const resource = await updateResource(supabase, user.id, id, sanitizePatch(body));
-    return NextResponse.json({ resource });
+    return withCors(request, NextResponse.json({ resource }));
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't save your changes. Try again." }, { status: 500 });
+    return withCors(
+      request,
+      NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't save your changes. Try again." }, { status: 500 })
+    );
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { supabase, user, unauthorized } = await requireUser(request);
-  if (unauthorized) return unauthorized;
+  if (unauthorized) return withCors(request, unauthorized);
 
   try {
     await deleteResource(supabase, user.id, id);
-    return NextResponse.json({ ok: true });
+    return withCors(request, NextResponse.json({ ok: true }));
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't delete this resource." }, { status: 500 });
+    return withCors(
+      request,
+      NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't delete this resource." }, { status: 500 })
+    );
   }
+}
+
+export function OPTIONS(request: NextRequest) {
+  return corsPreflight(request);
 }

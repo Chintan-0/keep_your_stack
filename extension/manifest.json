@@ -27,6 +27,15 @@
     "storage",
     "notifications"
   ],
+  "commands": {
+    "quick-save": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Save the current page to KeepYourStack"
+    }
+  },
   "host_permissions": [
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*"

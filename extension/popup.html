@@ -53,7 +53,7 @@
 
     <!-- Already saved -->
     <section id="view-duplicate" class="view" hidden>
-      <p class="section-label">Already saved</p>
+      <p id="dupLabel" class="section-label">Already saved</p>
       <div class="page-card">
         <img id="dupFavicon" class="favicon" alt="" />
         <div class="page-meta">
@@ -61,10 +61,14 @@
           <p id="dupMeta" class="page-url"></p>
         </div>
       </div>
+      <p id="dupOrg" class="muted"></p>
       <div class="actions">
         <button id="openResourceBtn" class="btn btn-primary">Open Resource</button>
-        <button id="editInAppBtn" class="btn btn-secondary">Edit in KeepYourStack</button>
+        <button id="restoreResourceBtn" class="btn btn-secondary" hidden>Restore</button>
       </div>
+      <button id="saveAnywayBtn" class="disclosure" type="button">
+        Add these details to it anyway
+      </button>
     </section>
 
     <!-- New resource save form -->
@@ -94,16 +98,27 @@
           </select>
         </label>
         <label class="field">
+          <span class="field-label">Category</span>
+          <select id="categorySelect">
+            <option value="">Uncategorized</option>
+          </select>
+        </label>
+        <label class="field">
           <span class="field-label">Tags</span>
           <input id="tagsInput" type="text" placeholder="react, api (comma separated)" />
         </label>
         <label class="field">
           <span class="field-label">Note</span>
-          <textarea id="noteInput" rows="2" placeholder="Personal note"></textarea>
+          <textarea id="noteInput" rows="2" placeholder="Why are you saving this? (optional)"></textarea>
         </label>
       </div>
 
       <button id="saveBtn" class="btn btn-primary btn-block">Save to KeepYourStack</button>
+
+      <div id="recentSection" class="recent-section" hidden>
+        <p class="section-label">Recently saved</p>
+        <ul id="recentList" class="recent-list"></ul>
+      </div>
     </section>
 
     <!-- Saving -->
@@ -121,6 +136,7 @@
           <button id="openSavedBtn" class="btn btn-primary">Open Resource</button>
           <button id="saveAnotherBtn" class="btn btn-secondary">Save another</button>
         </div>
+        <button id="undoSaveBtn" class="disclosure" type="button">Undo</button>
       </div>
     </section>
 

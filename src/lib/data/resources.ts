@@ -80,6 +80,59 @@ export async function findResourceByUrl(client: Client, userId: string, url: str
   return data ? mapResourceRow(data) : null;
 }
 
+/**
+ * The additive half of `force` — see createResource's own doc comment.
+ * Deliberately mirrors library-health.ts's mergeResources() rules (fill
+ * gaps, union tags/stacks, append rather than replace notes) since it's
+ * the same underlying question: "I have new information about a resource
+ * I already saved — combine it in without losing what's already there."
+ */
+async function mergeInputIntoExisting(
+  client: Client,
+  userId: string,
+  existing: Resource,
+  input: ResourceInput
+): Promise<Resource> {
+  const patch: ResourcePatch = {};
+
+  if (!existing.description && input.description?.trim()) {
+    patch.description = input.description.trim();
+  }
+  const newUseCases = input.useCases?.filter(Boolean) ?? [];
+  if (existing.useCases.length === 0 && newUseCases.length > 0) {
+    patch.useCases = newUseCases;
+  }
+  if (!existing.categoryId && input.categoryId) {
+    patch.categoryId = input.categoryId;
+  }
+  const trimmedNotes = input.notes?.trim();
+  if (trimmedNotes && trimmedNotes !== existing.notes) {
+    patch.notes = existing.notes ? `${existing.notes}\n\n${trimmedNotes}` : trimmedNotes;
+  }
+
+  const newTagNames = input.tagNames?.filter(Boolean) ?? [];
+  if (newTagNames.length > 0) {
+    let existingNames: string[] = [];
+    if (existing.tagIds.length > 0) {
+      const { data: tagRows, error: tagErr } = await client
+        .from("tags")
+        .select("name")
+        .eq("user_id", userId)
+        .in("id", existing.tagIds);
+      if (tagErr) throw new Error(tagErr.message);
+      existingNames = (tagRows ?? []).map((t) => t.name);
+    }
+    patch.tagNames = Array.from(new Set([...existingNames, ...newTagNames]));
+  }
+
+  if (input.stackIds?.length) {
+    patch.stackIds = Array.from(new Set([...existing.stackIds, ...input.stackIds]));
+  }
+
+  if (Object.keys(patch).length === 0) return existing;
+  return updateResource(client, userId, existing.id, patch);
+}
+
 async function linkTagsAndStacks(
   client: Client,
   userId: string,
@@ -106,6 +159,15 @@ async function linkTagsAndStacks(
  * Creates a resource, or returns the existing one if this user already
  * saved the same normalized URL — this is the server-side half of
  * duplicate detection; a client can't bypass it by skipping a check.
+ *
+ * `force` does NOT create a second row for the same URL — the
+ * (user_id, normalized_url) unique index makes that structurally
+ * impossible by design (see Phase 9: exact duplicates can't exist for one
+ * user). What it means instead is "apply whatever I just entered onto the
+ * resource I already have" — additively (fills in what's missing, unions
+ * tags/stacks, appends a differing note), never overwriting or discarding
+ * existing data. `duplicate` is still true either way; the caller decides
+ * what to tell the user.
  */
 export async function createResource(
   client: Client,
@@ -116,9 +178,11 @@ export async function createResource(
   const normalized = normalizeUrl(input.url);
   if (!normalized) throw new Error("Invalid URL");
 
-  if (!opts.force) {
-    const existing = await findResourceByUrl(client, userId, input.url);
-    if (existing) return { resource: existing, duplicate: true };
+  const existing = await findResourceByUrl(client, userId, input.url);
+  if (existing) {
+    if (!opts.force) return { resource: existing, duplicate: true };
+    const merged = await mergeInputIntoExisting(client, userId, existing, input);
+    return { resource: merged, duplicate: true };
   }
 
   if (input.categoryId) {

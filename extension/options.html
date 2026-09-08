@@ -24,9 +24,35 @@
       </label>
       <p class="muted">Only origins listed in the extension's host permissions will work — see extension/README.md.</p>
 
+      <label class="field">
+        <span class="field-label">Default stack</span>
+        <select id="defaultStackSelect">
+          <option value="">No stack</option>
+        </select>
+      </label>
+      <label class="field">
+        <span class="field-label">Default category</span>
+        <select id="defaultCategorySelect">
+          <option value="">Uncategorized</option>
+        </select>
+      </label>
+      <p class="muted">Used for quick saves (context menu, keyboard shortcut) and pre-selected in the popup — never applied without you seeing it first.</p>
+
       <label class="field" style="flex-direction: row; align-items: center; gap: 8px">
         <input id="openInNewTab" type="checkbox" style="width: auto" />
         <span class="field-label" style="margin: 0">Open saved resources in a new tab</span>
+      </label>
+      <label class="field" style="flex-direction: row; align-items: center; gap: 8px">
+        <input id="closeAfterSave" type="checkbox" style="width: auto" />
+        <span class="field-label" style="margin: 0">Close the popup automatically after saving</span>
+      </label>
+      <label class="field" style="flex-direction: row; align-items: center; gap: 8px">
+        <input id="autoEnrich" type="checkbox" style="width: auto" />
+        <span class="field-label" style="margin: 0">Automatically find a description, tags, and Useful For after saving</span>
+      </label>
+      <label class="field" style="flex-direction: row; align-items: center; gap: 8px">
+        <input id="showSaveNotification" type="checkbox" style="width: auto" />
+        <span class="field-label" style="margin: 0">Show a notification when a context-menu or keyboard-shortcut save succeeds</span>
       </label>
 
       <div class="actions">

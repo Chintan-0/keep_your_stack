@@ -1,12 +1,18 @@
-import type { Settings, StoredSession } from "./types";
+import type { RecentSave, Settings, StoredSession } from "./types";
 
 const SESSION_KEY = "kys_session";
 const SETTINGS_KEY = "kys_settings";
+const RECENT_SAVES_KEY = "kys_recent_saves";
+const MAX_RECENT_SAVES = 8;
 
 const DEFAULT_SETTINGS: Settings = {
   appUrl: "http://localhost:3000",
   defaultStackId: null,
+  defaultCategoryId: null,
   openInNewTab: true,
+  closeAfterSave: false,
+  autoEnrich: true,
+  showSaveNotification: true,
 };
 
 export async function getSession(): Promise<StoredSession | null> {
@@ -42,4 +48,27 @@ export async function hasEverConnected(): Promise<boolean> {
 
 export async function markEverConnected(): Promise<void> {
   await chrome.storage.local.set({ kys_ever_connected: true });
+}
+
+/**
+ * A small local capture history for the popup's "Recently Saved" list —
+ * never the authoritative record (the backend/web app is), never a second
+ * bookmark manager. Shared across every capture path (popup save, context
+ * menu, keyboard shortcut) so it reflects however the user actually saved.
+ */
+export async function getRecentSaves(): Promise<RecentSave[]> {
+  const { [RECENT_SAVES_KEY]: saves } = await chrome.storage.local.get(RECENT_SAVES_KEY);
+  return Array.isArray(saves) ? (saves as RecentSave[]) : [];
+}
+
+export async function addRecentSave(entry: RecentSave): Promise<void> {
+  const current = await getRecentSaves();
+  const next = [entry, ...current.filter((s) => s.id !== entry.id)].slice(0, MAX_RECENT_SAVES);
+  await chrome.storage.local.set({ [RECENT_SAVES_KEY]: next });
+}
+
+/** Used by Undo — the resource no longer exists, so drop it from the local list too. */
+export async function removeRecentSave(id: string): Promise<void> {
+  const current = await getRecentSaves();
+  await chrome.storage.local.set({ [RECENT_SAVES_KEY]: current.filter((s) => s.id !== id) });
 }
