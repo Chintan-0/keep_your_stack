@@ -29,6 +29,17 @@ export interface ResourceInput {
   importFolder?: string | null;
 }
 
+/**
+ * Whoever supplies a non-empty description/useCases through the normal
+ * create/edit path had the chance to review or type it themselves, so it
+ * defaults to "user" — authoritative, never overwritten by later
+ * enrichment. Only src/lib/data/enrichment.ts explicitly marks a value as
+ * "system" (still overwritable next time, until the user touches it).
+ */
+function defaultSource(hasValue: boolean): "user" | null {
+  return hasValue ? "user" : null;
+}
+
 // Returns both active and archived resources — the UI keeps them in one
 // array and filters client-side (same shape as the local-only build), so
 // there's exactly one place ("is this archived?") that decides visibility.
@@ -142,6 +153,14 @@ export async function createResource(
       is_archived: input.isArchived ?? false,
       import_source: input.importSource ?? null,
       import_folder: input.importFolder ?? null,
+      description_source: defaultSource(!!input.description?.trim()),
+      useful_for_source: defaultSource(!!input.useCases?.filter(Boolean).length),
+      // Nothing to enrich yet if it was already saved with a real
+      // description/useful-for (e.g. the web Add Resource flow, which
+      // fetches metadata before the user ever hits Save) — otherwise it's
+      // a fast title+URL save (import, or the extension) waiting on the
+      // Phase B enrichment pass.
+      enrichment_status: input.description?.trim() || input.useCases?.filter(Boolean).length ? "enriched" : "pending",
     })
     .select(RESOURCE_SELECT)
     .single();
@@ -173,6 +192,12 @@ export interface ResourcePatch {
   platform?: Resource["platform"];
   tagNames?: string[];
   stackIds?: string[];
+  /** Internal — set explicitly only by src/lib/data/enrichment.ts. Any other caller (the UI) editing description/useCases is always "user". */
+  descriptionSource?: "system" | "user";
+  usefulForSource?: "system" | "user";
+  enrichmentStatus?: Resource["enrichmentStatus"];
+  enrichmentAttempts?: number;
+  enrichmentAttemptedAt?: string;
 }
 
 export async function updateResource(
@@ -197,14 +222,25 @@ export async function updateResource(
 
   const dbPatch: Database["public"]["Tables"]["resources"]["Update"] = {};
   if (patch.title !== undefined) dbPatch.title = patch.title;
-  if (patch.description !== undefined) dbPatch.description = patch.description;
-  if (patch.useCases !== undefined) dbPatch.use_cases = patch.useCases;
+  if (patch.description !== undefined) {
+    dbPatch.description = patch.description;
+    // Any caller other than enrichResource() editing this is a human —
+    // default to "user" unless the caller (enrichResource) says otherwise.
+    dbPatch.description_source = patch.descriptionSource ?? "user";
+  }
+  if (patch.useCases !== undefined) {
+    dbPatch.use_cases = patch.useCases;
+    dbPatch.useful_for_source = patch.usefulForSource ?? "user";
+  }
   if (patch.categoryId !== undefined) dbPatch.category_id = patch.categoryId;
   if (patch.notes !== undefined) dbPatch.notes = patch.notes;
   if (patch.isFavorite !== undefined) dbPatch.is_favorite = patch.isFavorite;
   if (patch.isArchived !== undefined) dbPatch.is_archived = patch.isArchived;
   if (patch.pricing !== undefined) dbPatch.pricing = patch.pricing;
   if (patch.platform !== undefined) dbPatch.platform = patch.platform ?? [];
+  if (patch.enrichmentStatus !== undefined) dbPatch.enrichment_status = patch.enrichmentStatus;
+  if (patch.enrichmentAttempts !== undefined) dbPatch.enrichment_attempts = patch.enrichmentAttempts;
+  if (patch.enrichmentAttemptedAt !== undefined) dbPatch.enrichment_attempted_at = patch.enrichmentAttemptedAt;
 
   if (Object.keys(dbPatch).length > 0) {
     const { error } = await client.from("resources").update(dbPatch).eq("id", id).eq("user_id", userId);

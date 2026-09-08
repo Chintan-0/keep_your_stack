@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Search, Package, Plus, CheckSquare, X } from "lucide-react";
+import { Search, Package, Plus, CheckSquare, X, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { ResourceCollection } from "@/components/resource-collection";
 import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@/components/filter-bar";
 import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
+import { runWithConcurrency } from "@/lib/concurrency";
 
 // This page is fully client-rendered, so the initial ?tag= filter is read
 // straight from the browser location rather than Next's useSearchParams
@@ -34,6 +35,7 @@ export default function AllResourcesPage() {
   const resources = useStore((s) => s.resources);
   const categories = useStore((s) => s.categories);
   const bulkMoveResources = useStore((s) => s.bulkMoveResources);
+  const enrichResource = useStore((s) => s.enrichResource);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const initialCategoryFilters = useState(initialCategoryFiltersFromLocation)[0];
   const [query, setQuery] = useState("");
@@ -61,6 +63,7 @@ export default function AllResourcesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [moveCategoryId, setMoveCategoryId] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  const [enriching, setEnriching] = useState<{ done: number; total: number } | null>(null);
 
   const active = useMemo(() => resources.filter((r) => !r.isArchived), [resources]);
 
@@ -106,6 +109,32 @@ export default function AllResourcesPage() {
     }
   }
 
+  async function applyEnrich() {
+    const ids = Array.from(selectedIds);
+    setEnriching({ done: 0, total: ids.length });
+    let failed = 0;
+    await runWithConcurrency(
+      ids,
+      5,
+      async (id) => {
+        try {
+          const status = await enrichResource(id);
+          if (status === "failed") failed++;
+        } catch {
+          failed++;
+        }
+      },
+      (done, total) => setEnriching({ done, total })
+    );
+    setEnriching(null);
+    toast.success(
+      failed > 0
+        ? `Enriched ${ids.length - failed} of ${ids.length} — ${failed} couldn't be reached.`
+        : `Enriched ${ids.length} resource${ids.length === 1 ? "" : "s"}`
+    );
+    exitSelectMode();
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
@@ -136,6 +165,15 @@ export default function AllResourcesPage() {
           </div>
           <Button size="sm" onClick={() => void applyMove()} disabled={selectedIds.size === 0 || moving}>
             Move {selectedIds.size || ""} resource{selectedIds.size === 1 ? "" : "s"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void applyEnrich()}
+            disabled={selectedIds.size === 0 || !!enriching}
+          >
+            <Sparkles size={13} />
+            {enriching ? `Enriching ${enriching.done}/${enriching.total}` : `Enrich ${selectedIds.size || ""} selected`}
           </Button>
           <button
             onClick={exitSelectMode}

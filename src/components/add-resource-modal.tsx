@@ -13,6 +13,7 @@ import { TagInput } from "@/components/tag-input";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { normalizeUrl, getDomain } from "@/lib/utils";
+import { cleanDescription, suggestUsefulFor, suggestTags, suggestCategoryForResource } from "@/lib/enrichment";
 import type { FetchedMetadata } from "@/lib/data/metadata";
 import type { Resource } from "@/lib/types";
 
@@ -49,6 +50,7 @@ export function AddResourceModal() {
 function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose: () => void }) {
   const addResource = useStore((s) => s.addResource);
   const findByUrl = useStore((s) => s.findByUrl);
+  const categories = useStore((s) => s.categories);
   const router = useRouter();
 
   const [stage, setStage] = useState<Stage>("url");
@@ -85,11 +87,25 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
     setStage("loading");
     const result = await fetchMetadata(normalized);
     if (result.ok) {
+      const cleanedDescription = cleanDescription(result.data.description);
       setTitle(result.data.title);
-      setDescription(result.data.description);
+      setDescription(cleanedDescription);
       setDomain(result.data.domain);
       setFaviconUrl(result.data.faviconUrl);
       setImageUrl(result.data.imageUrl);
+
+      // Pre-fill suggestions from real evidence only — still fully
+      // editable/removable before Save, never forced.
+      const usefulFor = suggestUsefulFor({ title: result.data.title, description: cleanedDescription });
+      if (usefulFor && usefulFor.confidence !== "low") setUseCases([usefulFor.value]);
+      const tagSuggestions = suggestTags({ title: result.data.title, description: cleanedDescription, domain: result.data.domain });
+      if (tagSuggestions.length) setTags(tagSuggestions);
+      const categorySuggestion = suggestCategoryForResource(
+        { title: result.data.title, description: cleanedDescription, domain: result.data.domain },
+        categories
+      );
+      if (categorySuggestion && categorySuggestion.confidence === "high") setCategoryId(categorySuggestion.categoryId);
+
       setStage("details");
     } else {
       setDomain(result.domain);

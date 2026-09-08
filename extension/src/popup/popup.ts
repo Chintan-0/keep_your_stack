@@ -1,5 +1,5 @@
 import { getSettings, hasEverConnected, setSettings } from "../lib/storage";
-import { checkConnection, findExisting, saveResource, listStacks, resourceUrl, appAuthUrl, ApiError, AuthError } from "../lib/api";
+import { checkConnection, findExisting, saveResource, enrichResource, listStacks, resourceUrl, appAuthUrl, ApiError, AuthError } from "../lib/api";
 import { isSupportedUrl } from "../lib/url";
 import { resolveInitialView, resolveResourceView } from "../lib/view-state";
 import type { ExtResource } from "../lib/types";
@@ -107,6 +107,8 @@ async function renderNew() {
   (document.getElementById("useCase") as HTMLInputElement).value = "";
   (document.getElementById("tagsInput") as HTMLInputElement).value = "";
   (document.getElementById("noteInput") as HTMLTextAreaElement).value = "";
+  const enrichStatusEl = document.getElementById("enrichStatus");
+  if (enrichStatusEl) enrichStatusEl.textContent = "";
 
   const select = document.getElementById("stackSelect") as HTMLSelectElement;
   select.innerHTML = '<option value="">No stack</option>';
@@ -167,10 +169,31 @@ async function onSave() {
       renderDuplicate(resource);
     } else {
       show("success");
+      void enrichAfterSave(resource);
     }
   } catch (e) {
     renderError(e);
   }
+}
+
+/**
+ * Runs after the popup has already shown "Saved ✓" — never blocks the
+ * save itself. Best-effort: a failed/slow enrichment just leaves the
+ * status line blank rather than showing an error for something the user
+ * didn't explicitly ask for.
+ */
+async function enrichAfterSave(resource: ExtResource) {
+  const statusEl = document.getElementById("enrichStatus");
+  if (statusEl) statusEl.textContent = "Enriching resource…";
+
+  const enriched = await enrichResource(resource.id);
+  if (!enriched || !statusEl || savedResource?.id !== resource.id) return;
+
+  savedResource = enriched;
+  const parts: string[] = [];
+  if (enriched.tagIds.length > 0) parts.push(`${enriched.tagIds.length} tag${enriched.tagIds.length === 1 ? "" : "s"}`);
+  if (enriched.useCases.length > 0) parts.push("Useful For added");
+  statusEl.textContent = parts.length > 0 ? parts.join(" · ") : "";
 }
 
 async function openResource(id: string) {

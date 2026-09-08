@@ -77,6 +77,8 @@ interface StoreState {
   deleteCategory: (id: string, reassignTo: string | null) => Promise<{ movedResources: number; deletedSubcategories: number }>;
   /** Bulk "Move to" — one request, one local update. */
   bulkMoveResources: (resourceIds: string[], categoryId: string | null) => Promise<number>;
+  /** Fetches the page and fills in description/Useful For/tags/category from real evidence — never overwrites a user edit. */
+  enrichResource: (id: string) => Promise<Resource["enrichmentStatus"]>;
 
   findByUrl: (url: string) => Resource | undefined;
   addResource: (
@@ -338,5 +340,15 @@ export const useStore = create<StoreState>()((set, get) => ({
       toast.error(e instanceof Error ? e.message : "Couldn't move those resources. Try again.");
       throw e;
     }
+  },
+
+  enrichResource: async (id) => {
+    const { resource, status } = await api<{ resource: Resource; status: Resource["enrichmentStatus"] }>(
+      `/api/resources/${id}/enrich`,
+      { method: "POST" }
+    );
+    set({ resources: get().resources.map((r) => (r.id === id ? resource : r)) });
+    if (resource.tagIds.length) void get().refreshTags();
+    return status;
   },
 }));

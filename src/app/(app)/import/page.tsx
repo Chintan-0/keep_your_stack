@@ -14,7 +14,6 @@ import { CategorySelector } from "@/components/category-selector";
 import { Dropdown } from "@/components/ui/dropdown";
 import { TagInput } from "@/components/tag-input";
 import type { Resource } from "@/lib/types";
-import type { FetchedMetadata } from "@/lib/data/metadata";
 
 type Stage = "upload" | "preview" | "importing" | "done";
 
@@ -250,9 +249,12 @@ export default function ImportPage() {
     // Every saved resource shows up immediately, even before enrichment.
     await hydrate();
 
-    // Enrich metadata afterward, with limited concurrency — never blocks
-    // the basic import, and a failed fetch just leaves the bookmark's
-    // original title/URL in place rather than failing the resource.
+    // Enrich afterward, with limited concurrency — never blocks the basic
+    // import. One shared endpoint (src/lib/data/enrichment.ts) fetches each
+    // page and deterministically fills in description/Useful For/tags/
+    // category from real evidence; a failed fetch just leaves the
+    // bookmark's original title/URL in place rather than failing the
+    // resource — never fabricated content.
     let enrichFailed = 0;
     if (created.length > 0) {
       setProgress({ phase: "enriching", done: 0, total: created.length });
@@ -261,24 +263,9 @@ export default function ImportPage() {
         5,
         async (resource) => {
           try {
-            const metaRes = await fetch("/api/metadata", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url: resource.url }),
-            });
-            const result: { ok: true; data: FetchedMetadata } | { ok: false } = await metaRes.json();
-            if (result.ok) {
-              await fetch(`/api/resources/${resource.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  title: result.data.title || resource.title,
-                  description: result.data.description || "",
-                }),
-              });
-            } else {
-              enrichFailed++;
-            }
+            const res = await fetch(`/api/resources/${resource.id}/enrich`, { method: "POST" });
+            const body = await res.json();
+            if (!res.ok || body.status === "failed") enrichFailed++;
           } catch {
             enrichFailed++;
           }
@@ -288,7 +275,8 @@ export default function ImportPage() {
       await hydrate();
     }
 
-    const categorizedCount = created.filter((r) => r.categoryId).length;
+    const createdIds = new Set(created.map((r) => r.id));
+    const categorizedCount = useStore.getState().resources.filter((r) => createdIds.has(r.id) && r.categoryId).length;
     setSummary({ imported: importedCount, duplicates: duplicateCount, failed: failedCount, enrichFailed, categorized: categorizedCount });
     setProgress(null);
     setStage("done");

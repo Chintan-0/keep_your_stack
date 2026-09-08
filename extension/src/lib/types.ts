@@ -29,6 +29,7 @@ export interface ExtResource {
   url: string;
   stackIds: string[];
   tagIds: string[];
+  useCases: string[];
 }
 
 export interface SaveInput {

@@ -45,6 +45,12 @@ export interface Resource {
   importSource: string | null;
   /** Original folder path at import time, e.g. "Bookmarks bar / Development / Frontend". */
   importFolder: string | null;
+  /** Who last set description/useCases — enrichment only ever fills these in when it's not "user". */
+  descriptionSource: "system" | "user" | null;
+  usefulForSource: "system" | "user" | null;
+  enrichmentStatus: "pending" | "enriched" | "partial" | "failed" | "user_completed";
+  enrichmentAttempts: number;
+  enrichmentAttemptedAt: string | null;
 }
 
 export interface SearchMatch {

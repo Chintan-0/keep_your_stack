@@ -84,6 +84,11 @@ export interface Database {
           use_count: number;
           import_source: string | null;
           import_folder: string | null;
+          description_source: string | null;
+          useful_for_source: string | null;
+          enrichment_status: string;
+          enrichment_attempts: number;
+          enrichment_attempted_at: string | null;
           created_at: string;
           updated_at: string;
         };

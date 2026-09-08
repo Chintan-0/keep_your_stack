@@ -107,6 +107,23 @@ export async function saveResource(input: SaveInput): Promise<SaveResult> {
   return res.json();
 }
 
+/**
+ * Fire-and-await enrichment for a just-saved resource — same endpoint and
+ * same deterministic rules the web app's import/bulk-enrich uses (see
+ * src/lib/data/enrichment.ts). Never blocks the save itself: the popup
+ * calls this only *after* saveResource() already succeeded.
+ */
+export async function enrichResource(resourceId: string): Promise<SaveResult["resource"] | null> {
+  try {
+    const res = await authedFetch(`/api/resources/${resourceId}/enrich`, { method: "POST" });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return body.resource ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function resourceUrl(resourceId: string): Promise<string> {
   const { appUrl } = await getSettings();
   return `${appUrl}/resources/${resourceId}`;

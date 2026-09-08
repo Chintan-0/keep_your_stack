@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
-import { getResource, updateResource, deleteResource } from "@/lib/data/resources";
+import { getResource, updateResource, deleteResource, type ResourcePatch } from "@/lib/data/resources";
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, user, unauthorized } = await requireUser();
+  const { supabase, user, unauthorized } = await requireUser(request);
   if (unauthorized) return unauthorized;
 
   const resource = await getResource(supabase, user.id, id);
@@ -12,25 +12,44 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   return NextResponse.json({ resource });
 }
 
+// Fields a client is actually allowed to set. Deliberately excludes
+// descriptionSource/usefulForSource/enrichmentStatus/enrichmentAttempts*
+// — those are bookkeeping only src/lib/data/enrichment.ts's server-side
+// enrichResource() sets; updateResource() itself defaults description/
+// useCases edits to "user" whenever a caller doesn't specify otherwise,
+// which is exactly right for this route (a human editing their resource).
+const EDITABLE_FIELDS = [
+  "title", "description", "useCases", "categoryId", "notes",
+  "isFavorite", "isArchived", "pricing", "platform", "tagNames", "stackIds",
+] as const;
+
+function sanitizePatch(body: Record<string, unknown>): ResourcePatch {
+  const patch: ResourcePatch = {};
+  for (const key of EDITABLE_FIELDS) {
+    if (body[key] !== undefined) (patch as Record<string, unknown>)[key] = body[key];
+  }
+  return patch;
+}
+
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, user, unauthorized } = await requireUser();
+  const { supabase, user, unauthorized } = await requireUser(request);
   if (unauthorized) return unauthorized;
 
-  const patch = await request.json().catch(() => null);
-  if (!patch) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  const body = await request.json().catch(() => null);
+  if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
 
   try {
-    const resource = await updateResource(supabase, user.id, id, patch);
+    const resource = await updateResource(supabase, user.id, id, sanitizePatch(body));
     return NextResponse.json({ resource });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't save your changes. Try again." }, { status: 500 });
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, user, unauthorized } = await requireUser();
+  const { supabase, user, unauthorized } = await requireUser(request);
   if (unauthorized) return unauthorized;
 
   try {

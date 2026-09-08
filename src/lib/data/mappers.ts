@@ -28,6 +28,11 @@ export function mapResourceRow(row: ResourceRow): Resource {
     useCount: row.use_count,
     importSource: row.import_source,
     importFolder: row.import_folder,
+    descriptionSource: (row.description_source as Resource["descriptionSource"]) ?? null,
+    usefulForSource: (row.useful_for_source as Resource["usefulForSource"]) ?? null,
+    enrichmentStatus: (row.enrichment_status as Resource["enrichmentStatus"]) ?? "pending",
+    enrichmentAttempts: row.enrichment_attempts ?? 0,
+    enrichmentAttemptedAt: row.enrichment_attempted_at,
   };
 }
 

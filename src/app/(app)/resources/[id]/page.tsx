@@ -15,6 +15,8 @@ import {
   MoreHorizontal,
   Copy,
   FolderInput,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
@@ -40,12 +42,14 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const archiveResource = useStore((s) => s.archiveResource);
   const deleteResourcePermanently = useStore((s) => s.deleteResourcePermanently);
   const updateResource = useStore((s) => s.updateResource);
+  const enrichResource = useStore((s) => s.enrichResource);
   const openEditResource = useUIStore((s) => s.openEditResource);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveCategoryId, setMoveCategoryId] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const resource = resources.find((r) => r.id === id);
 
@@ -176,7 +180,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
         </div>
 
         <p className="text-[14.5px] leading-6 text-text-secondary">
-          {resource.description || "No description yet — add one from Edit."}
+          {resource.description || "No description available."}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -193,6 +197,49 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
 
+      {/* Enrichment status */}
+      {(resource.enrichmentStatus === "pending" ||
+        resource.enrichmentStatus === "partial" ||
+        resource.enrichmentStatus === "failed") && (
+        <section className="flex flex-col gap-2.5 rounded-[var(--radius-lg)] border border-warning/25 bg-warning/5 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-1.5 text-[13px] font-semibold text-warning">
+                <Sparkles size={14} /> This resource needs a little more context
+              </h2>
+              <p className="mt-1 text-[12.5px] text-text-secondary">
+                {resource.enrichmentStatus === "failed"
+                  ? "We couldn't get more details from this site."
+                  : "We haven't found a description, Useful For, or tags for it yet."}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={retrying}
+                onClick={async () => {
+                  setRetrying(true);
+                  try {
+                    await enrichResource(resource.id);
+                    toast.success("Enrichment updated");
+                  } catch {
+                    toast.error("Couldn't enrich this resource. Try again.");
+                  } finally {
+                    setRetrying(false);
+                  }
+                }}
+              >
+                {retrying ? <Loader2 size={13} className="animate-spin" /> : null} Retry enrichment
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => openEditResource(resource.id)}>
+                Edit manually
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Useful for */}
       <section className="flex flex-col gap-2.5">
         <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">Useful For</h2>
@@ -206,7 +253,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
             ))}
           </ul>
         ) : (
-          <p className="text-[13px] text-text-muted">Not added yet.</p>
+          <p className="text-[13px] text-text-muted">What is this useful for?</p>
         )}
       </section>
 
