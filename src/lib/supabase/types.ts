@@ -152,13 +152,20 @@ export interface Database {
           resource_id: string;
           rank: number;
           matched_title: boolean;
+          matched_title_prefix: boolean;
           matched_use_cases: boolean;
           matched_tags: boolean;
           matched_category: boolean;
           matched_stacks: boolean;
           matched_description: boolean;
           matched_notes: boolean;
+          matched_domain: boolean;
+          matched_folder: boolean;
         }[];
+      };
+      search_suggest_terms: {
+        Args: { p_query: string };
+        Returns: { term: string; similarity: number }[];
       };
     };
     Enums: Record<string, never>;

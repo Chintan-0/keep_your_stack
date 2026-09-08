@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
 import { ResourceCard } from "@/components/resource-card";
 import { formatAbsoluteDate, PRICING_LABELS, PLATFORM_LABELS, cn } from "@/lib/utils";
+import { tokenizeQuery } from "@/lib/search-highlight";
 
 export default function ResourceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -55,6 +56,13 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
 
   const related = useMemo(() => {
     if (!resource) return [];
+    // Deterministic signals only (no semantic/AI matching yet) — shared
+    // category/tags/stack weigh most, with a light bonus for overlapping
+    // title words and Useful For phrasing so near-duplicate-purpose tools
+    // (e.g. two API clients) can surface even without a shared tag.
+    const titleTokens = new Set(tokenizeQuery(resource.title));
+    const usefulForTokens = new Set(resource.useCases.flatMap((uc) => tokenizeQuery(uc)));
+
     const scored = resources
       .filter((r) => r.id !== resource.id && !r.isArchived)
       .map((r) => {
@@ -62,6 +70,15 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
         if (r.categoryId && r.categoryId === resource.categoryId) score += 3;
         score += r.tagIds.filter((t) => resource.tagIds.includes(t)).length * 2;
         score += r.stackIds.filter((s) => resource.stackIds.includes(s)).length;
+
+        const sharedTitleWords = tokenizeQuery(r.title).filter((w) => titleTokens.has(w)).length;
+        score += Math.min(sharedTitleWords, 2) * 0.5;
+
+        const sharedUsefulForWords = r.useCases
+          .flatMap((uc) => tokenizeQuery(uc))
+          .filter((w) => usefulForTokens.has(w)).length;
+        score += Math.min(sharedUsefulForWords, 2) * 0.5;
+
         return { r, score };
       })
       .filter((x) => x.score > 0)

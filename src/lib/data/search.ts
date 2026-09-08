@@ -3,25 +3,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import type { Resource, SearchMatch } from "@/lib/types";
 import { mapResourceRow, RESOURCE_SELECT } from "./mappers";
+import { buildMatchLabels, type MatchFlags } from "@/lib/search-match-labels";
 
 type Client = SupabaseClient<Database>;
 
-interface SearchRpcRow {
+interface SearchRpcRow extends MatchFlags {
   resource_id: string;
   rank: number;
-  matched_title: boolean;
-  matched_use_cases: boolean;
-  matched_tags: boolean;
-  matched_category: boolean;
-  matched_stacks: boolean;
-  matched_description: boolean;
-  matched_notes: boolean;
 }
 
 /**
  * Runs the Postgres full-text + trigram search (search_resources, see
  * supabase/migrations) and reports which fields actually matched, so the
- * UI's "Matches: ..." line is generated from real data, not guessed.
+ * UI's "Why it matched" is generated from real data, never guessed.
  */
 export async function searchResources(client: Client, query: string): Promise<SearchMatch[]> {
   const trimmed = query.trim();
@@ -45,20 +39,20 @@ export async function searchResources(client: Client, query: string): Promise<Se
   for (const row of rows) {
     const resource = byId.get(row.resource_id);
     if (!resource) continue;
-
-    const matchedOn: string[] = [];
-    if (row.matched_title) matchedOn.push(resource.title);
-    if (row.matched_use_cases) matchedOn.push("Useful for");
-    if (row.matched_tags) matchedOn.push("Tags");
-    if (row.matched_category) matchedOn.push("Category");
-    if (row.matched_stacks) matchedOn.push("Stack");
-    if (row.matched_notes) matchedOn.push("Your note");
-    // Description matches are real but not surfaced as a label — same
-    // convention as the original client-side search, which treated it as
-    // the least specific signal.
-    if (matchedOn.length === 0 && row.matched_description) matchedOn.push("Description");
-
-    results.push({ resource, score: row.rank, matchedOn: matchedOn.slice(0, 4) });
+    results.push({ resource, score: row.rank, matchedOn: buildMatchLabels(row).slice(0, 4) });
   }
   return results;
+}
+
+/**
+ * "Did you mean" — trigram similarity against the user's OWN title/tag
+ * vocabulary (see search_suggest_terms), never a generic dictionary. Only
+ * called when the main search comes back empty.
+ */
+export async function suggestSearchTerms(client: Client, query: string): Promise<string[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+  const { data, error } = await client.rpc("search_suggest_terms", { p_query: trimmed });
+  if (error) return []; // best-effort — a failed suggestion must never break the "no results" state
+  return ((data ?? []) as { term: string; similarity: number }[]).map((r) => r.term);
 }

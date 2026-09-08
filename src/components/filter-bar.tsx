@@ -16,7 +16,7 @@ function categoryMatches(categoryId: string | null, filterId: string, categories
   return false;
 }
 
-export type SortOption = "recent" | "updated" | "name" | "most-used" | "favorites";
+export type SortOption = "relevance" | "recent" | "updated" | "name" | "most-used" | "favorites";
 
 export interface Filters {
   categoryId: string;
@@ -47,6 +47,7 @@ const PRICING_OPTIONS: { value: Pricing | ""; label: string }[] = [
 ];
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "relevance", label: "Relevance" },
   { value: "recent", label: "Recently Added" },
   { value: "updated", label: "Recently Updated" },
   { value: "name", label: "Name A–Z" },
