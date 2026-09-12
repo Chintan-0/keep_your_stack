@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Star } from "lucide-react";
+import { Star, Download } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ResourceCollection } from "@/components/resource-collection";
 import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@/components/filter-bar";
@@ -26,11 +26,21 @@ export default function FavoritesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-text-primary">
-          <Star size={19} className="text-warning" /> Your Favorites
-        </h1>
-        <p className="font-mono text-[12.5px] text-text-muted">{favorites.length} resources</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-text-primary">
+            <Star size={19} className="text-warning" /> Your Favorites
+          </h1>
+          <p className="font-mono text-[12.5px] text-text-muted">{favorites.length} resources</p>
+        </div>
+        {favorites.length > 0 && (
+          <a
+            href="/api/export/json?scope=favorites"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border border-border-strong bg-surface-3 px-2.5 text-[13px] font-medium text-text-primary transition-colors hover:bg-surface-hover cursor-pointer"
+          >
+            <Download size={13} /> Export
+          </a>
+        )}
       </div>
 
       <FilterBar filters={filters} onChange={setFilters} view={view} onViewChange={setView} resultCount={favorites.length} />

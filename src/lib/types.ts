@@ -22,6 +22,25 @@ export interface Stack {
   createdAt: string;
 }
 
+/** "This folder path always means this category" — remembered per user so a repeat import doesn't ask again. */
+export interface RememberedMapping {
+  id: string;
+  folderPath: string;
+  categoryId: string;
+}
+
+export interface ImportHistoryEntry {
+  id: string;
+  source: string;
+  filename: string | null;
+  total: number;
+  imported: number;
+  skipped: number;
+  failed: number;
+  failedItems: { title: string; url: string; reason: string }[];
+  createdAt: string;
+}
+
 export interface Resource {
   id: string;
   title: string;
@@ -45,6 +64,8 @@ export interface Resource {
   importSource: string | null;
   /** Original folder path at import time, e.g. "Bookmarks bar / Development / Frontend". */
   importFolder: string | null;
+  /** The source's own ID for this item where one exists (e.g. a KeepYourStack backup's resource id) — provenance only, never used for lookups. */
+  importSourceId: string | null;
   /** Who last set description/useCases — enrichment only ever fills these in when it's not "user". */
   descriptionSource: "system" | "user" | null;
   usefulForSource: "system" | "user" | null;

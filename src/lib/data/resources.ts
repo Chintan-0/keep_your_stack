@@ -21,12 +21,23 @@ export interface ResourceInput {
   platform?: Resource["platform"];
   faviconUrl?: string | null;
   imageUrl?: string | null;
-  /** Only ever set by server-side seeding (demo data) — never accepted from a client request body. */
+  /** Only ever set by server-side seeding (demo data) or a JSON backup restore — never accepted from the general Add Resource/extension request body. */
   isFavorite?: boolean;
   isArchived?: boolean;
   /** Set by the bookmark importer — e.g. "chrome-bookmarks" + "Bookmarks bar / Development". */
   importSource?: string | null;
   importFolder?: string | null;
+  /** The source's own ID for this item, when one exists (e.g. a KeepYourStack backup's resource id) — provenance only. */
+  importSourceId?: string | null;
+  /**
+   * Only ever set by the JSON backup importer, restoring a user's own
+   * previously-exported timestamps — never accepted from the general
+   * create-resource request body (which always uses "now", correctly,
+   * for an actually-new save). Must be a value the resource's own prior
+   * export produced, not an arbitrary client-supplied date.
+   */
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -217,6 +228,7 @@ export async function createResource(
       is_archived: input.isArchived ?? false,
       import_source: input.importSource ?? null,
       import_folder: input.importFolder ?? null,
+      import_source_id: input.importSourceId ?? null,
       description_source: defaultSource(!!input.description?.trim()),
       useful_for_source: defaultSource(!!input.useCases?.filter(Boolean).length),
       // Nothing to enrich yet if it was already saved with a real
@@ -225,6 +237,11 @@ export async function createResource(
       // a fast title+URL save (import, or the extension) waiting on the
       // Phase B enrichment pass.
       enrichment_status: input.description?.trim() || input.useCases?.filter(Boolean).length ? "enriched" : "pending",
+      // Only a JSON backup restore ever supplies these — it's the user's
+      // own real prior history, not an arbitrary claim. Left unset (falls
+      // back to the column's own now() default) for every other caller.
+      ...(input.createdAt ? { created_at: input.createdAt } : {}),
+      ...(input.updatedAt ? { updated_at: input.updatedAt } : {}),
     })
     .select(RESOURCE_SELECT)
     .single();

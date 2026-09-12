@@ -84,6 +84,7 @@ export interface Database {
           use_count: number;
           import_source: string | null;
           import_folder: string | null;
+          import_source_id: string | null;
           description_source: string | null;
           useful_for_source: string | null;
           enrichment_status: string;
@@ -170,6 +171,51 @@ export interface Database {
             referencedColumns: ["id"];
           },
         ];
+      };
+      remembered_import_mappings: {
+        Row: {
+          id: string;
+          user_id: string;
+          folder_path: string;
+          category_id: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["remembered_import_mappings"]["Row"]> & {
+          user_id: string;
+          folder_path: string;
+          category_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["remembered_import_mappings"]["Row"]>;
+        Relationships: [
+          {
+            foreignKeyName: "remembered_import_mappings_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "categories";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      import_history: {
+        Row: {
+          id: string;
+          user_id: string;
+          source: string;
+          filename: string | null;
+          total: number;
+          imported: number;
+          skipped: number;
+          failed: number;
+          failed_items: unknown;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["import_history"]["Row"]> & {
+          user_id: string;
+          source: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["import_history"]["Row"]>;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

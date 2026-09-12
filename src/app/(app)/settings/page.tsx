@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sun, Moon, Monitor, Download, Upload, Puzzle, Sparkles, LogOut, Trash2, RotateCcw, FolderTree } from "lucide-react";
+import { Sun, Moon, Monitor, Puzzle, Sparkles, LogOut, Trash2, RotateCcw, FolderTree, Database } from "lucide-react";
 import { useThemeStore, type Theme } from "@/lib/theme-store";
 import { useStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dropdown } from "@/components/ui/dropdown";
-import { cn, categoryPath } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
 
@@ -42,57 +42,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function toCsv(
-  resources: ReturnType<typeof useStore.getState>["resources"],
-  tags: ReturnType<typeof useStore.getState>["tags"],
-  stacks: ReturnType<typeof useStore.getState>["stacks"],
-  categories: ReturnType<typeof useStore.getState>["categories"]
-): string {
-  const header = [
-    "Title",
-    "URL",
-    "Description",
-    "Useful For",
-    "Notes",
-    "Category",
-    "Tags",
-    "Stacks",
-    "Created At",
-    "Updated At",
-  ];
-  const rows = resources.map((r) => [
-    r.title,
-    r.url,
-    r.description,
-    r.useCases.join("; "),
-    r.notes,
-    categoryPath(r.categoryId, categories),
-    r.tagIds.map((id) => tags.find((t) => t.id === id)?.name ?? "").filter(Boolean).join("; "),
-    r.stackIds.map((id) => stacks.find((s) => s.id === id)?.name ?? "").filter(Boolean).join("; "),
-    r.createdAt,
-    r.updatedAt,
-  ]);
-  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
-  return [header, ...rows].map((row) => row.map((cell) => escape(String(cell))).join(",")).join("\n");
-}
-
-function download(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 export default function SettingsPage() {
   const router = useRouter();
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const resources = useStore((s) => s.resources);
-  const stacks = useStore((s) => s.stacks);
-  const tags = useStore((s) => s.tags);
   const categories = useStore((s) => s.categories);
   const loadDemoData = useStore((s) => s.loadDemoData);
   const clearAllData = useStore((s) => s.clearAllData);
@@ -321,32 +275,16 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title="Data" description="Your resources, always exportable — you're never locked in.">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              download("keepyourstack-export.json", JSON.stringify(resources, null, 2), "application/json");
-              toast.success("Exported resources.json");
-            }}
-          >
-            <Download size={14} /> Export JSON
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              download("keepyourstack-export.csv", toCsv(resources, tags, stacks, categories), "text/csv");
-              toast.success("Exported resources.csv");
-            }}
-          >
-            <Download size={14} /> Export CSV
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => router.push("/import")}>
-            <Upload size={14} /> Import Bookmarks
-          </Button>
-        </div>
+      <Section title="Data" description="Your resources, always importable and exportable — you're never locked in.">
+        <Link
+          href="/settings/data"
+          className="flex items-center justify-between rounded-[var(--radius-md)] border border-border bg-surface-2 px-3.5 py-2.5 text-[13px] text-text-primary transition-colors hover:border-border-strong hover:bg-surface-3"
+        >
+          <span className="flex items-center gap-2">
+            <Database size={15} className="text-text-muted" /> Import, Export & Backup
+          </span>
+          <span className="text-[12px] text-text-muted">{resources.length} resources →</span>
+        </Link>
         <div className="border-t border-border pt-4">
           <Button variant="secondary" size="sm" onClick={handleLoadDemoData} disabled={loadingDemoData}>
             <Sparkles size={14} /> {loadingDemoData ? "Loading…" : "Load Demo Data"}

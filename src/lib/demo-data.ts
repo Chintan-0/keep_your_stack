@@ -672,6 +672,7 @@ export function buildResources(): Resource[] {
       useCount: s.useCount ?? 0,
       importSource: null,
       importFolder: null,
+      importSourceId: null,
       descriptionSource: s.description ? "user" : null,
       usefulForSource: s.useCases.length ? "user" : null,
       enrichmentStatus: "enriched",

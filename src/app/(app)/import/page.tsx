@@ -1,11 +1,24 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, FileUp, Check, ArrowLeft, AlertTriangle, FolderOpen, Pencil } from "lucide-react";
+import {
+  Upload,
+  Check,
+  ArrowLeft,
+  AlertTriangle,
+  FolderOpen,
+  Pencil,
+  FileSpreadsheet,
+  FileJson,
+  Bookmark,
+} from "lucide-react";
 import { useStore } from "@/lib/store";
 import { parseBookmarksHtml, looksLikeBookmarkExport, type ParsedBookmark } from "@/lib/bookmark-import";
 import { groupByFolder, suggestCategoryForFolder, suggestStackForFolder } from "@/lib/import-organizer";
+import { parseCsvBookmarks, detectCsvColumns, type CsvColumnMap } from "@/lib/import/csv";
+import { validateBackup, type KeepYourStackBackup, type BackupResource } from "@/lib/import/backup";
+import { MAX_IMPORT_ITEMS } from "@/lib/import/types";
 import { runWithConcurrency } from "@/lib/concurrency";
 import { normalizeUrl, getDomain, cn } from "@/lib/utils";
 import { Favicon } from "@/components/ui/favicon";
@@ -13,11 +26,28 @@ import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
 import { Dropdown } from "@/components/ui/dropdown";
 import { TagInput } from "@/components/tag-input";
-import type { Resource } from "@/lib/types";
+import type { Resource, RememberedMapping } from "@/lib/types";
 
-type Stage = "upload" | "preview" | "importing" | "done";
+type Stage = "upload" | "csv-mapping" | "preview" | "backup-preview" | "importing" | "done";
+type Format = "html" | "csv" | "json";
+
+/** The normalized row every non-backup source (HTML or CSV) is converted into before reaching the shared preview/mapping/save pipeline — a superset of ParsedBookmark. */
+interface ImportRow extends ParsedBookmark {
+  description?: string;
+  notes?: string;
+  tags?: string[];
+  source: string;
+}
 
 const GROUP_KEY = (folder: string | null) => folder ?? "__none__";
+const SOURCE_LABELS: Record<string, string> = {
+  chrome: "Chrome bookmarks",
+  firefox: "Firefox bookmarks",
+  edge: "Edge bookmarks",
+  bookmarks: "Bookmark export",
+  csv: "CSV file",
+  "keepyourstack-backup": "KeepYourStack backup",
+};
 
 interface GroupChoice {
   categoryId: string | null;
@@ -26,11 +56,19 @@ interface GroupChoice {
   existingStackId: string;
   newStackName: string;
   tagNames: string[];
+  /** Whether "Remember this mapping" is checked for this group's folder path. */
+  remember: boolean;
 }
 
 /** A bookmark's own choice, when it's been individually corrected away from its group's. */
 interface BookmarkOverride {
   categoryId: string | null;
+}
+
+interface FailedItem {
+  title: string;
+  url: string;
+  reason: string;
 }
 
 export default function ImportPage() {
@@ -42,20 +80,49 @@ export default function ImportPage() {
   const addStack = useStore((s) => s.addStack);
   const hydrate = useStore((s) => s.hydrate);
 
+  const [browserLabel, setBrowserLabel] = useState<"chrome" | "firefox" | "edge" | "bookmarks">("chrome");
   const [stage, setStage] = useState<Stage>("upload");
   const [fileError, setFileError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
-  const [bookmarks, setBookmarks] = useState<ParsedBookmark[]>([]);
+  const [bookmarks, setBookmarks] = useState<ImportRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [groupChoices, setGroupChoices] = useState<Map<string, GroupChoice>>(new Map());
   const [overrides, setOverrides] = useState<Map<string, BookmarkOverride>>(new Map());
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [remembered, setRemembered] = useState<RememberedMapping[]>([]);
+
+  // CSV column-mapping fallback, only shown when auto-detection can't find a URL column.
+  const [csvHeader, setCsvHeader] = useState<string[]>([]);
+  const [csvText, setCsvText] = useState("");
+  const [csvColumns, setCsvColumns] = useState<CsvColumnMap>({ url: -1 });
+
+  // JSON backup restore — a separate, simpler flow: a backup is the
+  // user's own exact prior state, not a loose pile of bookmarks needing
+  // folder→category judgment, so it skips the grouped mapping UI entirely.
+  const [backup, setBackup] = useState<KeepYourStackBackup | null>(null);
+  const [backupWarnings, setBackupWarnings] = useState<string[]>([]);
 
   const [progress, setProgress] = useState<{ phase: "saving" | "enriching"; done: number; total: number } | null>(
     null
   );
   const [summary, setSummary] = useState({ imported: 0, duplicates: 0, failed: 0, enrichFailed: 0, categorized: 0 });
+  const [failedItems, setFailedItems] = useState<FailedItem[]>([]);
+  const [showFailures, setShowFailures] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/import/mappings")
+      .then((r) => r.json())
+      .then((body) => setRemembered(body.mappings ?? []))
+      .catch(() => {});
+  }, []);
+
+  function rememberedCategoryFor(folder: string | null): string | null {
+    if (!folder) return null;
+    const match = remembered.find((m) => m.folderPath.toLowerCase() === folder.toLowerCase());
+    return match?.categoryId ?? null;
+  }
 
   const duplicateUrls = useMemo(() => {
     const set = new Set<string>();
@@ -65,6 +132,25 @@ export default function ImportPage() {
     return set;
   }, [bookmarks, findByUrl]);
 
+  // Duplicates *within the file itself* — the same normalized URL appearing
+  // more than once in the import. Only the first occurrence is kept
+  // selected by default; the rest are flagged so the user can see them
+  // rather than silently getting two resources merged into one anyway
+  // (the backend's own unique-URL constraint would just no-op the second
+  // one, but the user should see why the count doesn't match the file).
+  const inFileDuplicateUrls = useMemo(() => {
+    const seen = new Set<string>();
+    const dup = new Set<string>();
+    for (const b of bookmarks) {
+      const norm = normalizeUrl(b.url);
+      if (!norm) continue;
+      if (seen.has(norm)) dup.add(b.url);
+      seen.add(norm);
+    }
+    return dup;
+  }, [bookmarks]);
+
+  const invalidCount = useMemo(() => bookmarks.filter((b) => !normalizeUrl(b.url)).length, [bookmarks]);
   const newCount = bookmarks.length - duplicateUrls.size;
   const groups = useMemo(() => groupByFolder(bookmarks), [bookmarks]);
 
@@ -80,37 +166,12 @@ export default function ImportPage() {
     [bookmarks, selected, groupChoices, overrides]
   );
 
-  async function handleFile(file: File) {
-    setFileError(null);
-    if (!file.name.endsWith(".html") && !file.name.endsWith(".htm")) {
-      setFileError("This doesn't look like a browser bookmark file. Try exporting your bookmarks from Chrome and upload the HTML file again.");
-      return;
-    }
-    const text = await file.text();
-    if (!looksLikeBookmarkExport(text)) {
-      setFileError(
-        "This doesn't look like a browser bookmark file. Try exporting your bookmarks from Chrome and upload the HTML file again."
-      );
-      return;
-    }
-
-    const parsed = parseBookmarksHtml(text);
-    if (parsed.length === 0) {
-      setFileError("No bookmarks were found in that file.");
-      return;
-    }
-
-    setFileName(file.name);
-    setBookmarks(parsed);
-    setSelected(new Set(parsed.filter((b) => !findByUrl(b.url)).map((b) => b.url)));
-    setOverrides(new Map());
-
-    // Seed each folder group's organization choice from a real suggestion —
-    // an existing category/stack it actually matches, never an invented one.
-    const groupedForSuggestions = groupByFolder(parsed);
+  function seedGroupChoices(rows: ImportRow[]) {
+    const groupedForSuggestions = groupByFolder(rows);
     const choices = new Map<string, GroupChoice>();
     for (const g of groupedForSuggestions) {
-      const categoryId = suggestCategoryForFolder(g.folder, categories);
+      const remembered = rememberedCategoryFor(g.folder);
+      const categoryId = remembered ?? suggestCategoryForFolder(g.folder, categories);
       const stackSuggestion = suggestStackForFolder(g.folder, stacks);
       choices.set(GROUP_KEY(g.folder), {
         categoryId,
@@ -118,10 +179,132 @@ export default function ImportPage() {
         existingStackId: stackSuggestion.existingStackId ?? "",
         newStackName: stackSuggestion.suggestedName ?? "",
         tagNames: [],
+        remember: false,
       });
     }
     setGroupChoices(choices);
+  }
+
+  function finishParsing(rows: ImportRow[], name: string) {
+    setFileName(name);
+    setBookmarks(rows);
+    setSelected(new Set(rows.filter((b) => normalizeUrl(b.url) && !findByUrl(b.url)).map((b) => b.url)));
+    setOverrides(new Map());
+    seedGroupChoices(rows);
     setStage("preview");
+  }
+
+  async function handleHtmlFile(file: File) {
+    const text = await file.text();
+    if (!looksLikeBookmarkExport(text)) {
+      setFileError(
+        "This doesn't look like a browser bookmark file. Try exporting your bookmarks and upload the HTML file again."
+      );
+      return;
+    }
+    const parsed = parseBookmarksHtml(text);
+    if (parsed.length === 0) {
+      setFileError("No bookmarks were found in that file.");
+      return;
+    }
+    if (parsed.length > MAX_IMPORT_ITEMS) {
+      setFileError(`This file has ${parsed.length} bookmarks — the limit is ${MAX_IMPORT_ITEMS} per import.`);
+      return;
+    }
+    finishParsing(
+      parsed.map((b) => ({ ...b, source: browserLabel })),
+      file.name
+    );
+  }
+
+  function csvRowsToImportRows(items: { title: string; url: string; description?: string; tags?: string[]; folderPath?: string | null; notes?: string }[]): ImportRow[] {
+    return items.map((i) => ({
+      title: i.title,
+      url: i.url,
+      folder: i.folderPath ?? null,
+      addedAt: null,
+      description: i.description,
+      notes: i.notes,
+      tags: i.tags,
+      source: "csv",
+    }));
+  }
+
+  async function handleCsvFile(file: File) {
+    const text = await file.text();
+    const rows = text.split(/\r\n|\r|\n/).filter(Boolean);
+    if (rows.length < 2) {
+      setFileError("That CSV file doesn't have any data rows.");
+      return;
+    }
+    const headerLine = rows[0].split(","); // good enough for a header sniff; the real parser handles quoting properly
+    const detected = detectCsvColumns(headerLine);
+    setCsvHeader(headerLine);
+    setCsvText(text);
+
+    if (detected.url === undefined) {
+      // Can't confidently find a URL column — ask the user to map it
+      // rather than guessing wrong and silently dropping every row.
+      setCsvColumns({ url: -1, ...detected });
+      setFileName(file.name);
+      setStage("csv-mapping");
+      return;
+    }
+
+    const { items, invalidRows } = parseCsvBookmarks(text, detected as CsvColumnMap);
+    if (items.length === 0) {
+      setFileError(
+        invalidRows.length > 0
+          ? "Every row in that file was missing a URL."
+          : "No rows were found in that file."
+      );
+      return;
+    }
+    if (items.length > MAX_IMPORT_ITEMS) {
+      setFileError(`This file has ${items.length} rows — the limit is ${MAX_IMPORT_ITEMS} per import.`);
+      return;
+    }
+    finishParsing(csvRowsToImportRows(items), file.name);
+  }
+
+  function confirmCsvMapping() {
+    if (csvColumns.url < 0) {
+      setFileError("Choose which column contains the URL.");
+      return;
+    }
+    const { items } = parseCsvBookmarks(csvText, csvColumns);
+    if (items.length === 0) {
+      setFileError("No rows had a value in the URL column you chose.");
+      return;
+    }
+    finishParsing(csvRowsToImportRows(items), fileName);
+  }
+
+  async function handleJsonFile(file: File) {
+    const text = await file.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      setFileError("That file isn't valid JSON.");
+      return;
+    }
+    const result = validateBackup(parsed);
+    if (!result.ok) {
+      setFileError(result.error);
+      return;
+    }
+    setFileName(file.name);
+    setBackup(result.backup);
+    setBackupWarnings(result.warnings);
+    setStage("backup-preview");
+  }
+
+  async function handleFile(file: File, format: Format) {
+    setFileError(null);
+    if (format === "html") return handleHtmlFile(file);
+    if (format === "csv") return handleCsvFile(file);
+    return handleJsonFile(file);
   }
 
   function toggle(url: string) {
@@ -137,7 +320,7 @@ export default function ImportPage() {
     setSelected((prev) => {
       const next = new Set(prev);
       for (const b of group.bookmarks) {
-        if (select && !duplicateUrls.has(b.url)) next.add(b.url);
+        if (select && !duplicateUrls.has(b.url) && normalizeUrl(b.url)) next.add(b.url);
         else if (!select) next.delete(b.url);
       }
       return next;
@@ -153,6 +336,7 @@ export default function ImportPage() {
         existingStackId: "",
         newStackName: "",
         tagNames: [],
+        remember: false,
       };
       next.set(key, { ...current, ...patch });
       return next;
@@ -173,6 +357,18 @@ export default function ImportPage() {
       next.delete(url);
       return next;
     });
+  }
+
+  async function recordHistory(source: string, total: number, imported: number, skipped: number, failed: number, items: FailedItem[]) {
+    try {
+      await fetch("/api/import/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, filename: fileName, total, imported, skipped, failed, failedItems: items }),
+      });
+    } catch {
+      // History is a convenience log, not the source of truth — never worth failing the import over.
+    }
   }
 
   async function importSelected() {
@@ -201,15 +397,27 @@ export default function ImportPage() {
           // resources in that group just won't get a stack assigned.
         }
       }
+      // "Remember this mapping" — one write per group, not per bookmark.
+      if (choice.remember && choice.categoryId && g.folder) {
+        try {
+          await fetch("/api/import/mappings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folderPath: g.folder, categoryId: choice.categoryId }),
+          });
+        } catch {
+          // Not worth failing the import over — the user can set it again later.
+        }
+      }
     }
 
-    // Save in chunks so large imports show real incremental progress
-    // instead of one long blocking request.
+    const source = toImport[0]?.source ?? "chrome-bookmarks";
     const CHUNK_SIZE = 25;
     let importedCount = 0;
     let duplicateCount = 0;
     let failedCount = 0;
     const created: Resource[] = [];
+    const failures: FailedItem[] = [];
 
     for (let i = 0; i < toImport.length; i += CHUNK_SIZE) {
       const chunk = toImport.slice(i, i + CHUNK_SIZE);
@@ -218,6 +426,7 @@ export default function ImportPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            source,
             bookmarks: chunk.map((b) => {
               const key = GROUP_KEY(b.folder);
               const choice = groupChoices.get(key);
@@ -227,9 +436,12 @@ export default function ImportPage() {
                 title: b.title,
                 url: b.url,
                 folder: b.folder,
+                description: b.description,
+                notes: b.notes,
                 categoryId: override ? override.categoryId : (choice?.categoryId ?? null),
                 stackIds: stackId ? [stackId] : [],
-                tagNames: choice?.tagNames ?? [],
+                tagNames: [...(choice?.tagNames ?? []), ...(b.tags ?? [])],
+                createdAt: b.addedAt ?? undefined,
               };
             }),
           }),
@@ -239,22 +451,17 @@ export default function ImportPage() {
         importedCount += body.imported;
         duplicateCount += body.duplicates;
         failedCount += body.failed?.length ?? 0;
+        failures.push(...(body.failed ?? []));
         created.push(...(body.created ?? []));
-      } catch {
+      } catch (e) {
         failedCount += chunk.length;
+        failures.push(...chunk.map((b) => ({ title: b.title, url: b.url, reason: e instanceof Error ? e.message : "Import failed" })));
       }
       setProgress({ phase: "saving", done: Math.min(i + CHUNK_SIZE, toImport.length), total: toImport.length });
     }
 
-    // Every saved resource shows up immediately, even before enrichment.
     await hydrate();
 
-    // Enrich afterward, with limited concurrency — never blocks the basic
-    // import. One shared endpoint (src/lib/data/enrichment.ts) fetches each
-    // page and deterministically fills in description/Useful For/tags/
-    // category from real evidence; a failed fetch just leaves the
-    // bookmark's original title/URL in place rather than failing the
-    // resource — never fabricated content.
     let enrichFailed = 0;
     if (created.length > 0) {
       setProgress({ phase: "enriching", done: 0, total: created.length });
@@ -278,21 +485,179 @@ export default function ImportPage() {
     const createdIds = new Set(created.map((r) => r.id));
     const categorizedCount = useStore.getState().resources.filter((r) => createdIds.has(r.id) && r.categoryId).length;
     setSummary({ imported: importedCount, duplicates: duplicateCount, failed: failedCount, enrichFailed, categorized: categorizedCount });
+    setFailedItems(failures);
     setProgress(null);
     setStage("done");
+    void recordHistory(SOURCE_LABELS[source] ?? source, toImport.length, importedCount, duplicateCount, failedCount, failures);
+  }
+
+  async function retryFailed() {
+    if (failedItems.length === 0) return;
+    setRetrying(true);
+    try {
+      const res = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "retry",
+          bookmarks: failedItems.map((f) => ({ title: f.title, url: f.url })),
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || "Retry failed");
+      await hydrate();
+      const stillFailed: FailedItem[] = body.failed ?? [];
+      setSummary((s) => ({ ...s, imported: s.imported + body.imported, failed: stillFailed.length }));
+      setFailedItems(stillFailed);
+    } catch {
+      // Leave the failed list as-is — the user can try again.
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  // ── JSON backup restore ──────────────────────────────────────────────
+  async function restoreBackup() {
+    if (!backup) return;
+    setStage("importing");
+    setProgress({ phase: "saving", done: 0, total: backup.resources.length });
+
+    let categoryIdMap: Record<string, string> = {};
+    let stackIdMap: Record<string, string> = {};
+    try {
+      const res = await fetch("/api/import/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(backup),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || "Couldn't prepare this backup for import.");
+      categoryIdMap = body.categoryIdMap;
+      stackIdMap = body.stackIdMap;
+    } catch (e) {
+      setFileError(e instanceof Error ? e.message : "Couldn't restore this backup.");
+      setStage("upload");
+      return;
+    }
+
+    const tagById = new Map(backup.tags.map((t) => [t.id, t.name]));
+    const toRestore: BackupResource[] = backup.resources;
+    const CHUNK_SIZE = 25;
+    let importedCount = 0;
+    let duplicateCount = 0;
+    let failedCount = 0;
+    const created: Resource[] = [];
+    const failures: FailedItem[] = [];
+
+    for (let i = 0; i < toRestore.length; i += CHUNK_SIZE) {
+      const chunk = toRestore.slice(i, i + CHUNK_SIZE);
+      try {
+        const res = await fetch("/api/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: "keepyourstack-backup",
+            bookmarks: chunk.map((r) => ({
+              title: r.title,
+              url: r.url,
+              description: r.description || undefined,
+              notes: r.notes || undefined,
+              categoryId: r.categoryId ? categoryIdMap[r.categoryId] : null,
+              stackIds: r.stackIds.map((id) => stackIdMap[id]).filter(Boolean),
+              tagNames: r.tagIds.map((id) => tagById.get(id)).filter((n): n is string => !!n),
+              isFavorite: r.isFavorite,
+              isArchived: r.isArchived,
+              createdAt: r.createdAt,
+              sourceId: r.id,
+            })),
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body?.error || "Restore failed");
+        importedCount += body.imported;
+        duplicateCount += body.duplicates;
+        failedCount += body.failed?.length ?? 0;
+        failures.push(...(body.failed ?? []));
+        created.push(...(body.created ?? []));
+      } catch (e) {
+        failedCount += chunk.length;
+        failures.push(...chunk.map((r) => ({ title: r.title, url: r.url, reason: e instanceof Error ? e.message : "Restore failed" })));
+      }
+      setProgress({ phase: "saving", done: Math.min(i + CHUNK_SIZE, toRestore.length), total: toRestore.length });
+    }
+
+    await hydrate();
+    setSummary({ imported: importedCount, duplicates: duplicateCount, failed: failedCount, enrichFailed: 0, categorized: importedCount });
+    setFailedItems(failures);
+    setProgress(null);
+    setStage("done");
+    void recordHistory("KeepYourStack backup", toRestore.length, importedCount, duplicateCount, failedCount, failures);
+  }
+
+  function reset() {
+    setStage("upload");
+    setFileError(null);
+    setBookmarks([]);
+    setBackup(null);
+    setFailedItems([]);
+    setShowFailures(false);
   }
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold tracking-tight text-text-primary">Import your bookmarks</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-text-primary">Import your data</h1>
         <p className="text-[13px] text-text-secondary">
-          Bring your existing browser bookmarks into KeepYourStack.
+          Bring bookmarks, a spreadsheet, or a KeepYourStack backup into your library.
         </p>
       </div>
 
       {stage === "upload" && (
         <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                { format: "html" as const, icon: Bookmark, label: "Bookmarks", accept: ".html,.htm" },
+                { format: "csv" as const, icon: FileSpreadsheet, label: "CSV", accept: ".csv" },
+                { format: "json" as const, icon: FileJson, label: "Backup JSON", accept: ".json" },
+              ]
+            ).map((opt) => (
+              <button
+                key={opt.format}
+                onClick={() => {
+                  setFileError(null);
+                  fileInputRef.current?.setAttribute("accept", opt.accept);
+                  fileInputRef.current?.setAttribute("data-format", opt.format);
+                  fileInputRef.current?.click();
+                }}
+                className="flex flex-col items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface p-4 text-center transition-colors hover:border-accent/40 hover:bg-surface-2 cursor-pointer"
+              >
+                <opt.icon size={20} className="text-text-secondary" />
+                <span className="text-[12.5px] font-medium text-text-primary">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {browserLabel !== undefined && (
+            <div className="flex items-center gap-2 text-[12px] text-text-muted">
+              <span>Bookmarks file from:</span>
+              <div className="w-40">
+                <Dropdown
+                  size="sm"
+                  value={browserLabel}
+                  onChange={(v) => setBrowserLabel(v as typeof browserLabel)}
+                  options={[
+                    { value: "chrome", label: "Chrome" },
+                    { value: "firefox", label: "Firefox" },
+                    { value: "edge", label: "Edge" },
+                    { value: "bookmarks", label: "Other / not sure" },
+                  ]}
+                />
+              </div>
+              <span className="text-text-muted">— they all export the same file format, this just labels it</span>
+            </div>
+          )}
+
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -303,10 +668,13 @@ export default function ImportPage() {
               e.preventDefault();
               setDragOver(false);
               const file = e.dataTransfer.files?.[0];
-              if (file) void handleFile(file);
+              if (!file) return;
+              const ext = file.name.split(".").pop()?.toLowerCase();
+              const format: Format = ext === "csv" ? "csv" : ext === "json" ? "json" : "html";
+              void handleFile(file, format);
             }}
             className={cn(
-              "flex flex-col items-center gap-3 rounded-[var(--radius-lg)] border-2 border-dashed p-12 text-center transition-colors",
+              "flex flex-col items-center gap-3 rounded-[var(--radius-lg)] border-2 border-dashed p-10 text-center transition-colors",
               dragOver ? "border-accent bg-accent-soft" : "border-border bg-surface"
             )}
           >
@@ -314,20 +682,18 @@ export default function ImportPage() {
               <Upload size={22} />
             </div>
             <div>
-              <p className="text-[14px] font-medium text-text-primary">Drop your bookmarks.html file here</p>
-              <p className="mt-1 text-[12.5px] text-text-secondary">or click to browse</p>
+              <p className="text-[14px] font-medium text-text-primary">Drop a file here</p>
+              <p className="mt-1 text-[12.5px] text-text-secondary">or choose a type above</p>
             </div>
-            <Button variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <FileUp size={14} /> Choose Bookmark File
-            </Button>
             <input
               ref={fileInputRef}
               type="file"
-              accept=".html,.htm"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) void handleFile(file);
+                const format = (e.target.getAttribute("data-format") as Format) || "html";
+                if (file) void handleFile(file, format);
+                e.target.value = "";
               }}
             />
           </div>
@@ -340,20 +706,89 @@ export default function ImportPage() {
           )}
 
           <div className="rounded-[var(--radius-md)] border border-border bg-surface-2 p-4 text-[12.5px] text-text-secondary">
-            <p className="font-medium text-text-primary">Step 1 — export from Chrome</p>
+            <p className="font-medium text-text-primary">Bookmarks (Chrome, Firefox, Edge)</p>
             <ol className="mt-1.5 list-decimal space-y-1 pl-4">
-              <li>Open Chrome → Bookmarks → Bookmark Manager</li>
-              <li>
-                Click the <span className="font-mono text-text-primary">⋮</span> menu → Export bookmarks
-              </li>
-              <li>
-                Chrome creates a <span className="font-mono text-text-primary">bookmarks.html</span> file
-              </li>
+              <li>Open your browser&apos;s bookmark manager and choose Export bookmarks</li>
+              <li>Upload the resulting <span className="font-mono text-text-primary">.html</span> file here</li>
             </ol>
-            <p className="mt-3 font-medium text-text-primary">Step 2 — upload it here</p>
+            <p className="mt-3 font-medium text-text-primary">CSV</p>
+            <p className="mt-1">A spreadsheet with at least a URL column — title, description, tags, category, and notes columns are recognized automatically or can be mapped by hand.</p>
+            <p className="mt-3 font-medium text-text-primary">Backup JSON</p>
             <p className="mt-1">
-              KeepYourStack can&apos;t read your browser&apos;s bookmarks directly — this file is the bridge.
+              A file from KeepYourStack&apos;s own <span className="font-mono text-text-primary">Export Backup</span> — restores your
+              resources, categories, stacks, tags, and notes exactly.
             </p>
+          </div>
+        </div>
+      )}
+
+      {stage === "csv-mapping" && (
+        <div className="flex flex-col gap-4">
+          <div className="flex items-start gap-2.5 rounded-[var(--radius-md)] border border-warning/30 bg-warning/10 px-3.5 py-3 text-[13px] text-text-primary">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning" />
+            We couldn&apos;t tell which column has the URL — match your file&apos;s columns below.
+          </div>
+          <div className="flex flex-col gap-3">
+            {(["url", "title", "description", "tags", "category", "notes"] as (keyof CsvColumnMap)[]).map((field) => (
+              <div key={field} className="flex items-center justify-between gap-3">
+                <span className="text-[13px] capitalize text-text-primary">
+                  {field}
+                  {field === "url" && <span className="text-danger"> *</span>}
+                </span>
+                <div className="w-56">
+                  <Dropdown
+                    size="sm"
+                    value={String((csvColumns as unknown as Record<string, number>)[field] ?? -1)}
+                    onChange={(v) => setCsvColumns((prev) => ({ ...prev, [field]: Number(v) }))}
+                    options={[
+                      { value: "-1", label: "— None —" },
+                      ...csvHeader.map((h, i) => ({ value: String(i), label: h || `Column ${i + 1}` })),
+                    ]}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          {fileError && <p className="text-[12.5px] text-danger">{fileError}</p>}
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" onClick={() => setStage("upload")}>
+              <ArrowLeft size={14} /> Choose different file
+            </Button>
+            <Button onClick={confirmCsvMapping}>Continue</Button>
+          </div>
+        </div>
+      )}
+
+      {stage === "backup-preview" && backup && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-[var(--radius-lg)] border border-border bg-surface p-5">
+            <p className="text-[14px] font-semibold text-text-primary">Restore from backup</p>
+            <p className="mt-1 text-[12.5px] text-text-secondary">
+              Exported {new Date(backup.exportedAt).toLocaleString()} · {fileName}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3 font-mono text-[12.5px] sm:grid-cols-4">
+              <div><p className="text-[17px] font-semibold text-text-primary">{backup.resources.length}</p><p className="text-text-muted">resources</p></div>
+              <div><p className="text-[17px] font-semibold text-text-primary">{backup.categories.length}</p><p className="text-text-muted">categories</p></div>
+              <div><p className="text-[17px] font-semibold text-text-primary">{backup.stacks.length}</p><p className="text-text-muted">stacks</p></div>
+              <div><p className="text-[17px] font-semibold text-text-primary">{backup.tags.length}</p><p className="text-text-muted">tags</p></div>
+            </div>
+          </div>
+          {backupWarnings.length > 0 && (
+            <div className="flex flex-col gap-1 rounded-[var(--radius-md)] border border-warning/30 bg-warning/10 px-3.5 py-3 text-[12.5px] text-text-primary">
+              {backupWarnings.map((w, i) => (
+                <span key={i}>{w}</span>
+              ))}
+            </div>
+          )}
+          <p className="text-[12.5px] text-text-secondary">
+            Categories and stacks are matched by name to your existing ones (creating any that don&apos;t exist yet) — nothing is
+            duplicated. Resources you&apos;ve already saved (same URL) are skipped, never overwritten.
+          </p>
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" onClick={reset}>
+              <ArrowLeft size={14} /> Choose different file
+            </Button>
+            <Button onClick={() => void restoreBackup()}>Restore {backup.resources.length} Resources</Button>
           </div>
         </div>
       )}
@@ -361,11 +796,23 @@ export default function ImportPage() {
       {stage === "preview" && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-border bg-surface-2 px-4 py-3 font-mono text-[12.5px]">
-            <span className="text-text-primary">{bookmarks.length} bookmarks found</span>
+            <span className="text-text-primary">{bookmarks.length} found</span>
             <span className="text-text-muted">·</span>
-            <span className="text-warning">{duplicateUrls.size} duplicates</span>
+            <span className="text-success">{newCount} new</span>
             <span className="text-text-muted">·</span>
-            <span className="text-success">{newCount} new resources</span>
+            <span className="text-warning">{duplicateUrls.size} already saved</span>
+            {inFileDuplicateUrls.size > 0 && (
+              <>
+                <span className="text-text-muted">·</span>
+                <span className="text-warning">{inFileDuplicateUrls.size} duplicate in file</span>
+              </>
+            )}
+            {invalidCount > 0 && (
+              <>
+                <span className="text-text-muted">·</span>
+                <span className="text-danger">{invalidCount} invalid URL{invalidCount === 1 ? "" : "s"}</span>
+              </>
+            )}
             <span className="text-text-muted">·</span>
             <span className="text-accent">{selected.size} selected</span>
           </div>
@@ -380,7 +827,7 @@ export default function ImportPage() {
             <p className="truncate text-[12.5px] text-text-secondary">{fileName}</p>
             <div className="flex gap-3">
               <button
-                onClick={() => setSelected(new Set(bookmarks.map((b) => b.url)))}
+                onClick={() => setSelected(new Set(bookmarks.filter((b) => normalizeUrl(b.url)).map((b) => b.url)))}
                 className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
               >
                 Select all
@@ -393,7 +840,7 @@ export default function ImportPage() {
               </button>
               <button
                 onClick={() =>
-                  setSelected(new Set(bookmarks.filter((b) => !duplicateUrls.has(b.url)).map((b) => b.url)))
+                  setSelected(new Set(bookmarks.filter((b) => !duplicateUrls.has(b.url) && normalizeUrl(b.url)).map((b) => b.url)))
                 }
                 className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
               >
@@ -490,12 +937,25 @@ export default function ImportPage() {
                           />
                         </div>
                       </div>
+                      {group.folder && (
+                        <label className="flex w-fit items-center gap-1.5 pt-0.5 text-[11.5px] text-text-secondary cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={choice.remember}
+                            onChange={(e) => updateGroupChoice(key, { remember: e.target.checked })}
+                            className="h-3.5 w-3.5"
+                          />
+                          Remember this mapping for next time
+                        </label>
+                      )}
                     </div>
                   )}
 
                   <div className="flex flex-col gap-0.5 p-2">
                     {group.bookmarks.map((b) => {
                       const isDup = duplicateUrls.has(b.url);
+                      const isFileDup = inFileDuplicateUrls.has(b.url);
+                      const isInvalid = !normalizeUrl(b.url);
                       const isSelected = selected.has(b.url);
                       const override = overrides.get(b.url);
                       const isExpanded = expandedUrl === b.url;
@@ -505,8 +965,9 @@ export default function ImportPage() {
                           <div className="flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 hover:bg-surface-3">
                             <button
                               onClick={() => toggle(b.url)}
+                              disabled={isInvalid}
                               className={cn(
-                                "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border cursor-pointer",
+                                "flex h-5 w-5 shrink-0 items-center justify-center rounded-[5px] border cursor-pointer disabled:cursor-not-allowed disabled:opacity-40",
                                 isSelected ? "border-accent bg-accent text-white" : "border-border-strong text-transparent"
                               )}
                             >
@@ -518,25 +979,37 @@ export default function ImportPage() {
                               className="min-w-0 flex-1 text-left cursor-pointer"
                             >
                               <p className="truncate text-[13px] text-text-primary">{b.title}</p>
-                              <p className="truncate font-mono text-[11px] text-text-muted">{getDomain(b.url)}</p>
+                              <p className="truncate font-mono text-[11px] text-text-muted">{isInvalid ? b.url : getDomain(b.url)}</p>
                             </button>
                             {override && (
                               <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
                                 Overridden
                               </span>
                             )}
-                            {isDup && (
+                            {isInvalid && (
+                              <span className="shrink-0 rounded-full bg-danger/15 px-2 py-0.5 text-[10px] font-medium text-danger">
+                                Invalid URL
+                              </span>
+                            )}
+                            {!isInvalid && isFileDup && (
+                              <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
+                                Duplicate in file
+                              </span>
+                            )}
+                            {!isInvalid && isDup && (
                               <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning">
                                 Already saved
                               </span>
                             )}
-                            <button
-                              onClick={() => setExpandedUrl(isExpanded ? null : b.url)}
-                              className="shrink-0 rounded-md p-1.5 text-text-muted hover:bg-surface-hover hover:text-text-primary cursor-pointer"
-                              aria-label="Edit this bookmark's organization"
-                            >
-                              <Pencil size={13} />
-                            </button>
+                            {!isInvalid && (
+                              <button
+                                onClick={() => setExpandedUrl(isExpanded ? null : b.url)}
+                                className="shrink-0 rounded-md p-1.5 text-text-muted hover:bg-surface-hover hover:text-text-primary cursor-pointer"
+                                aria-label="Edit this bookmark's organization"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
                           </div>
                           {isExpanded && (
                             <div className="ml-9 flex flex-col gap-2 border-l border-border/60 pb-2 pl-3.5">
@@ -566,7 +1039,7 @@ export default function ImportPage() {
           </div>
 
           <div className="flex items-center justify-between">
-            <Button variant="ghost" onClick={() => setStage("upload")}>
+            <Button variant="ghost" onClick={reset}>
               <ArrowLeft size={14} /> Choose different file
             </Button>
             <Button onClick={() => void importSelected()} disabled={selected.size === 0}>
@@ -579,7 +1052,7 @@ export default function ImportPage() {
       {stage === "importing" && progress && (
         <div className="flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border border-border bg-surface p-10 text-center">
           <p className="text-[14px] font-medium text-text-primary">
-            {progress.phase === "saving" ? "Saving bookmarks…" : "Enriching metadata…"}
+            {progress.phase === "saving" ? "Saving…" : "Enriching metadata…"}
           </p>
           <div className="w-full max-w-xs">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-3">
@@ -589,7 +1062,7 @@ export default function ImportPage() {
               />
             </div>
             <p className="mt-2 font-mono text-[12px] text-text-muted">
-              {progress.done} / {progress.total}
+              {progress.done} / {progress.total} ({Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%)
             </p>
           </div>
           {progress.phase === "enriching" && (
@@ -601,43 +1074,75 @@ export default function ImportPage() {
       )}
 
       {stage === "done" && (
-        <div className="flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border border-success/30 bg-success-soft p-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/20 text-success">
-            <Check size={22} />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border border-success/30 bg-success-soft p-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/20 text-success">
+              <Check size={22} />
+            </div>
+            <div>
+              <p className="text-[15px] font-semibold text-text-primary">Import complete</p>
+              <p className="mt-1 text-[13px] text-text-secondary">{summary.imported} resources added</p>
+              {summary.imported > 0 && (
+                <p className="text-[12.5px] text-text-secondary">
+                  {summary.categorized} categorized · {summary.imported - summary.categorized} need review
+                </p>
+              )}
+              {summary.duplicates > 0 && (
+                <p className="text-[12.5px] text-text-secondary">{summary.duplicates} duplicates skipped</p>
+              )}
+              {summary.enrichFailed > 0 && (
+                <p className="text-[12.5px] text-warning">
+                  {summary.enrichFailed} resource{summary.enrichFailed === 1 ? "" : "s"} couldn&apos;t be enriched —
+                  the title and URL were still saved.
+                </p>
+              )}
+              {summary.failed > 0 && (
+                <p className="text-[12.5px] text-danger">
+                  {summary.failed} item{summary.failed === 1 ? "" : "s"} failed to save.
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="secondary" onClick={reset}>
+                Import Another File
+              </Button>
+              {summary.imported - summary.categorized > 0 ? (
+                <Button onClick={() => router.push("/resources?needsReview=1")}>Review Uncategorized</Button>
+              ) : (
+                <Button onClick={() => router.push("/resources")}>View Imported Resources</Button>
+              )}
+            </div>
+            {failedItems.length > 0 && (
+              <button
+                onClick={() => setShowFailures((v) => !v)}
+                className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
+              >
+                {showFailures ? "Hide" : "View"} failures
+              </button>
+            )}
           </div>
-          <div>
-            <p className="text-[15px] font-semibold text-text-primary">Import complete</p>
-            <p className="mt-1 text-[13px] text-text-secondary">{summary.imported} resources added</p>
-            {summary.imported > 0 && (
-              <p className="text-[12.5px] text-text-secondary">
-                {summary.categorized} categorized · {summary.imported - summary.categorized} need review
-              </p>
-            )}
-            {summary.duplicates > 0 && (
-              <p className="text-[12.5px] text-text-secondary">{summary.duplicates} duplicates skipped</p>
-            )}
-            {summary.enrichFailed > 0 && (
-              <p className="text-[12.5px] text-warning">
-                {summary.enrichFailed} resource{summary.enrichFailed === 1 ? "" : "s"} couldn&apos;t be enriched —
-                the title and URL were still saved.
-              </p>
-            )}
-            {summary.failed > 0 && (
-              <p className="text-[12.5px] text-danger">
-                {summary.failed} bookmark{summary.failed === 1 ? "" : "s"} failed to save.
-              </p>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setStage("upload")}>
-              Import Another File
-            </Button>
-            {summary.imported - summary.categorized > 0 ? (
-              <Button onClick={() => router.push("/resources?needsReview=1")}>Review Uncategorized</Button>
-            ) : (
-              <Button onClick={() => router.push("/resources")}>View Imported Resources</Button>
-            )}
-          </div>
+
+          {showFailures && failedItems.length > 0 && (
+            <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4">
+              <div className="flex items-center justify-between">
+                <p className="text-[13px] font-medium text-text-primary">Failed items</p>
+                <Button size="sm" variant="secondary" onClick={() => void retryFailed()} disabled={retrying}>
+                  {retrying ? "Retrying…" : "Retry Failed"}
+                </Button>
+              </div>
+              <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+                {failedItems.map((f, i) => (
+                  <div key={i} className="rounded-[var(--radius-sm)] border border-border bg-surface-2 px-3 py-2">
+                    <p className="truncate text-[12.5px] text-text-primary">{f.title}</p>
+                    <p className="truncate font-mono text-[11px] text-text-muted">{f.url}</p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[11px] text-danger">
+                      <AlertTriangle size={11} /> {f.reason}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

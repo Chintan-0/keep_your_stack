@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Search, Package, Plus, CheckSquare, X, Sparkles } from "lucide-react";
+import { Search, Package, Plus, CheckSquare, X, Sparkles, Download } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { ResourceCollection } from "@/components/resource-collection";
@@ -10,6 +10,7 @@ import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@
 import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
 import { runWithConcurrency } from "@/lib/concurrency";
+import { cn } from "@/lib/utils";
 
 // This page is fully client-rendered, so the initial ?tag=/?category=/
 // ?subcategory=/?needsReview= filters are read from the browser location
@@ -186,6 +187,16 @@ export default function AllResourcesPage() {
             <Sparkles size={13} />
             {enriching ? `Enriching ${enriching.done}/${enriching.total}` : `Enrich ${selectedIds.size || ""} selected`}
           </Button>
+          <a
+            href={selectedIds.size > 0 ? `/api/export/json?scope=selected&ids=${Array.from(selectedIds).join(",")}` : undefined}
+            aria-disabled={selectedIds.size === 0}
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] bg-surface-3 px-2.5 text-[13px] font-medium text-text-primary border border-border-strong transition-colors",
+              selectedIds.size === 0 ? "pointer-events-none opacity-50" : "hover:bg-surface-hover cursor-pointer"
+            )}
+          >
+            <Download size={13} /> Export selected
+          </a>
           <button
             onClick={exitSelectMode}
             className="ml-auto flex items-center gap-1 text-[12.5px] text-text-muted hover:text-text-primary cursor-pointer"

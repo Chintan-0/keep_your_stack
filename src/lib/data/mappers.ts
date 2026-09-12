@@ -28,6 +28,7 @@ export function mapResourceRow(row: ResourceRow): Resource {
     useCount: row.use_count,
     importSource: row.import_source,
     importFolder: row.import_folder,
+    importSourceId: row.import_source_id,
     descriptionSource: (row.description_source as Resource["descriptionSource"]) ?? null,
     usefulForSource: (row.useful_for_source as Resource["usefulForSource"]) ?? null,
     enrichmentStatus: (row.enrichment_status as Resource["enrichmentStatus"]) ?? "pending",
