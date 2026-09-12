@@ -1,5 +1,5 @@
-import { getSession, getSettings, setSession } from "./storage";
-import type { ExtCategory, ExtStack, SaveInput, SaveResult } from "./types";
+import { getSession, getSettings, setSession } from "./storage.js";
+import type { ExtCategory, ExtStack, SaveInput, SaveResult } from "./types.js";
 
 export class ApiError extends Error {
   constructor(
@@ -68,16 +68,38 @@ async function authedFetch(path: string, init?: RequestInit): Promise<Response> 
   return res;
 }
 
-export async function checkConnection(): Promise<{ email: string | null } | null> {
+/**
+ * A precise classification of "can this popup reach the account right
+ * now?" — kept as one discriminated union rather than collapsing every
+ * failure into a single boolean, so the popup can show "Connect your
+ * account" (no-session), "Session expired" (had one, it's no longer
+ * usable), and "Couldn't connect to KeepYourStack" (a real network/server
+ * problem, unrelated to auth) as three genuinely distinct states instead
+ * of guessing between them from a stale "have we ever connected before"
+ * flag. See resolveInitialView, which is the only place this is consumed.
+ */
+export type ConnectionStatus =
+  | { status: "connected"; email: string | null }
+  | { status: "no-session" }
+  | { status: "expired" }
+  | { status: "network-error" };
+
+export async function checkConnection(): Promise<ConnectionStatus> {
   const session = await getSession();
-  if (!session) return null;
+  if (!session) return { status: "no-session" };
   try {
     const res = await authedFetch("/api/account");
-    if (!res.ok) return null;
+    if (!res.ok) return { status: "network-error" };
     const data = await res.json();
-    return { email: data.user?.email ?? null };
-  } catch {
-    return null;
+    return { status: "connected", email: data.user?.email ?? null };
+  } catch (e) {
+    // authedFetch itself already distinguishes "the refresh flow ran and
+    // definitively failed" (AuthError) from everything else (offline, DNS
+    // failure, the KeepYourStack server being down, a malformed response)
+    // — preserve that distinction here instead of flattening both into
+    // the same result the way a single bare `catch { return null }` would.
+    if (e instanceof AuthError) return { status: "expired" };
+    return { status: "network-error" };
   }
 }
 

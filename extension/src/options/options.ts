@@ -1,6 +1,6 @@
-import { getSettings, setSettings, setSession, getSession } from "../lib/storage";
-import { listStacks, listCategories } from "../lib/api";
-import { buildCategoryOptions } from "../lib/categories";
+import { getSettings, setSettings, setSession, getSession } from "../lib/storage.js";
+import { listStacks, listCategories } from "../lib/api.js";
+import { buildCategoryOptions } from "../lib/categories.js";
 
 async function init() {
   const settings = await getSettings();

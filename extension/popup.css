@@ -25,6 +25,33 @@
   box-sizing: border-box;
 }
 
+/*
+ * ROOT CAUSE of the "multiple popup states rendered at once" bug: several
+ * classes below (.view, .details, .disclosure, .recent-section) set their
+ * own `display` value. An attribute selector and a class selector have
+ * equal specificity (0,1,0), so when an element has both `hidden` and one
+ * of these classes, the browser's built-in `[hidden] { display: none }`
+ * rule and this stylesheet's own `.view { display: flex }` (etc.) tie on
+ * specificity — and per the CSS cascade, an AUTHOR stylesheet always wins
+ * that tie over the USER-AGENT stylesheet, regardless of which one comes
+ * "later". So every `<section class="view" hidden>` was actually being
+ * rendered as a visible flex box the whole time, stacked with every other
+ * one — popup.ts's single-state `show()` function was (and still is)
+ * correctly setting `hidden` on every view but one, but the CSS was
+ * silently ignoring it. Confirmed empirically: getComputedStyle(el).display
+ * returns "flex", not "none", for a hidden element under this exact rule
+ * shape, in a real Chromium engine.
+ *
+ * The fix is this one rule, not per-class patches — it makes `hidden`
+ * authoritative regardless of any future class's own `display`, which is
+ * exactly the contract show() already assumes. This is the standard,
+ * MDN-documented fix for this specific gotcha, not a screenshot-driven
+ * CSS hack: https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/hidden
+ */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   width: 360px;

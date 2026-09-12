@@ -1,4 +1,4 @@
-import type { RecentSave, Settings, StoredSession } from "./types";
+import type { RecentSave, Settings, StoredSession } from "./types.js";
 
 const SESSION_KEY = "kys_session";
 const SETTINGS_KEY = "kys_settings";

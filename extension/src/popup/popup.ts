@@ -1,4 +1,4 @@
-import { getSettings, hasEverConnected, setSettings, getRecentSaves, addRecentSave, removeRecentSave } from "../lib/storage";
+import { getSettings, setSettings, getRecentSaves, addRecentSave, removeRecentSave } from "../lib/storage.js";
 import {
   checkConnection,
   findExisting,
@@ -12,11 +12,12 @@ import {
   appAuthUrl,
   ApiError,
   AuthError,
-} from "../lib/api";
-import { isSupportedUrl } from "../lib/url";
-import { resolveInitialView, resolveResourceView } from "../lib/view-state";
-import { buildCategoryOptions } from "../lib/categories";
-import type { ExtResource } from "../lib/types";
+} from "../lib/api.js";
+import { isSupportedUrl } from "../lib/url.js";
+import { resolveInitialView, resolveResourceView } from "../lib/view-state.js";
+import { buildCategoryOptions } from "../lib/categories.js";
+import { createSequenceGuard } from "../lib/request-guard.js";
+import type { ExtResource } from "../lib/types.js";
 
 type ViewName =
   | "loading"
@@ -79,48 +80,75 @@ let currentPage: PageInfo | null = null;
 let savedResource: ExtResource | null = null;
 let justCreatedResourceId: string | null = null;
 
+// Guards against a stale async startup response overwriting a newer one —
+// e.g. the user clicks Retry (a second init() run) while the first run's
+// slower checkConnection() is still in flight; that first run must not be
+// allowed to render anything once a newer run has started. Every render
+// inside init()/checkDuplicateAndRender() is gated on "am I still the most
+// recent startup?" (via startupGuard.isCurrent) immediately before it
+// touches the DOM. This is scoped to one popup document's lifetime —
+// Chrome tears the whole document (and this guard) down on close, so a
+// *previous popup session's* async work can never reach a *new* one; the
+// race this actually guards against is two startups racing within the
+// same still-open popup. See lib/request-guard.ts + request-guard.test.ts.
+const startupGuard = createSequenceGuard();
+
 function setLoadingMessage(text: string) {
   const el = document.querySelector("#view-loading p");
   if (el) el.textContent = text;
 }
 
 async function init() {
+  const requestId = startupGuard.start();
   show("loading");
   setLoadingMessage("Checking…");
   justCreatedResourceId = null;
 
   currentPage = await getActiveTab();
+  if (!startupGuard.isCurrent(requestId)) return; // superseded by a newer init() while awaiting the tab
   const supportedUrl = !!currentPage && isSupportedUrl(currentPage.url);
 
   if (supportedUrl) setLoadingMessage("Checking your KeepYourStack account…");
-  const connection = supportedUrl ? await checkConnection() : null;
-  const everConnected = await hasEverConnected();
+  const connection = supportedUrl
+    ? await checkConnection()
+    : ({ status: "no-session" } as const); // never checked — supportedUrl already decides "unsupported" below
+  if (!startupGuard.isCurrent(requestId)) return; // superseded while awaiting the connection check
 
-  const view = resolveInitialView({ supportedUrl, connected: !!connection, everConnected });
+  const view = resolveInitialView({ supportedUrl, connection });
   if (view !== "check-duplicate") {
     show(view);
     return;
   }
 
   setLoadingMessage("Checking your stack…");
-  await checkDuplicateAndRender();
+  await checkDuplicateAndRender(requestId);
 }
 
-async function checkDuplicateAndRender() {
+async function checkDuplicateAndRender(requestId: number) {
   if (!currentPage) return;
   try {
     const existing = await findExisting(currentPage.url);
+    if (!startupGuard.isCurrent(requestId)) return; // superseded while awaiting the duplicate check
     if (resolveResourceView(existing) === "duplicate" && existing) {
-      await renderDuplicate(existing);
+      await renderDuplicate(existing, requestId);
     } else {
-      await renderNew();
+      await renderNew(requestId);
     }
   } catch (e) {
+    if (!startupGuard.isCurrent(requestId)) return;
     renderError(e);
   }
 }
 
-async function renderDuplicate(resource: ExtResource) {
+/**
+ * `guardId`, when passed, is the startup run this render belongs to —
+ * checked immediately before the final `show()` so a slow startup's own
+ * *internal* awaits (fetching stacks/categories for the "already in
+ * these" line) can't land after a newer startup has already rendered
+ * something else. Omitted when called from doSave(), which isn't part of
+ * the startup sequence and always represents the current, live state.
+ */
+async function renderDuplicate(resource: ExtResource, guardId?: number) {
   savedResource = resource;
   ($("dupFavicon") as HTMLImageElement).src = currentPage?.favIconUrl || faviconFallback(resource.url);
   $("dupTitle").textContent = resource.title;
@@ -154,10 +182,11 @@ async function renderDuplicate(resource: ExtResource) {
     }
   }
 
+  if (guardId !== undefined && !startupGuard.isCurrent(guardId)) return; // superseded while fetching org info
   show("duplicate");
 }
 
-async function renderNew() {
+async function renderNew(guardId?: number) {
   if (!currentPage) return;
   ($("newFavicon") as HTMLImageElement).src = currentPage.favIconUrl || faviconFallback(currentPage.url);
   $("newTitle").textContent = currentPage.title;
@@ -200,6 +229,7 @@ async function renderNew() {
   }
 
   await renderRecentSaves();
+  if (guardId !== undefined && !startupGuard.isCurrent(guardId)) return; // superseded while loading stacks/categories/recents
   show("new");
 }
 

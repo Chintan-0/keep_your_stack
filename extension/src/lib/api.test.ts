@@ -99,6 +99,60 @@ describe("api.ts", () => {
     expect(await getSession()).toBeNull();
   });
 
+  it("checkConnection: no-session when nothing is stored (never classified as expired or a network error)", async () => {
+    const { checkConnection } = await import("./api");
+    expect(await checkConnection()).toEqual({ status: "no-session" });
+  });
+
+  it("checkConnection: connected on a healthy authenticated response", async () => {
+    const { setSession } = await import("./storage");
+    await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });
+
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ user: { email: "dev@keepyourstack.local" } }) });
+
+    const { checkConnection } = await import("./api");
+    expect(await checkConnection()).toEqual({ status: "connected", email: "dev@keepyourstack.local" });
+  });
+
+  it("checkConnection: expired — distinct from a network error — when the refresh flow definitively fails", async () => {
+    // This is the exact bug-report gap (§10/§24): a real session that has
+    // expired must classify as "expired", not the same generic bucket as
+    // an offline network or 500 response.
+    const { setSession } = await import("./storage");
+    await setSession({ accessToken: "stale", refreshToken: "dead", expiresAt: null, userEmail: null });
+
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock
+      .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) })
+      .mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: "Session expired" }) });
+
+    const { checkConnection } = await import("./api");
+    expect(await checkConnection()).toEqual({ status: "expired" });
+  });
+
+  it("checkConnection: network-error — distinct from expired — when the request itself fails (e.g. offline)", async () => {
+    const { setSession } = await import("./storage");
+    await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });
+
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const { checkConnection } = await import("./api");
+    expect(await checkConnection()).toEqual({ status: "network-error" });
+  });
+
+  it("checkConnection: network-error — not expired — on a non-401 server failure", async () => {
+    const { setSession } = await import("./storage");
+    await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });
+
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) });
+
+    const { checkConnection } = await import("./api");
+    expect(await checkConnection()).toEqual({ status: "network-error" });
+  });
+
   it("wraps a non-401 API failure in ApiError with a human-readable message", async () => {
     const { setSession } = await import("./storage");
     await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });

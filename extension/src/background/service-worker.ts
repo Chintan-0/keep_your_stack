@@ -1,7 +1,7 @@
-import { setSession, markEverConnected, getSettings, addRecentSave } from "../lib/storage";
-import { findExisting, saveResource, enrichResource, ApiError, AuthError } from "../lib/api";
-import { isSupportedUrl } from "../lib/url";
-import type { StoredSession } from "../lib/types";
+import { setSession, markEverConnected, getSettings, addRecentSave } from "../lib/storage.js";
+import { findExisting, saveResource, enrichResource, ApiError, AuthError } from "../lib/api.js";
+import { isSupportedUrl } from "../lib/url.js";
+import type { StoredSession } from "../lib/types.js";
 
 const MENU_SAVE_PAGE = "keepyourstack-save-page";
 const MENU_SAVE_LINK = "keepyourstack-save-link";

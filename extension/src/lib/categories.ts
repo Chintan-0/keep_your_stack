@@ -2,7 +2,7 @@
 // flat, indented list from the user's real category tree (fetched from
 // /api/categories — the same dynamic per-user taxonomy the web app uses,
 // never a second hard-coded list in the extension).
-import type { ExtCategory } from "./types";
+import type { ExtCategory } from "./types.js";
 
 export interface CategoryOption {
   id: string;
