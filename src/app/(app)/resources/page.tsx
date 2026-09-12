@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Search, Package, Plus, CheckSquare, X, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -11,42 +11,48 @@ import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
 import { runWithConcurrency } from "@/lib/concurrency";
 
-// This page is fully client-rendered, so the initial ?tag= filter is read
-// straight from the browser location rather than Next's useSearchParams
-// (which requires a Suspense boundary we don't otherwise need here).
-function initialTagFromLocation(): string {
-  if (typeof window === "undefined") return "";
-  return new URLSearchParams(window.location.search).get("tag") ?? "";
-}
-
-function initialCategoryFiltersFromLocation(): { categoryId: string; subcategoryId: string; needsReview: boolean } {
-  if (typeof window === "undefined") return { categoryId: "", subcategoryId: "", needsReview: false };
+// This page is fully client-rendered, so the initial ?tag=/?category=/
+// ?subcategory=/?needsReview= filters are read from the browser location
+// rather than Next's useSearchParams (which requires a Suspense boundary we
+// don't otherwise need here).
+//
+// Reading window.location.search straight into useState's lazy initializer
+// would differ between the server render (no window — falls back to "") and
+// hydration, which IS the client's first render and DOES see the real URL —
+// a real hydration mismatch, not just a theoretical one (confirmed live:
+// landing on /resources?needsReview=1, e.g. from the Library Health page's
+// link, rendered a different FilterBar button on the server vs. the
+// client). So `filters` always starts at DEFAULT_FILTERS on both, and the
+// real values are applied once, after mount, in the effect below.
+function readLocationFilters(): { tagId: string; categoryId: string; subcategoryId: string; needsReview: boolean } {
   const params = new URLSearchParams(window.location.search);
-  const subcategoryId = params.get("subcategory") ?? "";
   return {
+    tagId: params.get("tag") ?? "",
     categoryId: params.get("category") ?? "",
-    subcategoryId,
+    subcategoryId: params.get("subcategory") ?? "",
     needsReview: params.get("needsReview") === "1",
   };
 }
 
 export default function AllResourcesPage() {
-  const initialTag = useState(initialTagFromLocation)[0];
   const resources = useStore((s) => s.resources);
   const categories = useStore((s) => s.categories);
   const linkChecks = useStore((s) => s.linkChecks);
   const bulkMoveResources = useStore((s) => s.bulkMoveResources);
   const enrichResource = useStore((s) => s.enrichResource);
   const openAddResource = useUIStore((s) => s.openAddResource);
-  const initialCategoryFilters = useState(initialCategoryFiltersFromLocation)[0];
   const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<Filters>({
-    ...DEFAULT_FILTERS,
-    tagId: initialTag,
-    categoryId: initialCategoryFilters.categoryId,
-    subcategoryId: initialCategoryFilters.subcategoryId,
-    needsReview: initialCategoryFilters.needsReview,
-  });
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+
+  // Justified use of an effect: reading window.location.search can only
+  // safely happen post-mount without reintroducing the exact hydration
+  // mismatch the fixed initial state above exists to avoid — there's no
+  // render-time-derivable alternative here.
+  useEffect(() => {
+    const fromLocation = readLocationFilters();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFilters((prev) => ({ ...prev, ...fromLocation }));
+  }, []);
 
   // A direct link to a subcategory (e.g. from a resource's breadcrumb) only
   // carries that subcategory's id — derive its parent for display so the
