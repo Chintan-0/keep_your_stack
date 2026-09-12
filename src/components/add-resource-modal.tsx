@@ -341,15 +341,19 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
               </button>
             ) : (
               <div className="flex flex-col gap-4 animate-fade-in">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12px] font-medium text-text-secondary">Category</label>
-                    <CategorySelector value={categoryId} onChange={setCategoryId} />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[12px] font-medium text-text-secondary">Tags</label>
-                    <TagInput value={tags} onChange={setTags} />
-                  </div>
+                {/* Category gets its own full-width row rather than sharing
+                    a grid-cols-2 cell with Tags — see edit-resource-modal.tsx
+                    for why: a half-width cell was too narrow for
+                    CategorySelector's up-to-two-side-by-side controls,
+                    causing the inline "new subcategory" create form to
+                    visually overflow into the Tags field next to it. */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-medium text-text-secondary">Category</label>
+                  <CategorySelector value={categoryId} onChange={setCategoryId} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[12px] font-medium text-text-secondary">Tags</label>
+                  <TagInput value={tags} onChange={setTags} />
                 </div>
 
                 <div className="flex flex-col gap-1.5">

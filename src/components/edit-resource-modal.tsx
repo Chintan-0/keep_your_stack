@@ -123,15 +123,23 @@ function EditResourceForm({ resource, onClose }: { resource: Resource; onClose: 
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] font-medium text-text-secondary">Category</label>
-            <CategorySelector value={categoryId} onChange={setCategoryId} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[12px] font-medium text-text-secondary">Tags</label>
-            <TagInput value={tagNames} onChange={setTagNames} />
-          </div>
+        {/* Category gets its own full-width row rather than sharing a
+            grid-cols-2 cell with Tags — CategorySelector can render up to
+            two side-by-side controls (category + subcategory, or the
+            inline "new subcategory" name input with its own Create/Cancel
+            buttons), and a half-width cell was too narrow for that: the
+            create-subcategory input's text and buttons visually overflowed
+            into the Tags field next to it (confirmed live — the input's
+            real value was always correct, but the Create button became
+            very hard to hit reliably, which is exactly the kind of thing
+            that reads as "category assignment doesn't work"). */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[12px] font-medium text-text-secondary">Category</label>
+          <CategorySelector value={categoryId} onChange={setCategoryId} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[12px] font-medium text-text-secondary">Tags</label>
+          <TagInput value={tagNames} onChange={setTagNames} />
         </div>
 
         <div className="flex flex-col gap-1.5">
