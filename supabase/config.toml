@@ -15,7 +15,22 @@ schemas = ["public", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
 # for accidental or malicious requests.
-max_rows = 1000
+#
+# Phase 12 production audit (§5/§39 load testing): this silently overrode
+# listResources()'s own `.limit(5000)` in src/lib/data/resources.ts — the
+# default of 1000 meant a user with more than 1,000 resources had the rest
+# vanish from every list view (All Resources, Favorites, Archive — none of
+# them paginate; they all render the one full listResources() fetch) with
+# no error and no indication anything was missing. Raised to match the
+# app's own declared intent. This is a LOCAL DEV setting only — a real
+# hosted Supabase project's equivalent (Project Settings → API → Max Rows)
+# must be raised to the same value before launch; this file can't do that
+# for you. 5000 is still a stopgap, not a real fix: the app has no
+# pagination at all, so a library past this cap (which Phase 11's own
+# import path explicitly supports up to 20,000 items) will still silently
+# truncate. Real cursor-based pagination is a Post-V1 priority, not
+# something to retrofit during this hardening pass.
+max_rows = 5000
 # Controls whether new tables, views, sequences and functions created in the `public` schema by
 # `postgres` are reachable through the Data API roles (`anon`, `authenticated`, `service_role`)
 # without explicit GRANTs, matching the cloud default. Set to `false` to require explicit GRANTs

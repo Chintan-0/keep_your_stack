@@ -60,13 +60,29 @@ function defaultSource(hasValue: boolean): "user" | null {
 // there's exactly one place ("is this archived?") that decides visibility.
 // A single indexed query is plenty at personal-toolbox scale; add a
 // server-side archived filter or pagination here first if that changes.
+//
+// Phase 12 load testing (§5/§39) found this `.limit()` was silently
+// overridden by PostgREST's own lower `max_rows` (supabase/config.toml
+// defaulted to 1000 — measured live: a 10,000-resource account got back
+// exactly 1000 rows here, no error, nothing indicating 9,000 resources
+// were missing). Both are now aligned at 5000, matching each other. That's
+// still a stopgap, not a real fix — Phase 11's own import path explicitly
+// supports up to 20,000 items, well past this cap, and every screen that
+// renders this list (All Resources, Favorites, Archive) has no pagination
+// of its own to fall back on. A real hosted Supabase project's own
+// equivalent setting (Project Settings → API → Max Rows) must also be
+// raised to at least this value before launch — this file only controls
+// local dev. Real cursor-based pagination belongs in Post-V1, not this
+// hardening pass.
+const MAX_RESOURCES_PER_LIST = 5000;
+
 export async function listResources(client: Client, userId: string): Promise<Resource[]> {
   const { data, error } = await client
     .from("resources")
     .select(RESOURCE_SELECT)
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(2000);
+    .limit(MAX_RESOURCES_PER_LIST);
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapResourceRow);
 }
