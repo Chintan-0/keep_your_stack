@@ -424,7 +424,18 @@ function showFatalError(message: string) {
   try {
     renderError(new Error(message));
   } catch {
-    document.body.innerHTML = `<div style="padding:16px;font:13px sans-serif;color:#e8eaf0">${message}</div>`;
+    // Last-resort fallback if renderError itself throws (e.g. a missing
+    // DOM element). Every message reaching here today is a static,
+    // hardcoded string — nothing attacker-controlled (a webpage's title,
+    // a server error body) ever becomes an Error shown in this popup —
+    // but building the element via textContent rather than innerHTML
+    // costs nothing and means that stays true even if a future caller
+    // passes something less trusted.
+    document.body.textContent = "";
+    const div = document.createElement("div");
+    div.style.cssText = "padding:16px;font:13px sans-serif;color:#e8eaf0";
+    div.textContent = message;
+    document.body.appendChild(div);
   }
 }
 
