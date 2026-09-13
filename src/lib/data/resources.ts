@@ -5,8 +5,12 @@ import type { Resource } from "@/lib/types";
 import { mapResourceRow, RESOURCE_SELECT } from "./mappers";
 import { ensureTags } from "./tags";
 import { normalizeUrl, getDomain } from "@/lib/utils";
+import { clampTitle, clampDescription, clampNotes, clampUseCases, clampTagNames } from "@/lib/resource-validation";
+import { NotFoundError } from "./errors";
 
 type Client = SupabaseClient<Database>;
+
+export { NotFoundError };
 
 export interface ResourceInput {
   url: string;
@@ -152,7 +156,7 @@ async function linkTagsAndStacks(
   stackIds: string[] | undefined
 ) {
   if (tagNames && tagNames.length) {
-    const tagIds = await ensureTags(client, userId, tagNames);
+    const tagIds = await ensureTags(client, userId, clampTagNames(tagNames));
     if (tagIds.length) {
       const rows = tagIds.map((tag_id) => ({ resource_id: resourceId, tag_id }));
       const { error } = await client.from("resource_tags").upsert(rows, { onConflict: "resource_id,tag_id" });
@@ -212,16 +216,16 @@ export async function createResource(
     .from("resources")
     .insert({
       user_id: userId,
-      title: input.title?.trim() || domain,
+      title: clampTitle(input.title?.trim() || domain),
       url: normalized,
       normalized_url: normalized,
       domain,
-      description: input.description?.trim() || "",
+      description: clampDescription(input.description?.trim() || ""),
       favicon_url: input.faviconUrl ?? null,
       image_url: input.imageUrl ?? null,
       category_id: input.categoryId ?? null,
-      use_cases: input.useCases?.filter(Boolean) ?? [],
-      notes: input.notes?.trim() || "",
+      use_cases: clampUseCases(input.useCases?.filter(Boolean) ?? []),
+      notes: clampNotes(input.notes?.trim() || ""),
       pricing: input.pricing ?? null,
       platform: input.platform ?? [],
       is_favorite: input.isFavorite ?? false,
@@ -291,6 +295,14 @@ export async function updateResource(
   id: string,
   patch: ResourcePatch
 ): Promise<Resource> {
+  // Fail fast and honestly on a nonexistent/foreign id, before doing any
+  // writes — without this, an update for someone else's (or a typo'd) id
+  // would silently affect zero rows and only surface as a confusing
+  // "not found after update" once every field/tag/stack write had already
+  // been attempted.
+  const current = await getResource(client, userId, id);
+  if (!current) throw new NotFoundError("Resource not found.");
+
   // A foreign key alone doesn't enforce ownership (FK validation isn't
   // RLS-scoped) — confirm a non-null category id is really this user's own
   // before letting a resource point at it.
@@ -320,19 +332,19 @@ export async function updateResource(
     dbPatch.normalized_url = normalized;
     dbPatch.domain = getDomain(normalized);
   }
-  if (patch.title !== undefined) dbPatch.title = patch.title;
+  if (patch.title !== undefined) dbPatch.title = clampTitle(patch.title);
   if (patch.description !== undefined) {
-    dbPatch.description = patch.description;
+    dbPatch.description = clampDescription(patch.description);
     // Any caller other than enrichResource() editing this is a human —
     // default to "user" unless the caller (enrichResource) says otherwise.
     dbPatch.description_source = patch.descriptionSource ?? "user";
   }
   if (patch.useCases !== undefined) {
-    dbPatch.use_cases = patch.useCases;
+    dbPatch.use_cases = clampUseCases(patch.useCases);
     dbPatch.useful_for_source = patch.usefulForSource ?? "user";
   }
   if (patch.categoryId !== undefined) dbPatch.category_id = patch.categoryId;
-  if (patch.notes !== undefined) dbPatch.notes = patch.notes;
+  if (patch.notes !== undefined) dbPatch.notes = clampNotes(patch.notes);
   if (patch.isFavorite !== undefined) dbPatch.is_favorite = patch.isFavorite;
   if (patch.isArchived !== undefined) dbPatch.is_archived = patch.isArchived;
   if (patch.pricing !== undefined) dbPatch.pricing = patch.pricing;
@@ -373,7 +385,7 @@ export async function updateResource(
   }
 
   if (patch.tagNames !== undefined) {
-    const tagIds = await ensureTags(client, userId, patch.tagNames);
+    const tagIds = await ensureTags(client, userId, clampTagNames(patch.tagNames));
     await client.from("resource_tags").delete().eq("resource_id", id);
     if (tagIds.length) {
       await client
@@ -392,7 +404,7 @@ export async function updateResource(
   }
 
   const full = await getResource(client, userId, id);
-  if (!full) throw new Error("Resource not found after update");
+  if (!full) throw new NotFoundError("Resource not found.");
   return full;
 }
 
@@ -430,9 +442,17 @@ export async function bulkMoveResources(
   return data?.length ?? 0;
 }
 
+/**
+ * Throws (rather than silently no-op-succeeding) when `id` doesn't exist
+ * or isn't the caller's own — otherwise a delete request for someone
+ * else's id (or a typo'd id) would report success despite affecting zero
+ * rows, since `.eq("user_id", userId)` alone makes that outcome
+ * indistinguishable from "deleted" without checking what was returned.
+ */
 export async function deleteResource(client: Client, userId: string, id: string): Promise<void> {
-  const { error } = await client.from("resources").delete().eq("id", id).eq("user_id", userId);
+  const { data, error } = await client.from("resources").delete().eq("id", id).eq("user_id", userId).select("id");
   if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new NotFoundError("Resource not found.");
 }
 
 export async function addResourceToStack(client: Client, _userId: string, resourceId: string, stackId: string) {

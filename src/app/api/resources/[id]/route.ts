@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
-import { getResource, updateResource, deleteResource, type ResourcePatch } from "@/lib/data/resources";
+import { getResource, updateResource, deleteResource, NotFoundError, type ResourcePatch } from "@/lib/data/resources";
 import { corsPreflight, withCors } from "@/lib/cors";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -45,6 +45,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const resource = await updateResource(supabase, user.id, id, sanitizePatch(body));
     return withCors(request, NextResponse.json({ resource }));
   } catch (e) {
+    if (e instanceof NotFoundError) {
+      return withCors(request, NextResponse.json({ error: e.message }, { status: 404 }));
+    }
     return withCors(
       request,
       NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't save your changes. Try again." }, { status: 500 })
@@ -61,6 +64,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     await deleteResource(supabase, user.id, id);
     return withCors(request, NextResponse.json({ ok: true }));
   } catch (e) {
+    if (e instanceof NotFoundError) {
+      return withCors(request, NextResponse.json({ error: e.message }, { status: 404 }));
+    }
     return withCors(
       request,
       NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't delete this resource." }, { status: 500 })

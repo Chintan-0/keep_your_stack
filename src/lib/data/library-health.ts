@@ -7,6 +7,7 @@ import { findPossibleDuplicates } from "@/lib/duplicates";
 import { listResources, getResource, deleteResource } from "./resources";
 import { listLinkChecks } from "./link-check";
 import { ensureTags } from "./tags";
+import { clampNotes } from "@/lib/resource-validation";
 
 type Client = SupabaseClient<Database>;
 
@@ -113,7 +114,9 @@ export async function mergeResources(
 
   // Notes: never silently discard either — concatenate if both exist and differ.
   if (loser.notes && loser.notes !== keeper.notes) {
-    dbPatch.notes = keeper.notes ? `${keeper.notes}\n\n— From the merged duplicate —\n${loser.notes}` : loser.notes;
+    dbPatch.notes = clampNotes(
+      keeper.notes ? `${keeper.notes}\n\n— From the merged duplicate —\n${loser.notes}` : loser.notes
+    );
   }
 
   if (Object.keys(dbPatch).length > 0) {

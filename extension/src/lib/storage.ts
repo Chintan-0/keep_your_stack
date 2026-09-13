@@ -1,4 +1,5 @@
 import type { RecentSave, Settings, StoredSession } from "./types.js";
+import { DEFAULT_APP_URL } from "./env.generated.js";
 
 const SESSION_KEY = "kys_session";
 const SETTINGS_KEY = "kys_settings";
@@ -6,7 +7,7 @@ const RECENT_SAVES_KEY = "kys_recent_saves";
 const MAX_RECENT_SAVES = 8;
 
 const DEFAULT_SETTINGS: Settings = {
-  appUrl: "http://localhost:3000",
+  appUrl: DEFAULT_APP_URL,
   defaultStackId: null,
   defaultCategoryId: null,
   openInNewTab: true,
