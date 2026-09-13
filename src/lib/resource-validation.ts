@@ -35,3 +35,30 @@ export function clampUseCases(useCases: string[]): string[] {
 export function clampTagNames(tagNames: string[]): string[] {
   return tagNames.slice(0, MAX_TAGS_COUNT).map((t) => t.slice(0, MAX_TAG_NAME_LENGTH));
 }
+
+// pricing/platform are typed as closed string-literal unions at the
+// TypeScript level, but that's a compile-time-only guarantee — an API
+// caller (curl, the extension, a modified request) can send any JSON
+// value. `pricing` has a DB check constraint backing it up (an invalid
+// value fails loudly), but `platform` is a plain `text[]` column with no
+// such constraint, so nothing stopped an arbitrary array of
+// arbitrary-length strings from being written. Both are validated here
+// so a bad value is dropped quietly (same "truncate, don't reject the
+// whole save" philosophy as the fields above) rather than either being
+// silently accepted unbounded or surfacing a raw Postgres constraint
+// error to the caller.
+const VALID_PRICING = new Set(["free", "freemium", "paid", "open-source"]);
+const VALID_PLATFORMS = new Set(["web", "desktop", "cli", "mobile", "vscode-extension", "browser-extension"]);
+export const MAX_PLATFORMS_COUNT = 10;
+
+export function sanitizePricing(pricing: unknown): "free" | "freemium" | "paid" | "open-source" | null {
+  return typeof pricing === "string" && VALID_PRICING.has(pricing)
+    ? (pricing as "free" | "freemium" | "paid" | "open-source")
+    : null;
+}
+
+export function sanitizePlatform(platform: unknown): string[] {
+  if (!Array.isArray(platform)) return [];
+  const deduped = Array.from(new Set(platform.filter((p): p is string => typeof p === "string" && VALID_PLATFORMS.has(p))));
+  return deduped.slice(0, MAX_PLATFORMS_COUNT);
+}

@@ -1,35 +1,7 @@
 import "server-only";
+import { isBlockedHost, resolveUrl } from "@/lib/url-guard";
 
-// Shared SSRF guard used by both metadata fetching (src/lib/data/
-// metadata.ts) and link health checking (src/lib/data/link-check.ts) — one
-// implementation, so the two never drift apart on what's safe to fetch.
-// Blocks requests aimed at the machine itself or internal networks so
-// neither feature can be used as an open SSRF proxy against localhost,
-// cloud metadata endpoints (169.254.169.254), or RFC1918/loopback ranges.
-export function isBlockedHost(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  if (h === "localhost" || h.endsWith(".localhost") || h === "0.0.0.0") return true;
-  if (h === "169.254.169.254") return true; // cloud metadata service
-  const ipMatch = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (ipMatch) {
-    const [a, b] = ipMatch.slice(1).map(Number);
-    if (a === 127) return true; // loopback
-    if (a === 10) return true; // 10.0.0.0/8
-    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
-    if (a === 192 && b === 168) return true; // 192.168.0.0/16
-    if (a === 169 && b === 254) return true; // link-local
-  }
-  if (h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return true; // IPv6 private/link-local
-  return false;
-}
-
-export function resolveUrl(base: string, maybeRelative: string): string {
-  try {
-    return new URL(maybeRelative, base).toString();
-  } catch {
-    return maybeRelative;
-  }
-}
+export { isBlockedHost, resolveUrl };
 
 export class UnsafeUrlError extends Error {}
 

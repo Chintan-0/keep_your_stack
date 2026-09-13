@@ -5,7 +5,7 @@ import type { Resource } from "@/lib/types";
 import { mapResourceRow, RESOURCE_SELECT } from "./mappers";
 import { ensureTags } from "./tags";
 import { normalizeUrl, getDomain } from "@/lib/utils";
-import { clampTitle, clampDescription, clampNotes, clampUseCases, clampTagNames } from "@/lib/resource-validation";
+import { clampTitle, clampDescription, clampNotes, clampUseCases, clampTagNames, sanitizePricing, sanitizePlatform } from "@/lib/resource-validation";
 import { NotFoundError } from "./errors";
 
 type Client = SupabaseClient<Database>;
@@ -226,8 +226,8 @@ export async function createResource(
       category_id: input.categoryId ?? null,
       use_cases: clampUseCases(input.useCases?.filter(Boolean) ?? []),
       notes: clampNotes(input.notes?.trim() || ""),
-      pricing: input.pricing ?? null,
-      platform: input.platform ?? [],
+      pricing: sanitizePricing(input.pricing),
+      platform: sanitizePlatform(input.platform),
       is_favorite: input.isFavorite ?? false,
       is_archived: input.isArchived ?? false,
       import_source: input.importSource ?? null,
@@ -347,8 +347,8 @@ export async function updateResource(
   if (patch.notes !== undefined) dbPatch.notes = clampNotes(patch.notes);
   if (patch.isFavorite !== undefined) dbPatch.is_favorite = patch.isFavorite;
   if (patch.isArchived !== undefined) dbPatch.is_archived = patch.isArchived;
-  if (patch.pricing !== undefined) dbPatch.pricing = patch.pricing;
-  if (patch.platform !== undefined) dbPatch.platform = patch.platform ?? [];
+  if (patch.pricing !== undefined) dbPatch.pricing = sanitizePricing(patch.pricing);
+  if (patch.platform !== undefined) dbPatch.platform = sanitizePlatform(patch.platform);
   if (patch.enrichmentStatus !== undefined) dbPatch.enrichment_status = patch.enrichmentStatus;
   if (patch.enrichmentAttempts !== undefined) dbPatch.enrichment_attempts = patch.enrichmentAttempts;
   if (patch.enrichmentAttemptedAt !== undefined) dbPatch.enrichment_attempted_at = patch.enrichmentAttemptedAt;

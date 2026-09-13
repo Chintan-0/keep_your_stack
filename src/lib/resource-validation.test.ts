@@ -5,6 +5,8 @@ import {
   clampNotes,
   clampUseCases,
   clampTagNames,
+  sanitizePricing,
+  sanitizePlatform,
   MAX_TITLE_LENGTH,
   MAX_DESCRIPTION_LENGTH,
   MAX_NOTES_LENGTH,
@@ -12,6 +14,7 @@ import {
   MAX_USE_CASES_COUNT,
   MAX_TAG_NAME_LENGTH,
   MAX_TAGS_COUNT,
+  MAX_PLATFORMS_COUNT,
 } from "./resource-validation";
 
 describe("resource field validation (server-side length limits — §9 of the Phase 12 audit)", () => {
@@ -58,5 +61,52 @@ describe("resource field validation (server-side length limits — §9 of the Ph
     expect(clampNotes("")).toBe("");
     expect(clampUseCases([])).toEqual([]);
     expect(clampTagNames([])).toEqual([]);
+  });
+});
+
+describe("sanitizePricing (§9 — pricing is a closed enum only at the TS level, not at runtime)", () => {
+  it("accepts each real pricing value", () => {
+    expect(sanitizePricing("free")).toBe("free");
+    expect(sanitizePricing("freemium")).toBe("freemium");
+    expect(sanitizePricing("paid")).toBe("paid");
+    expect(sanitizePricing("open-source")).toBe("open-source");
+  });
+
+  it("drops anything not in the enum instead of storing it", () => {
+    expect(sanitizePricing("expensive")).toBeNull();
+    expect(sanitizePricing("x".repeat(10000))).toBeNull();
+  });
+
+  it("drops non-string and absent input", () => {
+    expect(sanitizePricing(null)).toBeNull();
+    expect(sanitizePricing(undefined)).toBeNull();
+    expect(sanitizePricing(42)).toBeNull();
+    expect(sanitizePricing(["free"])).toBeNull();
+  });
+});
+
+describe("sanitizePlatform (§9 — platform is a plain text[] column with no DB check constraint)", () => {
+  it("keeps only recognized platform values", () => {
+    expect(sanitizePlatform(["web", "cli"])).toEqual(["web", "cli"]);
+  });
+
+  it("drops unrecognized values rather than storing arbitrary strings", () => {
+    expect(sanitizePlatform(["web", "<script>alert(1)</script>", "cli"])).toEqual(["web", "cli"]);
+  });
+
+  it("dedupes", () => {
+    expect(sanitizePlatform(["web", "web", "cli"])).toEqual(["web", "cli"]);
+  });
+
+  it("caps the count so an unbounded array can't be written", () => {
+    const valid = ["web", "desktop", "cli", "mobile", "vscode-extension", "browser-extension"];
+    const huge = Array.from({ length: 500 }, (_, i) => valid[i % valid.length]);
+    expect(sanitizePlatform(huge).length).toBeLessThanOrEqual(MAX_PLATFORMS_COUNT);
+  });
+
+  it("returns an empty array for non-array or absent input, never throws", () => {
+    expect(sanitizePlatform(undefined)).toEqual([]);
+    expect(sanitizePlatform(null)).toEqual([]);
+    expect(sanitizePlatform("web")).toEqual([]);
   });
 });
