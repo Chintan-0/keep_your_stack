@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useNow } from "@/lib/use-now";
 import { useRouter } from "next/navigation";
 import { Search, Plus, ArrowRight, Package, Star, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -20,6 +19,7 @@ export default function DashboardPage() {
   const [query, setQuery] = useState("");
   const resources = useStore((s) => s.resources);
   const stacks = useStore((s) => s.stacks);
+  const stats = useStore((s) => s.stats);
   const hasHydrated = useStore((s) => s.hasHydrated);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const loadDemoData = useStore((s) => s.loadDemoData);
@@ -34,16 +34,16 @@ export default function DashboardPage() {
     }
   }
 
-  const now = useNow();
+  // `resources` is only the newest page (see store.hydrate), not the whole
+  // library — fine for "Recently Added" (already newest-first, 8 « page
+  // size) and the favorites preview (first 4 among the newest — the exact
+  // rare case where none of a user's favorites are recent enough to be in
+  // that page just hides the section, same as having zero favorites).
+  // The stat pills use the dedicated `stats` counts instead, which cover
+  // the real total regardless of how much has been paginated in.
   const active = useMemo(() => resources.filter((r) => !r.isArchived), [resources]);
   const favorites = active.filter((r) => r.isFavorite);
-  const recentlyAdded = [...active]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 8);
-  const addedRecentlyCount = active.filter((r) => {
-    const d = (now - new Date(r.createdAt).getTime()) / 86400000;
-    return d <= 14;
-  }).length;
+  const recentlyAdded = active.slice(0, 8);
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +56,7 @@ export default function DashboardPage() {
       <section className="rounded-[var(--radius-xl)] border border-border bg-gradient-to-br from-surface-2 via-surface to-surface-2 p-6 sm:p-9">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-5 text-center">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-3 px-3 py-1 font-mono text-[11px] text-text-secondary">
-            <Sparkles size={12} className="text-accent" /> {active.length} resources saved
+            <Sparkles size={12} className="text-accent" /> {stats?.total ?? active.length} resources saved
           </span>
           <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[32px]">
             What are you looking for?
@@ -98,9 +98,9 @@ export default function DashboardPage() {
 
       {/* Quick stats */}
       <section className="grid grid-cols-3 gap-3">
-        <StatPill label="Resources" value={active.length} icon={Package} />
-        <StatPill label="Favorites" value={favorites.length} icon={Star} accent="text-warning" />
-        <StatPill label="Added recently" value={addedRecentlyCount} icon={Sparkles} accent="text-cyan" />
+        <StatPill label="Resources" value={stats?.total ?? active.length} icon={Package} />
+        <StatPill label="Favorites" value={stats?.favorites ?? favorites.length} icon={Star} accent="text-warning" />
+        <StatPill label="Added recently" value={stats?.addedRecently ?? 0} icon={Sparkles} accent="text-cyan" />
       </section>
 
       {/* Recently added */}

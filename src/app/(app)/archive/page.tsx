@@ -7,8 +7,11 @@ import { Favicon } from "@/components/ui/favicon";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ResourceCardSkeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
 import { categoryName, formatAbsoluteDate } from "@/lib/utils";
 import { toast } from "sonner";
+
+const RENDER_BATCH_SIZE = 60;
 
 export default function ArchivePage() {
   const allResources = useStore((s) => s.resources);
@@ -17,7 +20,19 @@ export default function ArchivePage() {
   const restoreResource = useStore((s) => s.restoreResource);
   const deleteResourcePermanently = useStore((s) => s.deleteResourcePermanently);
   const categories = useStore((s) => s.categories);
+  const resourcesHasMore = useStore((s) => s.resourcesHasMore);
+  const resourcesLoadingMore = useStore((s) => s.resourcesLoadingMore);
+  const loadMoreResources = useStore((s) => s.loadMoreResources);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(RENDER_BATCH_SIZE);
+  // Reset the render window when the archived list itself changes —
+  // adjusted during render (React's documented pattern), not in an effect.
+  const [prevResources, setPrevResources] = useState(resources);
+  if (resources !== prevResources) {
+    setPrevResources(resources);
+    setVisibleCount(RENDER_BATCH_SIZE);
+  }
+  const visible = resources.slice(0, visibleCount);
 
   return (
     <div className="flex flex-col gap-5">
@@ -44,7 +59,7 @@ export default function ArchivePage() {
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {resources.map((r) => (
+          {visible.map((r) => (
             <div
               key={r.id}
               className="flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3"
@@ -73,6 +88,24 @@ export default function ArchivePage() {
               </button>
             </div>
           ))}
+          {visibleCount < resources.length && (
+            <div className="flex justify-center pt-2">
+              <Button variant="secondary" size="sm" onClick={() => setVisibleCount((c) => c + RENDER_BATCH_SIZE)}>
+                Show {Math.min(RENDER_BATCH_SIZE, resources.length - visibleCount)} more
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {resourcesHasMore && (
+        <div className="flex flex-col items-center gap-1.5 border-t border-border pt-4">
+          <p className="text-[12px] text-text-muted">
+            Only your most recent resources are loaded so far — load more of your library to find older archived items.
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => void loadMoreResources()} disabled={resourcesLoadingMore}>
+            {resourcesLoadingMore ? "Loading…" : "Load more from your library"}
+          </Button>
         </div>
       )}
 

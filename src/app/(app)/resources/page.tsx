@@ -41,6 +41,9 @@ export default function AllResourcesPage() {
   const linkChecks = useStore((s) => s.linkChecks);
   const bulkMoveResources = useStore((s) => s.bulkMoveResources);
   const enrichResource = useStore((s) => s.enrichResource);
+  const resourcesHasMore = useStore((s) => s.resourcesHasMore);
+  const resourcesLoadingMore = useStore((s) => s.resourcesLoadingMore);
+  const loadMoreResources = useStore((s) => s.loadMoreResources);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -233,6 +236,17 @@ export default function AllResourcesPage() {
         selectedIds={selectedIds}
         onToggleSelect={toggleSelect}
       />
+
+      {resourcesHasMore && (
+        <div className="flex flex-col items-center gap-1.5 border-t border-border pt-4">
+          <p className="text-[12px] text-text-muted">
+            Filters only apply to what&apos;s loaded so far — load more of your library to see additional matches.
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => void loadMoreResources()} disabled={resourcesLoadingMore}>
+            {resourcesLoadingMore ? "Loading…" : "Load more from your library"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -87,6 +87,113 @@ export async function listResources(client: Client, userId: string): Promise<Res
   return (data ?? []).map(mapResourceRow);
 }
 
+export const DEFAULT_RESOURCES_PAGE_SIZE = 300;
+export const MAX_RESOURCES_PAGE_SIZE = 1000;
+
+export interface ResourcesPage {
+  resources: Resource[];
+  total: number;
+  hasMore: boolean;
+}
+
+/**
+ * Paginated counterpart to listResources — same shape/ordering (newest
+ * first, active + archived together, filtered client-side same as
+ * always), just bounded to one page. `total` comes from the same
+ * round trip (`count: "exact"` alongside the row fetch, not a second
+ * query) so the client can show "showing X of Y" / know whether more
+ * exists without a separate request. Added for the client's initial
+ * load and "load more" — listResources itself is untouched and still
+ * used wherever the full set is genuinely needed server-side (export,
+ * library health, duplicate detection, search vocabulary).
+ */
+export async function listResourcesPage(
+  client: Client,
+  userId: string,
+  { limit = DEFAULT_RESOURCES_PAGE_SIZE, offset = 0 }: { limit?: number; offset?: number }
+): Promise<ResourcesPage> {
+  const pageSize = Math.min(Math.max(1, limit), MAX_RESOURCES_PAGE_SIZE);
+  const safeOffset = Math.max(0, offset);
+  const { data, error, count } = await client
+    .from("resources")
+    .select(RESOURCE_SELECT, { count: "exact" })
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .range(safeOffset, safeOffset + pageSize - 1);
+  if (error) throw new Error(error.message);
+  const total = count ?? 0;
+  return {
+    resources: (data ?? []).map(mapResourceRow),
+    total,
+    hasMore: safeOffset + pageSize < total,
+  };
+}
+
+/**
+ * Every resource belonging to a given stack, regardless of pagination —
+ * a stack is a curated subset (not expected to rival the whole library in
+ * size), so unlike listResourcesPage this just returns the lot. Used so
+ * Stack Detail shows every member even ones older than whatever page the
+ * client's already loaded into its general resource cache.
+ */
+export async function listResourcesForStack(client: Client, userId: string, stackId: string): Promise<Resource[]> {
+  const { data: links, error: linksError } = await client
+    .from("resource_stacks")
+    .select("resource_id")
+    .eq("stack_id", stackId);
+  if (linksError) throw new Error(linksError.message);
+  const ids = (links ?? []).map((l) => l.resource_id);
+  if (ids.length === 0) return [];
+
+  const { data, error } = await client
+    .from("resources")
+    .select(RESOURCE_SELECT)
+    .eq("user_id", userId)
+    .in("id", ids)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapResourceRow);
+}
+
+export interface ResourceStats {
+  total: number;
+  favorites: number;
+  /** Active (non-archived) resources created in the last 14 days — matches the dashboard's "Added recently" stat. */
+  addedRecently: number;
+}
+
+/**
+ * Three cheap indexed counts instead of downloading every resource just to
+ * show three numbers on the dashboard — the exact fix for the "dashboard
+ * shouldn't fetch the whole library" performance finding.
+ */
+export async function getResourceStats(client: Client, userId: string): Promise<ResourceStats> {
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const [totalRes, favRes, recentRes] = await Promise.all([
+    client.from("resources").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_archived", false),
+    client
+      .from("resources")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_archived", false)
+      .eq("is_favorite", true),
+    client
+      .from("resources")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_archived", false)
+      .gte("created_at", fourteenDaysAgo),
+  ]);
+  if (totalRes.error) throw new Error(totalRes.error.message);
+  if (favRes.error) throw new Error(favRes.error.message);
+  if (recentRes.error) throw new Error(recentRes.error.message);
+  return {
+    total: totalRes.count ?? 0,
+    favorites: favRes.count ?? 0,
+    addedRecently: recentRes.count ?? 0,
+  };
+}
+
 export async function getResource(client: Client, userId: string, id: string): Promise<Resource | null> {
   const { data, error } = await client
     .from("resources")

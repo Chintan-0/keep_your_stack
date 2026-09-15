@@ -3,6 +3,14 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import type { Category, LinkHealth, Resource, Stack, Tag } from "./types";
+
+export interface ResourceStats {
+  total: number;
+  favorites: number;
+  addedRecently: number;
+}
+
+const RESOURCES_PAGE_SIZE = 300;
 import { normalizeUrl, getDomain } from "./utils";
 
 // Application-state layer, not the database: Supabase is the source of
@@ -62,8 +70,23 @@ interface StoreState {
   categories: Category[];
   hasHydrated: boolean;
 
-  /** Fetches this user's resources/stacks/tags/categories from Supabase. Call once per session (on login / app mount). */
+  /**
+   * Dashboard stat counts (total/favorites/added-recently), fetched via 3
+   * cheap indexed queries — never derived from `resources`, which after
+   * pagination is only a prefix of the real library and would undercount.
+   * Null until the first hydrate/refresh completes.
+   */
+  stats: ResourceStats | null;
+  /** True once `resources` holds every resource the account has (initial page filled everything, or loadMoreResources reached the end). */
+  resourcesHasMore: boolean;
+  resourcesLoadingMore: boolean;
+
+  /** Fetches this user's first page of resources + stacks/tags/categories/stats from Supabase. Call once per session (on login / app mount). */
   hydrate: () => Promise<void>;
+  /** Fetches the next page of resources and appends it — used by "Load more" on All Resources/Favorites/Archive once a filtered view runs out of already-loaded matches. */
+  loadMoreResources: () => Promise<void>;
+  /** Re-fetches just the 3 dashboard counts — call after anything that changes total/favorite/archived counts, cheaper than a full hydrate. */
+  refreshStats: () => Promise<void>;
   /** Re-fetches just the tag list — call after a save that might have minted new tags. */
   refreshTags: () => Promise<void>;
   /** Re-fetches just the category list — call after creating one inline (e.g. during import). */
@@ -83,6 +106,17 @@ interface StoreState {
   enrichResource: (id: string) => Promise<Resource["enrichmentStatus"]>;
 
   findByUrl: (url: string) => Resource | undefined;
+  /**
+   * Resource Detail can be reached directly (a bookmark, a link from
+   * search) for a resource older than whatever's been paginated into
+   * `resources` — fetches it individually and merges it in rather than
+   * that page wrongly treating it as not found. No-ops if already loaded.
+   * Returns false only when the resource genuinely doesn't exist/isn't
+   * this user's.
+   */
+  ensureResourceLoaded: (id: string) => Promise<boolean>;
+  /** Same idea as ensureResourceLoaded, but for every member of one stack at once — call when opening Stack Detail. */
+  ensureStackResourcesLoaded: (stackId: string) => Promise<void>;
   addResource: (
     input: AddResourceInput,
     opts?: { force?: boolean }
@@ -125,27 +159,70 @@ export const useStore = create<StoreState>()((set, get) => ({
   categories: [],
   linkChecks: {},
   hasHydrated: false,
+  stats: null,
+  resourcesHasMore: false,
+  resourcesLoadingMore: false,
 
+  // Fetches only the first RESOURCES_PAGE_SIZE resources (newest first) up
+  // front, not the whole library — the rest loads on demand via
+  // loadMoreResources(). Stacks/tags/categories/link-checks stay a full
+  // fetch (they're small — a personal toolbox has dozens of those, not
+  // thousands). Dashboard counts come from the separate, cheap `stats`
+  // query instead of being derived from however much of `resources` has
+  // loaded, which would undercount past the first page.
   hydrate: async () => {
     try {
-      const [resourcesRes, stacksRes, tagsRes, categoriesRes, linkChecksRes] = await Promise.all([
-        api<{ resources: Resource[] }>("/api/resources"),
+      const [resourcesPage, stacksRes, tagsRes, categoriesRes, linkChecksRes, stats] = await Promise.all([
+        api<{ resources: Resource[]; total: number; hasMore: boolean }>(
+          `/api/resources?limit=${RESOURCES_PAGE_SIZE}`
+        ),
         api<{ stacks: Stack[] }>("/api/stacks"),
         api<{ tags: Tag[] }>("/api/tags"),
         api<{ categories: Category[] }>("/api/categories"),
         api<{ linkChecks: Record<string, LinkHealth> }>("/api/library/link-checks").catch(() => ({ linkChecks: {} })),
+        api<{ stats: ResourceStats }>("/api/resources/stats").catch(() => ({ stats: null as ResourceStats | null })),
       ]);
       set({
-        resources: resourcesRes.resources,
+        resources: resourcesPage.resources,
+        resourcesHasMore: resourcesPage.hasMore,
         stacks: stacksRes.stacks,
         tags: tagsRes.tags,
         categories: categoriesRes.categories,
         linkChecks: linkChecksRes.linkChecks,
+        stats: stats.stats,
         hasHydrated: true,
       });
     } catch {
       set({ hasHydrated: true });
       toast.error("Couldn't load your stack. Check your connection and reload.");
+    }
+  },
+
+  loadMoreResources: async () => {
+    if (get().resourcesLoadingMore || !get().resourcesHasMore) return;
+    set({ resourcesLoadingMore: true });
+    try {
+      const offset = get().resources.length;
+      const page = await api<{ resources: Resource[]; total: number; hasMore: boolean }>(
+        `/api/resources?limit=${RESOURCES_PAGE_SIZE}&offset=${offset}`
+      );
+      set({
+        resources: [...get().resources, ...page.resources],
+        resourcesHasMore: page.hasMore,
+      });
+    } catch {
+      toast.error("Couldn't load more resources. Try again.");
+    } finally {
+      set({ resourcesLoadingMore: false });
+    }
+  },
+
+  refreshStats: async () => {
+    try {
+      const { stats } = await api<{ stats: ResourceStats }>("/api/resources/stats");
+      set({ stats });
+    } catch {
+      // Non-critical — dashboard counts just stay slightly stale until the next refresh.
     }
   },
 
@@ -173,6 +250,33 @@ export const useStore = create<StoreState>()((set, get) => ({
     return get().resources.find((r) => normalizeUrl(r.url) === normalized);
   },
 
+  ensureStackResourcesLoaded: async (stackId) => {
+    try {
+      const { resources: stackResources } = await api<{ resources: Resource[] }>(`/api/stacks/${stackId}/resources`);
+      const existingIds = new Set(get().resources.map((r) => r.id));
+      const missing = stackResources.filter((r) => !existingIds.has(r.id));
+      if (missing.length > 0) set({ resources: [...get().resources, ...missing] });
+    } catch {
+      // Non-critical — Stack Detail just falls back to whatever's already
+      // loaded (correct for any account under the resources page size).
+    }
+  },
+
+  ensureResourceLoaded: async (id) => {
+    if (get().resources.some((r) => r.id === id)) return true;
+    try {
+      const { resource } = await api<{ resource: Resource }>(`/api/resources/${id}`);
+      // Another fetch (or the initial hydrate) may have completed first —
+      // guard against double-adding it.
+      if (!get().resources.some((r) => r.id === id)) {
+        set({ resources: [...get().resources, resource] });
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
   addResource: async (input, opts) => {
     const { resource, duplicate } = await api<{ resource: Resource; duplicate: boolean }>("/api/resources", {
       method: "POST",
@@ -181,6 +285,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (!duplicate) {
       set({ resources: [resource, ...get().resources] });
       if (input.tagNames?.length) void get().refreshTags();
+      void get().refreshStats();
     }
     return { resource, duplicate };
   },
@@ -211,6 +316,11 @@ export const useStore = create<StoreState>()((set, get) => ({
     api<{ resource: Resource }>(`/api/resources/${id}`, { method: "PATCH", body: JSON.stringify(patch) })
       .then(() => {
         if (patch.tagNames?.length) void get().refreshTags();
+        // Only these two fields change what the dashboard's stat counts
+        // report (total/favorites exclude archived resources; archiving
+        // also moves a resource out of the "added recently" count) —
+        // skip the extra round trip for every other kind of edit.
+        if (patch.isFavorite !== undefined || patch.isArchived !== undefined) void get().refreshStats();
       })
       .catch((e) => {
         set({ resources: prev, linkChecks: prevLinkChecks });
@@ -297,7 +407,14 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   clearAllData: async () => {
     await api("/api/clear-data", { method: "DELETE" });
-    set({ resources: [], stacks: [], tags: [], categories: [] });
+    set({
+      resources: [],
+      stacks: [],
+      tags: [],
+      categories: [],
+      stats: { total: 0, favorites: 0, addedRecently: 0 },
+      resourcesHasMore: false,
+    });
   },
 
   addCategory: async (input) => {
@@ -422,6 +539,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       resources: get().resources.filter((r) => r.id !== loserId).map((r) => (r.id === keeperId ? resource : r)),
     });
     void get().refreshTags();
+    void get().refreshStats();
     return resource;
   },
 

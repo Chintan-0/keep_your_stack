@@ -5,11 +5,15 @@ import { Star, Download } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ResourceCollection } from "@/components/resource-collection";
 import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@/components/filter-bar";
+import { Button } from "@/components/ui/button";
 
 export default function FavoritesPage() {
   const resources = useStore((s) => s.resources);
   const categories = useStore((s) => s.categories);
   const linkChecks = useStore((s) => s.linkChecks);
+  const resourcesHasMore = useStore((s) => s.resourcesHasMore);
+  const resourcesLoadingMore = useStore((s) => s.resourcesLoadingMore);
+  const loadMoreResources = useStore((s) => s.loadMoreResources);
   const [filters, setFilters] = useState<Filters>({ ...DEFAULT_FILTERS, sort: "recent" });
   const [view, setView] = useState<"grid" | "list">("grid");
 
@@ -52,6 +56,17 @@ export default function FavoritesPage() {
         emptyTitle="Nothing saved here yet."
         emptyDescription="Favorite resources you use often to find them here instantly."
       />
+
+      {resourcesHasMore && (
+        <div className="flex flex-col items-center gap-1.5 border-t border-border pt-4">
+          <p className="text-[12px] text-text-muted">
+            Only your most recent resources are loaded so far — load more of your library to find older favorites.
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => void loadMoreResources()} disabled={resourcesLoadingMore}>
+            {resourcesLoadingMore ? "Loading…" : "Load more from your library"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

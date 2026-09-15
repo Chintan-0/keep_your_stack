@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
-import { listResources, createResource, findResourceByUrl } from "@/lib/data/resources";
+import { listResources, listResourcesPage, createResource, findResourceByUrl } from "@/lib/data/resources";
 import { normalizeUrl } from "@/lib/utils";
 import { corsPreflight, withCors } from "@/lib/cors";
 
@@ -22,6 +22,28 @@ export async function GET(request: NextRequest) {
       return withCors(
         request,
         NextResponse.json({ error: e instanceof Error ? e.message : "Lookup failed" }, { status: 500 })
+      );
+    }
+  }
+
+  // ?limit= (optionally with ?offset=) switches to the paginated response
+  // shape ({ resources, total, hasMore }) instead of the full-list one —
+  // opt-in so existing callers (the extension's bearer-token flow, anything
+  // else expecting { resources: Resource[] }) keep working unchanged.
+  const limitParam = request.nextUrl.searchParams.get("limit");
+  if (limitParam !== null) {
+    const limit = Number(limitParam);
+    const offset = Number(request.nextUrl.searchParams.get("offset") ?? "0");
+    if (!Number.isFinite(limit) || !Number.isFinite(offset)) {
+      return withCors(request, NextResponse.json({ error: "Invalid limit/offset" }, { status: 400 }));
+    }
+    try {
+      const page = await listResourcesPage(supabase, user.id, { limit, offset });
+      return withCors(request, NextResponse.json(page));
+    } catch (e) {
+      return withCors(
+        request,
+        NextResponse.json({ error: e instanceof Error ? e.message : "Failed to load resources" }, { status: 500 })
       );
     }
   }

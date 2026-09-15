@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import { useRouter, notFound } from "next/navigation";
 import { ChevronLeft, Settings2, Star, TrendingUp, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -23,6 +23,14 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
   const tags = useStore((s) => s.tags);
   const categories = useStore((s) => s.categories);
   const linkChecks = useStore((s) => s.linkChecks);
+  const ensureStackResourcesLoaded = useStore((s) => s.ensureStackResourcesLoaded);
+
+  // The store's general `resources` cache is paginated (newest-first) — a
+  // stack can easily hold older members that fell past that page, so make
+  // sure every actual member is loaded before this page derives its list.
+  useEffect(() => {
+    if (id) void ensureStackResourcesLoaded(id);
+  }, [id, ensureStackResourcesLoaded]);
 
   const [manageOpen, setManageOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
@@ -52,6 +52,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const linkChecks = useStore((s) => s.linkChecks);
   const checkResourceLink = useStore((s) => s.checkResourceLink);
   const dismissNeedsReview = useStore((s) => s.dismissNeedsReview);
+  const ensureResourceLoaded = useStore((s) => s.ensureResourceLoaded);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -59,8 +60,25 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const [moveCategoryId, setMoveCategoryId] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [checkingLink, setCheckingLink] = useState(false);
+  // `resources` is only paginated in up to the store's page size — a
+  // direct link to an older resource (a bookmark, a shared URL) needs its
+  // own fetch rather than being wrongly treated as not-found. `undefined`
+  // = still checking, `false` = genuinely doesn't exist.
+  const [directLookupFailed, setDirectLookupFailed] = useState<boolean | undefined>(undefined);
 
   const resource = resources.find((r) => r.id === id);
+
+  useEffect(() => {
+    if (resource || !hasHydrated) return;
+    let cancelled = false;
+    void ensureResourceLoaded(id).then((found) => {
+      if (!cancelled) setDirectLookupFailed(!found);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resource, hasHydrated, id]);
   const linkHealth = resource ? linkChecks[resource.id] : undefined;
 
   const related = useMemo(() => {
@@ -102,6 +120,10 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   }
 
   if (!resource) {
+    // Still checking whether it just isn't paginated in yet vs. genuinely
+    // missing (see the ensureResourceLoaded effect above) — only the
+    // latter is a real 404.
+    if (directLookupFailed === undefined) return <div className="h-96" />;
     notFound();
   }
 
