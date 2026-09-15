@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Puzzle, CheckCircle2, Circle, FolderOpen } from "lucide-react";
+import { Puzzle, CheckCircle2, Circle, FolderOpen, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+
+const EXTENSION_ZIP_URL = "/downloads/keepyourstack-chrome-extension.zip";
 
 type BridgeState = "idle" | "connecting" | "connected" | "unavailable";
 
@@ -57,12 +59,26 @@ export default function ExtensionPage() {
     <div className="mx-auto flex max-w-3xl flex-col gap-8 pb-16">
       <div className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-text-primary">
-          <Puzzle size={19} /> Save from your browser
+          <Puzzle size={19} /> KeepYourStack Chrome Extension
         </h1>
         <p className="max-w-xl text-[13px] text-text-secondary">
-          Save useful websites directly from Chrome without leaving the page.
+          Save websites to your KeepYourStack library directly from Chrome.
         </p>
-        <p className="max-w-xl text-[13px] font-medium text-text-primary">One click → saved to KeepYourStack</p>
+      </div>
+
+      {/* Download */}
+      <div className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-5">
+        <a
+          href={EXTENSION_ZIP_URL}
+          download
+          className="inline-flex h-11 items-center justify-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] bg-accent px-5 text-[15px] font-medium text-white shadow-sm shadow-accent/20 transition-colors duration-150 hover:bg-accent-hover cursor-pointer"
+        >
+          <Download size={16} /> Download for Chrome
+        </a>
+        <p className="text-[12.5px] text-text-secondary">
+          This installs as an unpacked, developer-mode extension — it isn&apos;t on the Chrome Web Store yet. See the
+          install steps below.
+        </p>
       </div>
 
       {/* Connection status */}
@@ -103,24 +119,33 @@ export default function ExtensionPage() {
       {/* Install instructions (local dev — not yet on the Chrome Web Store) */}
       <section className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-5">
         <h2 className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-text-secondary">
-          <FolderOpen size={14} /> Load unpacked extension
+          <FolderOpen size={14} /> Installation
         </h2>
         <p className="text-[13px] text-text-secondary">
-          The extension isn&apos;t on the Chrome Web Store yet — for now, load it directly from this project:
+          This is currently a developer-mode (unpacked) Chrome extension — it isn&apos;t published on the Chrome Web
+          Store yet, so Chrome will need you to load it manually. That&apos;s normal and only takes a minute:
         </p>
         <ol className="flex flex-col gap-1.5 text-[13px] text-text-primary">
-          <li>1. In the project, run <code className="font-mono text-[12px] text-accent">npm run build:extension</code>.</li>
+          <li>1. Download the extension ZIP (button above).</li>
+          <li>2. Extract the ZIP.</li>
           <li>
-            2. Open <code className="font-mono text-[12px] text-accent">chrome://extensions</code> and turn on{" "}
-            <strong className="font-medium">Developer mode</strong> (top right).
+            3. Open <code className="font-mono text-[12px] text-accent">chrome://extensions</code>.
           </li>
           <li>
-            3. Click <strong className="font-medium">Load unpacked</strong> and select this project&apos;s{" "}
-            <code className="font-mono text-[12px] text-accent">extension/</code> folder.
+            4. Enable <strong className="font-medium">Developer mode</strong> (top right).
           </li>
-          <li>4. Come back here and click Connect Extension above.</li>
+          <li>
+            5. Click <strong className="font-medium">Load unpacked</strong>.
+          </li>
+          <li>6. Select the extracted KeepYourStack extension folder.</li>
+          <li>7. Pin KeepYourStack to the Chrome toolbar if desired.</li>
+          <li>8. Sign in to KeepYourStack and start saving resources — click Connect Extension above once it&apos;s loaded.</li>
         </ol>
-        <p className="text-[12px] text-text-muted">Full steps: extension/README.md.</p>
+        <p className="text-[12px] text-text-muted">
+          Building from source instead? Run <code className="font-mono text-[11.5px] text-accent">npm run build:extension</code>{" "}
+          and load this project&apos;s <code className="font-mono text-[11.5px] text-accent">extension/</code> folder directly.
+          Full details: extension/README.md.
+        </p>
       </section>
 
       {/* Ways to save */}

@@ -1,15 +1,37 @@
-// Zips the extension into extension/keepyourstack-extension.zip for a
-// future Chrome Web Store submission (NOT performed in Phase 5 — see
-// extension/README.md). Run via `npm run package:extension`, which builds
-// dist/ first. Uses only Node's built-in zlib/fs — no extra dependency.
+// Zips the extension into public/downloads/keepyourstack-chrome-extension.zip
+// — served directly by the Next.js app at /downloads/keepyourstack-chrome-
+// extension.zip (see src/app/(app)/extension/page.tsx's "Download for
+// Chrome" button) so anyone can grab a real, working build without cloning
+// the repo. The same package also doubles as a future Chrome Web Store
+// submission artifact (see extension/README.md) — one script, one output,
+// both uses. Run via `npm run package:extension`, which builds dist/ first
+// (respecting EXTENSION_APP_ORIGINS the same way build:extension does — see
+// extension/scripts/generate-manifest.js — so the packaged manifest/popup
+// point at whatever origin the build was run with, production included).
+// Uses only Node's built-in zlib/fs — no extra dependency.
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 
 const root = path.join(__dirname, "..");
-const outZip = path.join(root, "keepyourstack-extension.zip");
+const outDir = path.join(root, "..", "public", "downloads");
+const outZip = path.join(outDir, "keepyourstack-chrome-extension.zip");
 
 const INCLUDE = ["manifest.json", "popup.html", "popup.css", "options.html", "icons", "dist"];
+
+// Defense in depth on top of the INCLUDE allowlist above (which already
+// can't pull in .env files, node_modules, or source .ts — those simply
+// aren't in this list): scan every packaged file's bytes for anything
+// shaped like a real secret before writing the zip, so a mistake in
+// INCLUDE or a stray committed file can't silently ship one.
+const SECRET_PATTERNS = [
+  /SUPABASE_SERVICE_ROLE_KEY/i,
+  /service_role/i,
+  /sb_secret_/,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
+  /sk-ant-/i,
+  /sk-proj-/i,
+];
 
 /** Minimal, dependency-free ZIP writer (store method — deflate optional). */
 function buildZip(files) {
@@ -106,10 +128,32 @@ function walk(rel) {
   return [{ name: rel, data: fs.readFileSync(full) }];
 }
 
+// Clean whatever the previous run left behind before collecting files, so
+// a stale zip can never survive a failed/aborted package and get mistaken
+// for a fresh one.
+if (fs.existsSync(outZip)) fs.rmSync(outZip);
+
 const files = INCLUDE.filter((f) => fs.existsSync(path.join(root, f))).flatMap(walk);
 if (!files.some((f) => f.name.startsWith("dist"))) {
   console.error("dist/ is missing or empty — run `npm run build:extension` first.");
   process.exit(1);
 }
+
+const flagged = [];
+for (const { name, data } of files) {
+  // Binary files (icons) can't meaningfully contain a leaked text secret —
+  // skip them rather than pattern-matching arbitrary PNG bytes.
+  if (/\.(png|jpg|jpeg|gif|ico)$/i.test(name)) continue;
+  const text = data.toString("utf8");
+  for (const pattern of SECRET_PATTERNS) {
+    if (pattern.test(text)) flagged.push(`${name} matches ${pattern}`);
+  }
+}
+if (flagged.length > 0) {
+  console.error("Refusing to package — possible secret found in:\n" + flagged.map((f) => `  ${f}`).join("\n"));
+  process.exit(1);
+}
+
+fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(outZip, buildZip(files));
-console.log(`Wrote ${path.relative(process.cwd(), outZip)} (${files.length} files)`);
+console.log(`Wrote ${path.relative(process.cwd(), outZip)} (${files.length} files, no secrets found)`);

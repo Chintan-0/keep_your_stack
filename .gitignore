@@ -43,7 +43,11 @@ next-env.d.ts
 
 # chrome extension build output
 /extension/dist/
-/extension/keepyourstack-extension.zip
+# The packaged extension now lives under public/downloads/ (see
+# extension/scripts/package.js) — intentionally NOT ignored, since Vercel
+# serves whatever's committed under public/ as-is and there's no build-time
+# packaging step wired into `next build`. Re-run `npm run package:extension`
+# and commit the result whenever the extension changes.
 
 .vercel
 .env*

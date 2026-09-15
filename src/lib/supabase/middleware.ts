@@ -33,7 +33,13 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
-  const isStaticAsset = pathname.startsWith("/_next") || pathname === "/favicon.ico";
+  // /downloads/ (e.g. the Chrome extension zip) must be fetchable by
+  // anyone, not just signed-in users — the proxy's own matcher already
+  // excludes it so this shouldn't normally even run for that path, but
+  // this is the actual redirect decision, so it's worth being correct
+  // here too rather than relying solely on the matcher regex staying right.
+  const isStaticAsset =
+    pathname.startsWith("/_next") || pathname === "/favicon.ico" || pathname.startsWith("/downloads/");
   // API routes handle their own auth (see src/lib/data/auth.ts's requireUser)
   // and return a proper 401 JSON body — including for the Chrome extension's
   // Authorization: Bearer requests, which this middleware only ever checks

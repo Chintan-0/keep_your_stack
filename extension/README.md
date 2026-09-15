@@ -243,18 +243,36 @@ have:
       worker (`chrome://extensions` → "service worker" link) — no
       uncaught exceptions, no CORS errors, no undefined `chrome.*` calls
 
-## 8. Packaging for later Chrome Web Store submission
-
-Not done in this phase (see §34/§36 of the Phase 5 spec — explicitly out of
-scope). When it's time:
+## 8. Packaging
 
 ```bash
-npm run package:extension   # builds dist/ then writes extension/keepyourstack-extension.zip
+# Local dev origins (default):
+npm run package:extension
+
+# A real deployment — this is what public/downloads/ should be built with:
+EXTENSION_APP_ORIGINS=https://keep-your-stack.vercel.app npm run package:extension
 ```
 
-Before actually submitting: swap `host_permissions`/`content_scripts` to
-the real production origin (not `localhost`), bump `manifest.json`'s
-`version`, and review permissions once more — the manifest currently
+Builds `dist/` (respecting `EXTENSION_APP_ORIGINS`, same as `build:extension`
+— see `extension/scripts/generate-manifest.js`), then writes
+`public/downloads/keepyourstack-chrome-extension.zip` — served directly by
+the Next.js app at `/downloads/keepyourstack-chrome-extension.zip`, which is
+what the "Download for Chrome" button on `/extension` links to. The zip only
+ever contains `manifest.json`, `popup.html`, `popup.css`, `options.html`,
+`icons/`, and `dist/` (no source `.ts`, no `node_modules`, no `.env*`) — the
+script also scans every included text file for anything shaped like a real
+secret before writing the zip and refuses to package if it finds one.
+
+Re-run this and commit the resulting zip whenever the extension changes —
+there's no build-time packaging step wired into `next build`, so
+`public/downloads/` only reflects whatever was last packaged and committed.
+
+This same package doubles as a future Chrome Web Store submission artifact
+(see §34/§36 of the Phase 5 spec — actual submission itself is still out of
+scope). Before actually submitting: bump `manifest.json`'s `version` and
+review permissions once more (`host_permissions`/`content_scripts` already
+point at the real production origin as long as you packaged with
+`EXTENSION_APP_ORIGINS` set, per above) — the manifest currently
 requests only `activeTab`, `contextMenus`, `storage`, and `notifications`,
 plus `commands` (for the keyboard shortcut — declarative, not a
 permission) and host permissions for the app's own origin; no
