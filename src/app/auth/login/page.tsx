@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, AuthField } from "@/components/auth/auth-card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [autoLoggingIn, setAutoLoggingIn] = useState(!!DEV_USER);
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   async function signIn(signInEmail: string, signInPassword: string) {
     const supabase = createClient();
@@ -111,14 +112,25 @@ export default function LoginPage() {
               Forgot?
             </Link>
           </div>
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-10 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-3 text-[13.5px] text-text-primary focus:border-accent focus:outline-none"
-          />
+          <div className="relative">
+            <input
+              type={passwordVisible ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-10 w-full rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-3 pr-10 text-[13.5px] text-text-primary focus:border-accent focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setPasswordVisible((v) => !v)}
+              aria-label={passwordVisible ? "Hide password" : "Show password"}
+              aria-pressed={passwordVisible}
+              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-text-muted hover:text-text-secondary focus:outline-none focus-visible:text-accent"
+            >
+              {passwordVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
         </div>
         <Button type="submit" disabled={loading} className="mt-1 w-full">
           {loading ? "Signing in…" : "Sign In"}

@@ -1,5 +1,9 @@
+"use client";
+
+import { useId, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 
 export function AuthCard({
   title,
@@ -36,15 +40,35 @@ export function AuthCard({
 
 export function AuthField({
   label,
+  type,
   ...props
 }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  const inputId = useId();
+  const [visible, setVisible] = useState(false);
+  const isPassword = type === "password";
+
   return (
-    <label className="flex flex-col gap-1.5">
+    <label htmlFor={inputId} className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-text-secondary">{label}</span>
-      <input
-        {...props}
-        className="h-10 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-3 text-[13.5px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
-      />
+      <div className="relative">
+        <input
+          {...props}
+          id={inputId}
+          type={isPassword ? (visible ? "text" : "password") : type}
+          className={`h-10 w-full rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-3 text-[13.5px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none ${isPassword ? "pr-10" : ""}`}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => !v)}
+            aria-label={visible ? "Hide password" : "Show password"}
+            aria-pressed={visible}
+            className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-text-muted hover:text-text-secondary focus:outline-none focus-visible:text-accent"
+          >
+            {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        )}
+      </div>
     </label>
   );
 }
