@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { listImportHistory, recordImport } from "@/lib/data/import-history";
+import { trackEvent } from "@/lib/data/analytics";
 
 export async function GET() {
   const { supabase, user, unauthorized } = await requireUser();
@@ -31,6 +32,16 @@ export async function POST(request: NextRequest) {
       skipped: Number(body.skipped) || 0,
       failed: Number(body.failed) || 0,
       failedItems: Array.isArray(body.failedItems) ? body.failedItems : [],
+    });
+    // Recorded once per completed import (this route is called exactly
+    // once at the end, with final totals) — "started" isn't separately
+    // trackable from here since the import itself runs as several chunked
+    // /api/import calls before this summary lands; imported=0 with
+    // failed>0 is treated as a failed import, not a completed one.
+    void trackEvent({
+      eventType: entry.imported > 0 || entry.failed === 0 ? "import_completed" : "import_failed",
+      userId: user.id,
+      metadata: { source: entry.source, total: entry.total, imported: entry.imported, failed: entry.failed },
     });
     return NextResponse.json({ entry });
   } catch (e) {

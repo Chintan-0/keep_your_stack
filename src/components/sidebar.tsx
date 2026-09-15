@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -13,6 +14,7 @@ import {
   SlidersHorizontal,
   Plus,
   Activity,
+  Shield,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
@@ -72,6 +74,18 @@ export function Sidebar() {
   const linkChecks = useStore((s) => s.linkChecks);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const now = useNow();
+
+  // Purely a UX nicety — hiding/showing this link is NOT the security
+  // boundary. /admin and every /api/admin/* route independently re-check
+  // admin access server-side regardless of what this returns (see
+  // src/app/api/admin/check/route.ts's own comment).
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    fetch("/api/admin/check")
+      .then((r) => r.json())
+      .then((d) => setIsAdmin(!!d.isAdmin))
+      .catch(() => {});
+  }, []);
 
   const active = resources.filter((r) => !r.isArchived);
   const archivedCount = resources.filter((r) => r.isArchived).length;
@@ -184,6 +198,7 @@ export function Sidebar() {
         <NavLink href="/import" icon={Upload} label="Import Bookmarks" />
         <NavLink href="/extension" icon={Puzzle} label="Browser Extension" />
         <NavLink href="/settings" icon={SlidersHorizontal} label="Settings" />
+        {isAdmin && <NavLink href="/admin" icon={Shield} label="Admin" />}
       </div>
       </aside>
     </>

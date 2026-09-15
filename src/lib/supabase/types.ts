@@ -217,9 +217,102 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["import_history"]["Row"]>;
         Relationships: [];
       };
+      admin_users: {
+        Row: {
+          user_id: string;
+          granted_at: string;
+          granted_by: string | null;
+          note: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["admin_users"]["Row"]> & { user_id: string };
+        Update: Partial<Database["public"]["Tables"]["admin_users"]["Row"]>;
+        Relationships: [];
+      };
+      analytics_events: {
+        Row: {
+          id: string;
+          event_type: string;
+          user_id: string | null;
+          anonymous_visitor_id: string | null;
+          session_id: string | null;
+          path: string | null;
+          referrer: string | null;
+          metadata: unknown;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["analytics_events"]["Row"]> & { event_type: string };
+        Update: Partial<Database["public"]["Tables"]["analytics_events"]["Row"]>;
+        Relationships: [];
+      };
+      visitor_sessions: {
+        Row: {
+          id: string;
+          anonymous_visitor_id: string;
+          session_id: string;
+          first_seen_at: string;
+          last_seen_at: string;
+          landing_path: string | null;
+          referrer: string | null;
+          device_type: string | null;
+          browser: string | null;
+          operating_system: string | null;
+          country: string | null;
+          page_view_count: number;
+          is_returning: boolean;
+        };
+        Insert: Partial<Database["public"]["Tables"]["visitor_sessions"]["Row"]> & {
+          anonymous_visitor_id: string;
+          session_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["visitor_sessions"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
+      admin_daily_timeseries: {
+        Args: { p_from: string; p_to: string };
+        Returns: {
+          day: string;
+          visitors: number;
+          unique_visitors: number;
+          page_views: number;
+          new_users: number;
+          resources_created: number;
+          extension_saves: number;
+          searches: number;
+          imports_completed: number;
+        }[];
+      };
+      admin_overview: {
+        Args: { p_from: string; p_to: string; p_prev_from: string; p_prev_to: string };
+        Returns: {
+          visitors: number;
+          prev_visitors: number;
+          unique_visitors: number;
+          prev_unique_visitors: number;
+          page_views: number;
+          prev_page_views: number;
+          new_users: number;
+          prev_new_users: number;
+          total_users: number;
+          resources_created: number;
+          prev_resources_created: number;
+          total_resources: number;
+          active_users: number;
+          prev_active_users: number;
+          extension_saves: number;
+          prev_extension_saves: number;
+          imports_completed: number;
+          prev_imports_completed: number;
+          failed_operations: number;
+          prev_failed_operations: number;
+        };
+      };
+      admin_top_dimension: {
+        Args: { p_kind: string; p_from: string; p_to: string; p_limit?: number };
+        Returns: { label: string; count: number }[];
+      };
       search_resources: {
         Args: { p_query: string };
         Returns: {

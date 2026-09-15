@@ -58,6 +58,13 @@ export default function LoginPage() {
     setLoading(false);
     if (error) {
       setError(error.message === "Invalid login credentials" ? "Wrong email or password." : error.message);
+    } else {
+      // Real, user-initiated sign-in only — not the dev auto-login above.
+      void fetch("/api/analytics/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventType: "login" }),
+      }).catch(() => {});
     }
   }
 

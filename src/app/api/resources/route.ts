@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/data/auth";
 import { listResources, listResourcesPage, createResource, findResourceByUrl } from "@/lib/data/resources";
 import { normalizeUrl } from "@/lib/utils";
 import { corsPreflight, withCors } from "@/lib/cors";
+import { trackEvent } from "@/lib/data/analytics";
 
 export async function GET(request: NextRequest) {
   const { supabase, user, unauthorized } = await requireUser(request);
@@ -93,8 +94,24 @@ export async function POST(request: NextRequest) {
       },
       { force: body.force === true }
     );
+
+    // The extension is the only caller that ever sends a bearer token here
+    // (the web app is cookie-only) — a reliable, no-guesswork signal for
+    // the admin dashboard's "extension vs web saves" breakdown, not an
+    // inferred one.
+    const isExtension = !!request.headers.get("authorization");
+    if (result.duplicate) {
+      void trackEvent({ eventType: "duplicate_save_prevented", userId: user.id, metadata: { extension: isExtension } });
+    } else {
+      void trackEvent({ eventType: "resource_created", userId: user.id, metadata: { extension: isExtension } });
+      if (isExtension) void trackEvent({ eventType: "extension_save_success", userId: user.id });
+    }
+
     return withCors(request, NextResponse.json(result, { status: result.duplicate ? 200 : 201 }));
   } catch (e) {
+    if (!!request.headers.get("authorization")) {
+      void trackEvent({ eventType: "extension_save_failure", userId: user.id });
+    }
     return withCors(
       request,
       NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't save your resource. Try again." }, { status: 500 })

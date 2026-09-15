@@ -45,6 +45,13 @@ export default function SignUpPage() {
     // session — go straight in instead of claiming we sent an email we
     // didn't. When confirmations are on (e.g. in production), there's no
     // session yet and this falls through to the "check your email" card.
+    // Best-effort, fire-and-forget — never blocks the redirect below.
+    void fetch("/api/analytics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType: "signup" }),
+    }).catch(() => {});
+
     if (data.session) {
       router.push("/");
       router.refresh();

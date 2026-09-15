@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { getResource, updateResource, deleteResource, NotFoundError, type ResourcePatch } from "@/lib/data/resources";
 import { corsPreflight, withCors } from "@/lib/cors";
+import { trackEvent, type EventType } from "@/lib/data/analytics";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,8 +42,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = await request.json().catch(() => null);
   if (!body) return withCors(request, NextResponse.json({ error: "Invalid request body" }, { status: 400 }));
 
+  const patch = sanitizePatch(body);
+
   try {
-    const resource = await updateResource(supabase, user.id, id, sanitizePatch(body));
+    const resource = await updateResource(supabase, user.id, id, patch);
+
+    // Track the specific, meaningful state changes a patch can represent —
+    // not "resource_updated" for literally every edit (a title tweak isn't
+    // interesting to an admin the way favoriting/archiving is).
+    const events: EventType[] = [];
+    if (patch.isFavorite === true) events.push("resource_favorited");
+    if (patch.isFavorite === false) events.push("resource_unfavorited");
+    if (patch.isArchived === true) events.push("resource_archived");
+    if (patch.isArchived === false) events.push("resource_restored");
+    if (events.length === 0) events.push("resource_updated");
+    for (const eventType of events) void trackEvent({ eventType, userId: user.id });
+
     return withCors(request, NextResponse.json({ resource }));
   } catch (e) {
     if (e instanceof NotFoundError) {
@@ -62,6 +77,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   try {
     await deleteResource(supabase, user.id, id);
+    void trackEvent({ eventType: "resource_deleted", userId: user.id });
     return withCors(request, NextResponse.json({ ok: true }));
   } catch (e) {
     if (e instanceof NotFoundError) {
