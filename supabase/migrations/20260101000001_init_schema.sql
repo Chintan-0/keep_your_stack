@@ -29,7 +29,7 @@ create index if not exists categories_parent_id_idx on public.categories (parent
 
 -- ── stacks ──────────────────────────────────────────────────────────────
 create table if not exists public.stacks (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null,
   description text not null default '',
@@ -44,7 +44,7 @@ create index if not exists stacks_user_id_idx on public.stacks (user_id);
 -- User-specific (per spec) — the same word can exist independently for
 -- different users, so uniqueness is scoped to (user_id, name).
 create table if not exists public.tags (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null,
   created_at timestamptz not null default now(),
@@ -54,7 +54,7 @@ create index if not exists tags_user_id_idx on public.tags (user_id);
 
 -- ── resources ───────────────────────────────────────────────────────────
 create table if not exists public.resources (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   title text not null,
   url text not null,

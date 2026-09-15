@@ -14,7 +14,7 @@
 
 -- ── 1. Build the new table shape alongside the old one ──────────────────
 create table public.categories_new (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   name text not null,
   parent_id uuid references public.categories_new (id) on delete set null,
@@ -41,7 +41,7 @@ declare
 begin
   for u in select id from auth.users loop
     for c in select id, name from public.categories loop
-      new_uuid := uuid_generate_v4();
+      new_uuid := gen_random_uuid();
       insert into public.categories_new (id, user_id, name, parent_id, sort_order)
       values (new_uuid, u.id, c.name, null, 0);
       insert into category_id_map (user_id, old_id, new_id) values (u.id, c.id, new_uuid);

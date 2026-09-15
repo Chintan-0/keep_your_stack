@@ -44,3 +44,6 @@ next-env.d.ts
 # chrome extension build output
 /extension/dist/
 /extension/keepyourstack-extension.zip
+
+.vercel
+.env*

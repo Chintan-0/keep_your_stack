@@ -24,7 +24,7 @@ alter table public.resources
   add column if not exists import_source_id text;
 
 create table if not exists public.remembered_import_mappings (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   folder_path text not null,
   category_id uuid not null references public.categories (id) on delete cascade,
@@ -45,7 +45,7 @@ create policy "remembered_import_mappings: delete own" on public.remembered_impo
   for delete using (auth.uid() = user_id);
 
 create table if not exists public.import_history (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   source text not null,
   filename text,
