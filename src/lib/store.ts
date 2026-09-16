@@ -23,8 +23,12 @@ import { normalizeUrl, getDomain } from "./utils";
 // A single Stack Studio import can select thousands of resources for one
 // bulk action. Splitting into sequential (never simultaneous) chunks keeps
 // any one request body/DB `.in()` list a bounded size without ever firing
-// concurrent requests at the server.
-const BULK_CHUNK_SIZE = 500;
+// concurrent requests at the server. Kept conservative (a few KB per
+// request) rather than maximized — some intermediaries (corporate
+// proxies, tunnels, older gateways) impose their own body/header size
+// caps well under what Next.js or Postgres would otherwise accept, and a
+// smaller chunk costs nothing extra since requests are already sequential.
+const BULK_CHUNK_SIZE = 150;
 function chunk<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
@@ -492,8 +496,12 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   bulkMoveResources: async (resourceIds, categoryId) => {
     const prev = get().resources;
+    // `.includes()` inside this .map() would be O(library size × selection
+    // size) — a real, measurable stall for "select all" + move against a
+    // 10,000-resource library. A Set turns the per-resource check into O(1).
+    const idSet = new Set(resourceIds);
     set({
-      resources: prev.map((r) => (resourceIds.includes(r.id) ? { ...r, categoryId } : r)),
+      resources: prev.map((r) => (idSet.has(r.id) ? { ...r, categoryId } : r)),
     });
     try {
       let moved = 0;
@@ -514,9 +522,10 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   bulkAddToStack: async (resourceIds, stackId) => {
     const prev = get().resources;
+    const idSet = new Set(resourceIds);
     set({
       resources: prev.map((r) =>
-        resourceIds.includes(r.id) && !r.stackIds.includes(stackId) ? { ...r, stackIds: [...r.stackIds, stackId] } : r
+        idSet.has(r.id) && !r.stackIds.includes(stackId) ? { ...r, stackIds: [...r.stackIds, stackId] } : r
       ),
     });
     try {
@@ -573,8 +582,9 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   bulkArchiveResources: async (resourceIds, archived) => {
     const prev = get().resources;
+    const idSet = new Set(resourceIds);
     set({
-      resources: prev.map((r) => (resourceIds.includes(r.id) ? { ...r, isArchived: archived } : r)),
+      resources: prev.map((r) => (idSet.has(r.id) ? { ...r, isArchived: archived } : r)),
     });
     try {
       let count = 0;

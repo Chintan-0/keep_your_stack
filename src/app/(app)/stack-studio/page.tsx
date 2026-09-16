@@ -20,6 +20,7 @@ import { useStore } from "@/lib/store";
 import { parseBookmarksHtml, looksLikeBookmarkExport, type ParsedBookmark } from "@/lib/bookmark-import";
 import { normalizeUrl, categoryName } from "@/lib/utils";
 import { suggestOrganization, reviewBucket } from "@/lib/stack-studio";
+import { columnsForWidth, buildBoardRows, type BoardRow } from "@/lib/stack-studio-board";
 import { runWithConcurrency } from "@/lib/concurrency";
 import { Button } from "@/components/ui/button";
 import { StudioCard, type StudioItem } from "@/components/stack-studio/studio-card";
@@ -50,20 +51,6 @@ function track(eventType: string, metadata?: Record<string, unknown>) {
   }).catch(() => {});
 }
 
-// Matches the grid's own Tailwind breakpoints (sm/lg/xl) so the
-// virtualizer's row layout lines up with the CSS grid it's windowing.
-const COLUMN_BREAKPOINTS: [minWidth: number, columns: number][] = [
-  [1280, 4],
-  [1024, 3],
-  [640, 2],
-];
-function columnsForWidth(width: number): number {
-  for (const [minWidth, columns] of COLUMN_BREAKPOINTS) {
-    if (width >= minWidth) return columns;
-  }
-  return 1;
-}
-
 /** Tracks how many grid columns are currently rendered, so the workspace board can be windowed by ROW instead of by individual card. */
 function useResponsiveColumns(): number {
   const [columns, setColumns] = useState(() => (typeof window !== "undefined" ? columnsForWidth(window.innerWidth) : 4));
@@ -77,10 +64,6 @@ function useResponsiveColumns(): number {
   }, []);
   return columns;
 }
-
-type BoardRow =
-  | { type: "header"; key: string; name: string; count: number; categoryId: string | null }
-  | { type: "cards"; key: string; items: StudioItem[]; categoryId: string | null };
 
 const HEADER_ROW_ESTIMATE = 36;
 const CARD_ROW_ESTIMATE = 168;
@@ -166,10 +149,23 @@ export default function StackStudioPage() {
     []
   );
 
-  const newCount = classified.filter((c) => c.status === "new").length;
-  const duplicateCount = classified.filter((c) => c.status === "duplicate").length;
-  const invalidCount = classified.filter((c) => c.status === "invalid").length;
-  const folderCount = useMemo(() => new Set(classified.map((c) => c.folder).filter(Boolean)).size, [classified]);
+  // Only relevant on the "preview" screen, but `classified` can hold
+  // thousands of entries — memoized so re-renders during later stages
+  // (selection, drag/drop, filtering) don't re-scan it for numbers no
+  // longer shown anywhere.
+  const { newCount, duplicateCount, invalidCount, folderCount } = useMemo(() => {
+    let newN = 0;
+    let dupN = 0;
+    let invalidN = 0;
+    const folders = new Set<string>();
+    for (const c of classified) {
+      if (c.status === "new") newN++;
+      else if (c.status === "duplicate") dupN++;
+      else invalidN++;
+      if (c.folder) folders.add(c.folder);
+    }
+    return { newCount: newN, duplicateCount: dupN, invalidCount: invalidN, folderCount: folders.size };
+  }, [classified]);
 
   // ── Stage: preview → importing ───────────────────────────────────────
   async function startOrganizing() {
@@ -178,6 +174,11 @@ export default function StackStudioPage() {
       toast.error("Nothing new to import — every link in this file is already in your library.");
       return;
     }
+    // The preview list itself is done being needed the moment import
+    // starts (toImport above already captured what's required) — dropping
+    // it now frees a potentially multi-thousand-entry array instead of
+    // holding it for the rest of the session.
+    setClassified([]);
     track("bookmark_import_started", { total: toImport.length });
     setStage("importing");
     setProgress({ done: 0, total: toImport.length, phase: "Importing your bookmarks…" });
@@ -307,17 +308,11 @@ export default function StackStudioPage() {
   // targets keep working per-row instead of needing one giant wrapper per
   // group (which would defeat the point — that wrapper would itself hold
   // every card in the group).
-  const boardRows = useMemo<BoardRow[]>(() => {
-    const rows: BoardRow[] = [];
-    for (const [name, group] of grouped) {
-      const categoryId = name === "Needs Review" ? null : categories.find((c) => c.name === name)?.id ?? null;
-      rows.push({ type: "header", key: `h:${name}`, name, count: group.length, categoryId });
-      for (let i = 0; i < group.length; i += columns) {
-        rows.push({ type: "cards", key: `${name}:${i}`, items: group.slice(i, i + columns), categoryId });
-      }
-    }
-    return rows;
-  }, [grouped, categories, columns]);
+  const categoryIdByName = useMemo(() => new Map(categories.map((c) => [c.name, c.id])), [categories]);
+  const boardRows = useMemo<BoardRow<StudioItem>[]>(
+    () => buildBoardRows(grouped, (name) => (name === "Needs Review" ? null : categoryIdByName.get(name) ?? null), columns),
+    [grouped, categoryIdByName, columns]
+  );
 
   const boardListRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useWindowVirtualizer({
@@ -342,7 +337,10 @@ export default function StackStudioPage() {
     const prevItems = items;
     try {
       await bulkMoveResources(ids, categoryId);
-      setItems((cur) => cur.map((i) => (ids.includes(i.id) ? { ...i, categoryId, confidence: "high" } : i)));
+      // selectedIds is already a Set — reuse it for O(1) membership checks
+      // instead of Array.includes() (O(selection size) per item, so
+      // O(items × selection) overall — a real stall at "select all" scale).
+      setItems((cur) => cur.map((i) => (selectedIds.has(i.id) ? { ...i, categoryId, confidence: "high" } : i)));
       const label = categoryId ? categoryName(categoryId, categories) : "Uncategorized";
       toast.success(`${ids.length} resource${ids.length === 1 ? "" : "s"} moved to ${label}.`, {
         action: { label: "Undo", onClick: () => void undoLast() },
@@ -370,7 +368,7 @@ export default function StackStudioPage() {
     if (ids.length === 0) return;
     try {
       await bulkAddToStack(ids, stackId);
-      setItems((cur) => cur.map((i) => (ids.includes(i.id) ? { ...i, stackId } : i)));
+      setItems((cur) => cur.map((i) => (selectedIds.has(i.id) ? { ...i, stackId } : i)));
       toast.success(`Added ${ids.length} resource${ids.length === 1 ? "" : "s"} to that stack.`);
       track("bulk_organization_completed", { count: ids.length });
       setSelectedIds(new Set());
@@ -385,7 +383,7 @@ export default function StackStudioPage() {
     if (ids.length === 0 || tagNames.length === 0) return;
     try {
       await bulkAddTags(ids, tagNames);
-      setItems((cur) => cur.map((i) => (ids.includes(i.id) ? { ...i, tags: Array.from(new Set([...i.tags, ...tagNames])) } : i)));
+      setItems((cur) => cur.map((i) => (selectedIds.has(i.id) ? { ...i, tags: Array.from(new Set([...i.tags, ...tagNames])) } : i)));
       toast.success(`Added tags to ${ids.length} resource${ids.length === 1 ? "" : "s"}.`);
       setSelectedIds(new Set());
     } catch {
@@ -398,7 +396,7 @@ export default function StackStudioPage() {
     if (ids.length === 0) return;
     try {
       await bulkArchiveResources(ids, true);
-      setItems((cur) => cur.filter((i) => !ids.includes(i.id)));
+      setItems((cur) => cur.filter((i) => !selectedIds.has(i.id)));
       toast.success(`Archived ${ids.length} resource${ids.length === 1 ? "" : "s"}.`);
       setSelectedIds(new Set());
     } catch {
@@ -658,6 +656,20 @@ export default function StackStudioPage() {
             {f === "all" ? "All" : f === "confident" ? "High confidence" : "Needs review"}
           </button>
         ))}
+        {filteredItems.length > 0 && (
+          <button
+            onClick={() =>
+              // One state update regardless of how many items are being
+              // selected — never one setSelectedIds call per resource.
+              setSelectedIds((prev) =>
+                prev.size === filteredItems.length ? new Set() : new Set(filteredItems.map((i) => i.id))
+              )
+            }
+            className="rounded-full border border-border px-3 py-1 text-[12px] font-medium text-text-secondary hover:border-border-strong cursor-pointer"
+          >
+            {selectedIds.size === filteredItems.length ? "Select none" : `Select all ${filteredItems.length.toLocaleString()}`}
+          </button>
+        )}
         {reviewItems.length > 0 && (
           <button
             onClick={() => openReviewMode()}
