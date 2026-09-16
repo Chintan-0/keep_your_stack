@@ -16,6 +16,7 @@ const jbmono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://keep-your-stack.vercel.app"),
   title: "KeepYourStack",
   description: "A personal toolbox for building on the internet.",
 };

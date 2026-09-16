@@ -22,7 +22,7 @@ export function TopBar({ userEmail, userName }: { userEmail: string; userName: s
           <Menu size={18} />
         </button>
 
-        <Link href="/" className="flex items-center gap-2 shrink-0">
+        <Link href="/home" className="flex items-center gap-2 shrink-0">
           <Image src="/logo-mark.png" alt="" width={28} height={28} className="h-7 w-7 rounded-[7px]" priority />
           <span className="hidden text-[14px] font-semibold tracking-tight text-text-primary sm:block">
             KeepYourStack

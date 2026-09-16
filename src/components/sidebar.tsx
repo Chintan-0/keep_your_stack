@@ -132,7 +132,7 @@ export function Sidebar() {
       </button>
 
       <div className="flex flex-col gap-0.5">
-        <NavLink href="/" icon={Home} label="Home" />
+        <NavLink href="/home" icon={Home} label="Home" />
       </div>
 
       <div className="flex flex-col gap-0.5">

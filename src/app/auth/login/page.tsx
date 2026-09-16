@@ -33,7 +33,9 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email: signInEmail, password: signInPassword });
     if (error) return error;
     const next = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null;
-    router.push(next || "/");
+    // "/" is the public marketing homepage now, never a meaningful page to
+    // return a just-signed-in user to — treat it the same as no `next` at all.
+    router.push(next && next !== "/" ? next : "/home");
     router.refresh();
     return null;
   }

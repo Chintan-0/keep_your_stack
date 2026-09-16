@@ -38,6 +38,12 @@ const ALLOWED: ReadonlySet<EventType> = new Set([
   "extension_save_failure",
   "extension_duplicate_detected",
   "extension_login_required",
+  "homepage_viewed",
+  "homepage_cta_clicked",
+  "homepage_demo_interacted",
+  "homepage_extension_clicked",
+  "homepage_signup_clicked",
+  "homepage_login_clicked",
 ]);
 
 export async function POST(request: NextRequest) {
@@ -67,7 +73,11 @@ export async function POST(request: NextRequest) {
   const rawMetadata = body?.metadata;
   const metadata: Record<string, unknown> = {};
   if (rawMetadata && typeof rawMetadata === "object") {
-    for (const key of ["stackId", "resourceId"]) {
+    // "label" is a short, hardcoded string the CALLER'S OWN code chose
+    // (e.g. "hero-primary", "compress images" — one of the homepage's own
+    // fixed demo queries) — never arbitrary user-typed text, and never
+    // page contents.
+    for (const key of ["stackId", "resourceId", "label"]) {
       const value = (rawMetadata as Record<string, unknown>)[key];
       if (typeof value === "string") metadata[key] = value.slice(0, 100);
     }

@@ -172,7 +172,7 @@ export function AdminDashboard() {
               </option>
             ))}
           </select>
-          <Link href="/" className="flex items-center gap-1.5 text-[12.5px] text-text-secondary hover:text-text-primary">
+          <Link href="/home" className="flex items-center gap-1.5 text-[12.5px] text-text-secondary hover:text-text-primary">
             <ArrowLeft size={13} /> Back to app
           </Link>
         </div>

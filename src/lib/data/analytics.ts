@@ -99,6 +99,13 @@ export type EventType =
   | "extension_save_failure"
   | "extension_duplicate_detected"
   | "extension_login_required"
+  // Phase 15.5: public homepage
+  | "homepage_viewed"
+  | "homepage_cta_clicked"
+  | "homepage_demo_interacted"
+  | "homepage_extension_clicked"
+  | "homepage_signup_clicked"
+  | "homepage_login_clicked"
   // visitor analytics
   | "page_view"
   // Phase 13: shareable stacks

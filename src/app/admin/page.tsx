@@ -12,7 +12,7 @@ import { AdminDashboard } from "@/components/admin/admin-dashboard";
 // admin panel exists.
 export default async function AdminPage() {
   const isAdmin = await isCurrentUserAdmin();
-  if (!isAdmin) redirect("/");
+  if (!isAdmin) redirect("/home");
 
   return <AdminDashboard />;
 }

@@ -38,7 +38,11 @@ export async function updateSession(request: NextRequest) {
   // — /u/ (what next.config.ts's rewrite resolves those to) is included
   // too as defense in depth.
   const isPublicSharingPath = /^\/@[^/]+(\/[^/]+)?$/.test(pathname) || pathname.startsWith("/share/") || pathname.startsWith("/u/");
-  const isPublicPath = isPublicSharingPath || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  // "/" is the public marketing homepage (Phase 15.5) — never gated behind
+  // login. It redirects an already-signed-in visitor on to /home itself
+  // (see src/app/page.tsx), so this only ever needs to let an
+  // *unauthenticated* request through here.
+  const isPublicPath = pathname === "/" || isPublicSharingPath || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   // /downloads/ (e.g. the Chrome extension zip) must be fetchable by
   // anyone, not just signed-in users — the proxy's own matcher already
   // excludes it so this shouldn't normally even run for that path, but
@@ -62,7 +66,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && (pathname === "/auth/login" || pathname === "/auth/sign-up")) {
     const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/";
+    redirectUrl.pathname = "/home";
     redirectUrl.search = "";
     return NextResponse.redirect(redirectUrl);
   }

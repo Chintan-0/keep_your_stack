@@ -530,7 +530,7 @@ export default function StackStudioPage() {
           <p className="text-[11px] text-text-muted">Chrome / Firefox / Edge exported HTML bookmarks</p>
         </div>
 
-        <Link href="/" className="flex items-center gap-1 text-[12.5px] text-text-secondary hover:text-text-primary">
+        <Link href="/home" className="flex items-center gap-1 text-[12.5px] text-text-secondary hover:text-text-primary">
           <ArrowLeft size={13} /> Back to library
         </Link>
       </div>
