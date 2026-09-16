@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
+import { reportClientError } from "@/lib/report-client-error";
 
 // First-party, privacy-conscious visitor analytics — see src/lib/data/
 // analytics.ts's header comment for exactly what's collected and why.
@@ -58,6 +59,26 @@ function getSessionId(): string {
 
 export function AnalyticsTracker() {
   const pathname = usePathname();
+
+  // Minimal production error observability (§12) — catches errors React's
+  // own error boundaries can't (event handlers, timers, promise
+  // rejections). A React render error is caught separately by
+  // src/app/(app)/error.tsx and src/app/global-error.tsx, which call
+  // reportClientError directly. Mounted once, not per-pathname.
+  useEffect(() => {
+    function onError(event: ErrorEvent) {
+      reportClientError(event.error ?? event.message);
+    }
+    function onRejection(event: PromiseRejectionEvent) {
+      reportClientError(event.reason);
+    }
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
 
   useEffect(() => {
     // Never track admin pages themselves, and never let a tracking failure

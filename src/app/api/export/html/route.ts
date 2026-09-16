@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { buildExportHtml, type ExportScope } from "@/lib/data/export";
+import { trackEvent } from "@/lib/data/analytics";
 
 function parseScope(params: URLSearchParams): ExportScope {
   const scope = params.get("scope");
@@ -21,6 +22,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const html = await buildExportHtml(supabase, user.id, parseScope(request.nextUrl.searchParams));
+    void trackEvent({ eventType: "export_performed", userId: user.id, metadata: { format: "html" } });
     return new NextResponse(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

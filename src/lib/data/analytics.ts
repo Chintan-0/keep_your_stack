@@ -130,7 +130,12 @@ export type EventType =
   | "resource_organization_changed"
   | "bulk_organization_completed"
   | "review_started"
-  | "review_completed";
+  | "review_completed"
+  // Phase 16: minimal production error observability (§12). Never carries
+  // a stack trace, request body, or anything user-typed — see
+  // logServerError()/reportClientError() below for exactly what's kept.
+  | "server_error"
+  | "client_error";
 
 export interface TrackEventInput {
   eventType: EventType;
@@ -160,6 +165,22 @@ export async function trackEvent(input: TrackEventInput): Promise<void> {
   } catch {
     // Best-effort — analytics must never break the real action that triggered it.
   }
+}
+
+/**
+ * Minimal production error observability (§12/§17). Records that an API
+ * route failed and roughly why — never the full stack trace (could contain
+ * file paths, query text, or other internals) and never any request body.
+ * `message` is truncated defensively since even an intentionally-thrown
+ * Error's message is still free text a caller could influence.
+ */
+export async function logServerError(route: string, error: unknown, userId?: string | null): Promise<void> {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  void trackEvent({
+    eventType: "server_error",
+    userId: userId ?? null,
+    metadata: { route, message: message.slice(0, 200) },
+  });
 }
 
 // ── device/browser/OS classification ────────────────────────────────────

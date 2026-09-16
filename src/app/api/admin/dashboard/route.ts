@@ -11,6 +11,7 @@ import {
   getVisitorBreakdown,
   type DateRange,
 } from "@/lib/data/admin-analytics";
+import { logServerError } from "@/lib/data/analytics";
 
 // The one route the whole /admin dashboard reads from — everything the UI
 // needs for a given date range in a single request, all aggregated
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
       visitorBreakdown,
     });
   } catch (e) {
+    void logServerError("GET /api/admin/dashboard", e);
     return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't load admin data." }, { status: 500 });
   }
 }

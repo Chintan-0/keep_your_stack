@@ -140,8 +140,144 @@ account starts empty.
 
 ## Deployment
 
-Any Next.js host works (e.g. Vercel). Set the three environment variables
-above to a real Supabase project's values, run `supabase db push` against
-that project, and make sure its Auth settings (Settings → Authentication →
-URL Configuration) include your deployed domain as a redirect URL — the
-password-reset and email-confirmation links depend on it.
+Any Next.js host works; production runs on Vercel at
+`https://keep-your-stack.vercel.app`, backed by a hosted Supabase project.
+
+### Environment variables (production)
+
+Set these in Vercel → Project Settings → Environment Variables (Production):
+
+| Variable | Scope | Required | Notes |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Public | Yes | The Supabase project's API URL. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Yes | RLS protects data, not this key. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only | Recommended | Powers account deletion, the admin dashboard, and all `trackEvent`/`logServerError` analytics writes. Without it, those features degrade (analytics silently no-ops; account deletion returns a clear error) rather than breaking the rest of the app. **Never** add a `NEXT_PUBLIC_` prefix to this. |
+
+No other environment variables are required. The Chrome extension does not
+read any server env var directly — its production origin is baked into the
+built manifest at package time (see "Chrome extension" below), and it never
+holds a Supabase key of any kind, service-role or otherwise.
+
+### Supabase (production project)
+
+1. `npx supabase link --project-ref <ref>`, then `npx supabase db push` to
+   apply every migration in `supabase/migrations/` in order. Never run
+   `supabase db reset` against a linked production project — it wipes data.
+   A schema change always ships as a new migration file, never a manual edit
+   to an existing one.
+2. **Project Settings → API → Max Rows** must be raised to match
+   `MAX_RESOURCES_PER_LIST` in `src/lib/data/resources.ts` (currently
+   **20,000**) — PostgREST silently truncates any unpaginated query at
+   whichever of the two is lower, with no error. `supabase/config.toml`'s
+   own `max_rows` only controls local dev; this dashboard setting is the
+   real one for the hosted project. This bit the project once already (a
+   10,000-resource account got back exactly 1,000 rows with no indication
+   anything was missing) — worth double-checking after any migration.
+3. **Authentication → URL Configuration**: add the production domain as a
+   redirect URL — password-reset and email-confirmation links depend on it.
+4. **Analytics retention**: `purge_old_analytics()` (in
+   `20260101000010_admin_analytics.sql`) deletes `analytics_events` older
+   than 180 days and `visitor_sessions` older than 400 days — it only ever
+   touches those two tables, never resource/user data, and is safe to run
+   repeatedly. It is *not* scheduled automatically (enabling `pg_cron` is a
+   per-project dashboard decision, not something a migration should do
+   silently). To schedule it: enable the `pg_cron` extension
+   (Database → Extensions), then run once in the SQL editor:
+   ```sql
+   select cron.schedule('analytics-retention', '0 3 * * *', 'select public.purge_old_analytics()');
+   ```
+   Until this is done, analytics tables grow unbounded — not a correctness
+   problem, just a storage one worth revisiting before it matters.
+
+### Admin dashboard
+
+`/admin` is gated by `requireAdmin()` (`src/lib/data/admin-auth.ts`) —
+an allowlist of user ids/emails, never a client-supplied flag. Update that
+list to grant access; there is no self-service "become admin" path by
+design.
+
+### Health & monitoring
+
+- `GET /api/health` — no auth required, returns `{status:"ok",latencyMs}`
+  with a 200, or `{status:"unavailable"}` with a 503 if Postgres/PostgREST
+  can't be reached. Point an uptime monitor (or Vercel's own) at it. Never
+  returns connection strings, hostnames, or any other internal detail.
+- Server-side failures in the highest-traffic routes (resource create/list,
+  search, the admin dashboard) are recorded as a `server_error` analytics
+  event (route name + truncated error message only — never a stack trace
+  or request body); this is a representative subset, not every API route.
+  Client-side runtime errors (uncaught exceptions, unhandled promise
+  rejections, and React render errors caught by
+  `src/app/(app)/error.tsx`/`src/app/global-error.tsx`) are recorded as
+  `client_error` the same way. Both show up labeled in the admin
+  dashboard's Recent Activity feed. This is intentionally simple —
+  event-log-based, reusing the existing first-party analytics
+  infrastructure — not a dedicated error-tracking platform (no Sentry or
+  equivalent is configured; revisit if error volume ever warrants it).
+
+### Security headers
+
+`next.config.ts` sets a Content-Security-Policy, `X-Content-Type-Options`,
+`Referrer-Policy`, `X-Frame-Options: DENY`, and a `Permissions-Policy` on
+every page route (a lighter `nosniff` + `Referrer-Policy` pair on API
+routes, where CSP has no meaning). The CSP allows `'unsafe-inline'` for
+scripts/styles (Next.js's own hydration/RSC payload and Tailwind both need
+it; a strict nonce-based policy is a larger follow-up, not part of this
+pass) and `'unsafe-eval'` in development only (React's dev-mode debugging
+tooling needs it; production never uses `eval()`). `connect-src` is scoped
+to the app's own Supabase project URL — no other third-party API is called
+from the browser.
+
+### Chrome extension (production build)
+
+```bash
+npm run package:extension:prod
+```
+
+This sets `EXTENSION_APP_ORIGINS=https://keep-your-stack.vercel.app` at
+build time (via `extension/scripts/package-prod.js`, a cross-platform
+wrapper — a plain `VAR=value npm run ...` breaks on Windows) and writes the
+zip to `public/downloads/keepyourstack-chrome-extension.zip`, the same file
+`/extension`'s download button serves. Verify before shipping a new build:
+
+```bash
+unzip -p public/downloads/keepyourstack-chrome-extension.zip manifest.json | grep host_permissions
+```
+
+should show `https://keep-your-stack.vercel.app/*`, never `localhost`. The
+extension holds no Supabase key of any kind (service-role or anon) and no
+long-lived secret — it authenticates as the signed-in user via a bearer
+token obtained through the web app's own session, scoped to the minimum
+Chrome permissions the popup/background flow actually needs.
+
+### Rollback
+
+Every deploy is a normal Vercel deployment — roll back from the Vercel
+dashboard (Deployments → \[previous\] → Promote to Production) same as any
+other release. Database migrations are additive-by-design throughout this
+project (new columns/indexes/functions, never a destructive rewrite of an
+existing one in place) specifically so a Vercel rollback to older
+application code keeps working against the current schema without also
+needing a database rollback. There is no automated migration-down path;
+reversing a migration means writing and applying a new one.
+
+### Known limitations
+
+- Filtering/sorting on the main list screens (All Resources, Favorites,
+  Archive) only applies to whatever page of results is already loaded
+  client-side — the UI says so explicitly ("Load more of your library to
+  see additional matches") rather than silently under-reporting, but a
+  filter combination that only matches resources past the first page or
+  two requires clicking "Load more" first. Power Search (`/search`) does
+  not have this limitation — it's a real server-side query across the
+  whole library.
+- No automated load-testing harness is checked into the repo; the
+  10,000-resource-scale numbers in `PHASE_16_REPORT.md` come from a
+  real local Supabase instance seeded with ~17,000 resources (left over
+  from Phase 14.1's own testing), not a synthetic benchmark script.
+- Server-error observability (`logServerError`) is wired into a
+  representative subset of routes (resource create/list, search, admin
+  dashboard) — not exhaustively across all ~47 API routes.
+- No dedicated error-tracking service (Sentry, etc.) — errors are recorded
+  as analytics events, which is enough to see that something broke and
+  roughly where, not to get a full stack trace or source map.

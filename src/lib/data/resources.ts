@@ -55,26 +55,27 @@ function defaultSource(hasValue: boolean): "user" | null {
   return hasValue ? "user" : null;
 }
 
-// Returns both active and archived resources — the UI keeps them in one
-// array and filters client-side (same shape as the local-only build), so
-// there's exactly one place ("is this archived?") that decides visibility.
-// A single indexed query is plenty at personal-toolbox scale; add a
-// server-side archived filter or pagination here first if that changes.
+// Returns both active and archived resources in one shot, uncapped by
+// pagination — intentionally, this is the "I need genuinely everything"
+// helper. As of Phase 16 the main list screens (All Resources, Favorites,
+// Archive) no longer call this — they use listResourcesPage below. What
+// still does: export, Library Health, duplicate detection, and the
+// recheck-all-links job, each of which would silently produce wrong
+// answers (missing resources in an export, undercounted duplicates) if it
+// only saw part of the library. So this stays a single indexed query
+// bounded by MAX_RESOURCES_PER_LIST rather than paginated.
 //
 // Phase 12 load testing (§5/§39) found this `.limit()` was silently
 // overridden by PostgREST's own lower `max_rows` (supabase/config.toml
 // defaulted to 1000 — measured live: a 10,000-resource account got back
 // exactly 1000 rows here, no error, nothing indicating 9,000 resources
-// were missing). Both are now aligned at 5000, matching each other. That's
-// still a stopgap, not a real fix — Phase 11's own import path explicitly
-// supports up to 20,000 items, well past this cap, and every screen that
-// renders this list (All Resources, Favorites, Archive) has no pagination
-// of its own to fall back on. A real hosted Supabase project's own
-// equivalent setting (Project Settings → API → Max Rows) must also be
-// raised to at least this value before launch — this file only controls
-// local dev. Real cursor-based pagination belongs in Post-V1, not this
-// hardening pass.
-const MAX_RESOURCES_PER_LIST = 5000;
+// were missing). Both must always be kept aligned — see
+// supabase/config.toml's own comment on max_rows. Phase 16 raised both to
+// 20,000 to match Phase 11's own documented import ceiling. A real hosted
+// Supabase project's equivalent setting (Project Settings → API → Max
+// Rows) must also be raised to 20,000 before launch — this file only
+// controls local dev.
+const MAX_RESOURCES_PER_LIST = 20000;
 
 export async function listResources(client: Client, userId: string): Promise<Resource[]> {
   const { data, error } = await client

@@ -55,4 +55,9 @@ export function mapTagRow(row: Database["public"]["Tables"]["tags"]["Row"]): Tag
   return { id: row.id, name: row.name };
 }
 
-export const RESOURCE_SELECT = "*, resource_tags(tag_id), resource_stacks(stack_id)";
+// Explicit column list rather than "*" — resources now also carries a
+// generated `search_vector` tsvector column (Phase 16 search performance
+// work) purely for the database's own GIN index; it's meaningless to the
+// client and would otherwise ride along on every resource fetch for free.
+export const RESOURCE_SELECT =
+  "id, user_id, title, url, normalized_url, domain, description, favicon_url, image_url, resource_type, pricing, platform, use_cases, notes, is_favorite, is_archived, use_count, created_at, updated_at, import_source, import_folder, import_source_id, category_id, description_source, useful_for_source, enrichment_status, enrichment_attempts, enrichment_attempted_at, needs_review_dismissed, resource_tags(tag_id), resource_stacks(stack_id)";

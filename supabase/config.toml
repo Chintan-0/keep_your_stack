@@ -17,20 +17,24 @@ extra_search_path = ["public", "extensions"]
 # for accidental or malicious requests.
 #
 # Phase 12 production audit (§5/§39 load testing): this silently overrode
-# listResources()'s own `.limit(5000)` in src/lib/data/resources.ts — the
-# default of 1000 meant a user with more than 1,000 resources had the rest
-# vanish from every list view (All Resources, Favorites, Archive — none of
-# them paginate; they all render the one full listResources() fetch) with
-# no error and no indication anything was missing. Raised to match the
-# app's own declared intent. This is a LOCAL DEV setting only — a real
-# hosted Supabase project's equivalent (Project Settings → API → Max Rows)
-# must be raised to the same value before launch; this file can't do that
-# for you. 5000 is still a stopgap, not a real fix: the app has no
-# pagination at all, so a library past this cap (which Phase 11's own
-# import path explicitly supports up to 20,000 items) will still silently
-# truncate. Real cursor-based pagination is a Post-V1 priority, not
-# something to retrofit during this hardening pass.
-max_rows = 5000
+# listResources()'s own `.limit()` in src/lib/data/resources.ts — a lower
+# max_rows than the app's own cap means the rest vanish with no error and
+# no indication anything was missing. Must always match
+# MAX_RESOURCES_PER_LIST in src/lib/data/resources.ts exactly.
+#
+# Phase 16: the main list views (All Resources, Favorites, Archive) now
+# use real server-side pagination (listResourcesPage, 300/page, "Load
+# more") and no longer depend on this cap. What still calls the *unpaged*
+# listResources() — export, Library Health, duplicate detection, the
+# recheck-all-links job — genuinely needs every resource to be correct, so
+# this is raised to 20,000 to match Phase 11's own documented import
+# ceiling (Stack Studio explicitly supports importing up to 20,000
+# bookmarks in one go) rather than left at a number a real large account
+# could still exceed. This is a LOCAL DEV setting only — a real hosted
+# Supabase project's equivalent (Project Settings → API → Max Rows) must
+# be raised to the same value (20,000) before launch; this file can't do
+# that for you.
+max_rows = 20000
 # Controls whether new tables, views, sequences and functions created in the `public` schema by
 # `postgres` are reachable through the Data API roles (`anon`, `authenticated`, `service_role`)
 # without explicit GRANTs, matching the cloud default. Set to `false` to require explicit GRANTs

@@ -110,6 +110,8 @@ const EVENT_LABELS: Record<string, string> = {
   search_performed: "Search performed",
   enrichment_completed: "Enrichment completed",
   enrichment_failed: "Enrichment failed",
+  server_error: "Server error",
+  client_error: "Client error",
 };
 
 export function AdminDashboard() {

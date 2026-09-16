@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/data/auth";
 import { listResources, listResourcesPage, createResource, findResourceByUrl } from "@/lib/data/resources";
 import { normalizeUrl } from "@/lib/utils";
 import { corsPreflight, withCors } from "@/lib/cors";
-import { trackEvent } from "@/lib/data/analytics";
+import { trackEvent, logServerError } from "@/lib/data/analytics";
 
 export async function GET(request: NextRequest) {
   const { supabase, user, unauthorized } = await requireUser(request);
@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
       const page = await listResourcesPage(supabase, user.id, { limit, offset });
       return withCors(request, NextResponse.json(page));
     } catch (e) {
+      void logServerError("GET /api/resources (paginated)", e, user.id);
       return withCors(
         request,
         NextResponse.json({ error: e instanceof Error ? e.message : "Failed to load resources" }, { status: 500 })
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
     if (!!request.headers.get("authorization")) {
       void trackEvent({ eventType: "extension_save_failure", userId: user.id });
     }
+    void logServerError("POST /api/resources", e, user.id);
     return withCors(
       request,
       NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't save your resource. Try again." }, { status: 500 })

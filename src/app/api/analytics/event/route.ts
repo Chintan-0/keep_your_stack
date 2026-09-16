@@ -44,6 +44,7 @@ const ALLOWED: ReadonlySet<EventType> = new Set([
   "homepage_extension_clicked",
   "homepage_signup_clicked",
   "homepage_login_clicked",
+  "client_error",
 ]);
 
 export async function POST(request: NextRequest) {
@@ -77,9 +78,13 @@ export async function POST(request: NextRequest) {
     // (e.g. "hero-primary", "compress images" — one of the homepage's own
     // fixed demo queries) — never arbitrary user-typed text, and never
     // page contents.
-    for (const key of ["stackId", "resourceId", "label"]) {
+    // "message" is only ever used with eventType "client_error" — a
+    // caught exception's own .message, truncated hard, never a stack
+    // trace or anything user-typed. "path" is the route it happened on
+    // (window.location.pathname), useful to know which screen broke.
+    for (const key of ["stackId", "resourceId", "label", "message", "path"]) {
       const value = (rawMetadata as Record<string, unknown>)[key];
-      if (typeof value === "string") metadata[key] = value.slice(0, 100);
+      if (typeof value === "string") metadata[key] = value.slice(0, key === "message" ? 200 : 100);
     }
     for (const key of ["count", "total", "imported", "duplicates", "failed", "needsReview"]) {
       const value = (rawMetadata as Record<string, unknown>)[key];

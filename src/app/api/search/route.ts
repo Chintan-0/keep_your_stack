@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { searchResources, suggestSearchTerms } from "@/lib/data/search";
-import { trackEvent } from "@/lib/data/analytics";
+import { trackEvent, logServerError } from "@/lib/data/analytics";
 
 export async function GET(request: NextRequest) {
   const { supabase, user, unauthorized } = await requireUser();
@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
       void trackEvent({ eventType: "search_performed", userId: user.id, metadata: { resultCount: results.length } });
     }
     return NextResponse.json({ results, didYouMean });
-  } catch {
+  } catch (e) {
+    void logServerError("GET /api/search", e, user.id);
     return NextResponse.json({ error: "Search is temporarily unavailable." }, { status: 503 });
   }
 }

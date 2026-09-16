@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { createResource } from "@/lib/data/resources";
+import { trackEvent } from "@/lib/data/analytics";
 import type { Resource } from "@/lib/types";
 
 interface ImportBookmark {
@@ -49,6 +50,14 @@ export async function POST(request: NextRequest) {
   if (bookmarks.length > MAX_ITEMS_PER_REQUEST) {
     return NextResponse.json({ error: `Import is limited to ${MAX_ITEMS_PER_REQUEST} bookmarks at a time.` }, { status: 400 });
   }
+
+  // Large imports are chunked into several of these calls (see the import
+  // page) — this fires once per chunk rather than once per whole import
+  // (there's no "whole import" concept this route itself can see), but
+  // that's still a real, honest signal of import activity happening,
+  // consistent with "import_completed"/"import_failed" which the separate
+  // /api/import/history route records once the client-side batch finishes.
+  void trackEvent({ eventType: "import_started", userId: user.id, metadata: { source: batchSource, total: bookmarks.length } });
 
   let duplicates = 0;
   const failed: { url: string; title: string; reason: string }[] = [];
