@@ -133,32 +133,87 @@ export interface SourceBreakdown {
 }
 
 export async function getSourceBreakdown(client: Client, range: DateRange): Promise<SourceBreakdown> {
-  const [extensionRes, totalRes, importRes] = await Promise.all([
-    client
-      .from("analytics_events")
-      .select("id", { count: "exact", head: true })
-      .eq("event_type", "extension_save_success")
-      .gte("created_at", range.from)
-      .lt("created_at", range.to),
-    client.from("resources").select("id", { count: "exact", head: true }).gte("created_at", range.from).lt("created_at", range.to),
+  // Two independent axes, each its own {this, everything else} split —
+  // "Extension vs Web" and "Import vs Manual" are separate questions, not
+  // four mutually-exclusive buckets. extensionSaves and importCreated
+  // both come straight from resources.import_source (set to
+  // "chrome-extension" by every extension save — see extension/src/lib/
+  // api.ts's saveResource — and to "chrome-bookmarks" by the bulk/Stack
+  // Studio importer), matched to its own specific value rather than a
+  // catch-all "is not null" so an extension save is never miscounted as
+  // an "import." The resource row is the authoritative record of what was
+  // actually created; an analytics event is fire-and-forget best-effort
+  // and can go missing on a flaky network without the save itself failing.
+  const countBySource = (source: string) =>
     client
       .from("resources")
       .select("id", { count: "exact", head: true })
-      .not("import_source", "is", null)
+      .eq("import_source", source)
       .gte("created_at", range.from)
-      .lt("created_at", range.to),
+      .lt("created_at", range.to);
+
+  const [totalRes, importRes, extensionRes] = await Promise.all([
+    client.from("resources").select("id", { count: "exact", head: true }).gte("created_at", range.from).lt("created_at", range.to),
+    countBySource("chrome-bookmarks"),
+    countBySource("chrome-extension"),
   ]);
-  if (extensionRes.error) throw new Error(extensionRes.error.message);
   if (totalRes.error) throw new Error(totalRes.error.message);
   if (importRes.error) throw new Error(importRes.error.message);
-  const extensionSaves = extensionRes.count ?? 0;
+  if (extensionRes.error) throw new Error(extensionRes.error.message);
   const total = totalRes.count ?? 0;
   const importCreated = importRes.count ?? 0;
+  const extensionSaves = extensionRes.count ?? 0;
   return {
     extensionSaves,
     webSaves: Math.max(0, total - extensionSaves),
     importCreated,
     manualCreated: Math.max(0, total - importCreated),
+  };
+}
+
+export interface ExtensionSaveHealth {
+  saveStarted: number;
+  saveSuccess: number;
+  saveFailure: number;
+  duplicateDetected: number;
+  /** Rounded 0-100; null when there's no data yet (never shown as a fabricated "0%"). */
+  successRate: number | null;
+  duplicateRate: number | null;
+}
+
+/** Extension-specific reliability metrics — success/duplicate rate, from real analytics_events counts only. */
+export async function getExtensionSaveHealth(client: Client, range: DateRange): Promise<ExtensionSaveHealth> {
+  const countEvent = (eventType: string) =>
+    client
+      .from("analytics_events")
+      .select("id", { count: "exact", head: true })
+      .eq("event_type", eventType)
+      .gte("created_at", range.from)
+      .lt("created_at", range.to);
+
+  const [startedRes, successRes, failureRes, duplicateRes] = await Promise.all([
+    countEvent("extension_save_started"),
+    countEvent("extension_save_success"),
+    countEvent("extension_save_failure"),
+    countEvent("extension_duplicate_detected"),
+  ]);
+  for (const r of [startedRes, successRes, failureRes, duplicateRes]) {
+    if (r.error) throw new Error(r.error.message);
+  }
+
+  const saveStarted = startedRes.count ?? 0;
+  const saveSuccess = successRes.count ?? 0;
+  const saveFailure = failureRes.count ?? 0;
+  const duplicateDetected = duplicateRes.count ?? 0;
+  const attempted = saveSuccess + saveFailure;
+
+  return {
+    saveStarted,
+    saveSuccess,
+    saveFailure,
+    duplicateDetected,
+    successRate: attempted > 0 ? Math.round((saveSuccess / attempted) * 100) : null,
+    duplicateRate: saveStarted > 0 ? Math.round((duplicateDetected / saveStarted) * 100) : null,
   };
 }
 

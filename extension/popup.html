@@ -80,14 +80,32 @@
           <p id="newUrl" class="page-url"></p>
         </div>
       </div>
+      <p id="metaStatus" class="muted meta-status" hidden></p>
+
+      <div id="suggestionBox" class="suggestion-box" hidden>
+        <p class="section-label">Suggested for you</p>
+        <div id="suggestionLines" class="suggestion-lines"></div>
+        <button id="whySuggestionBtn" class="disclosure" type="button" aria-expanded="false" hidden>
+          Why this suggestion? <span class="chev">▾</span>
+        </button>
+        <ul id="suggestionReasons" class="suggestion-reasons" hidden></ul>
+      </div>
+      <p id="noSuggestion" class="muted" hidden>No strong suggestion yet — pick a category or stack below.</p>
 
       <label class="field">
         <span class="field-label">Useful for</span>
         <input id="useCase" type="text" placeholder="What is this useful for?" maxlength="140" />
       </label>
 
+      <label class="field">
+        <span class="field-label">Tags</span>
+        <div id="tagChips" class="tag-chips">
+          <input id="tagsInput" type="text" placeholder="Add a tag, press Enter" />
+        </div>
+      </label>
+
       <button id="toggleDetails" class="disclosure" type="button" aria-expanded="false">
-        Add details <span class="chev">▾</span>
+        Category &amp; stack <span class="chev">▾</span>
       </button>
 
       <div id="detailsPanel" class="details" hidden>
@@ -102,10 +120,6 @@
           <select id="categorySelect">
             <option value="">Uncategorized</option>
           </select>
-        </label>
-        <label class="field">
-          <span class="field-label">Tags</span>
-          <input id="tagsInput" type="text" placeholder="react, api (comma separated)" />
         </label>
         <label class="field">
           <span class="field-label">Note</span>
@@ -131,6 +145,7 @@
       <div class="empty">
         <div class="check">✓</div>
         <p class="empty-title">Saved to KeepYourStack</p>
+        <p id="successOrg" class="muted"></p>
         <p id="enrichStatus" class="muted"></p>
         <div class="actions">
           <button id="openSavedBtn" class="btn btn-primary">Open Resource</button>

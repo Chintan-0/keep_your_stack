@@ -362,6 +362,15 @@ export interface Database {
         Args: { p_query: string };
         Returns: { term: string; similarity: number }[];
       };
+      suggest_resource_organization: {
+        Args: { p_domain: string };
+        Returns: {
+          domainTotal: number;
+          category: { id: string; name: string; count: number } | null;
+          stack: { id: string; name: string; icon: string; count: number } | null;
+          tags: { id: string; name: string; count: number }[];
+        };
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

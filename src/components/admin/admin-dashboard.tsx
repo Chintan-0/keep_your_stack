@@ -54,6 +54,14 @@ interface DashboardData {
   topTags: { label: string; count: number }[];
   topPricing: { label: string; count: number }[];
   sources: { extensionSaves: number; webSaves: number; importCreated: number; manualCreated: number };
+  extensionHealth: {
+    saveStarted: number;
+    saveSuccess: number;
+    saveFailure: number;
+    duplicateDetected: number;
+    successRate: number | null;
+    duplicateRate: number | null;
+  };
   recentActivity: { id: string; eventType: string; createdAt: string; path: string | null; userId: string | null }[];
   userStats: {
     totalUsers: number;
@@ -87,8 +95,15 @@ const EVENT_LABELS: Record<string, string> = {
   resource_archived: "Resource archived",
   resource_restored: "Resource restored",
   duplicate_save_prevented: "Duplicate save prevented",
+  extension_popup_opened: "Extension popup opened",
+  extension_metadata_loaded: "Extension metadata loaded",
+  extension_suggestion_shown: "Extension suggestion shown",
+  extension_suggestion_changed: "Extension suggestion overridden",
+  extension_save_started: "Extension save started",
   extension_save_success: "Extension save",
   extension_save_failure: "Extension save failed",
+  extension_duplicate_detected: "Extension duplicate detected",
+  extension_login_required: "Extension sign-in prompted",
   import_completed: "Bookmark import completed",
   import_failed: "Bookmark import failed",
   export_performed: "Export performed",
@@ -221,7 +236,7 @@ export function AdminDashboard() {
               <TopList title="Top Referrers" items={data.visitorBreakdown.referrers.filter((r) => r.label !== "" && r.label !== "Unknown")} />
             </div>
 
-            <SourceBreakdown sources={data.sources} />
+            <SourceBreakdown sources={data.sources} health={data.extensionHealth} />
 
             <UserTable stats={data.userStats} />
 
@@ -285,42 +300,58 @@ function Overview({ data }: { data: DashboardData }) {
   );
 }
 
-function TopList({ title, items }: { title: string; items: { label: string; count: number }[] }) {
+function TopListRows({ items }: { items: { label: string; count: number }[] }) {
   const max = Math.max(1, ...items.map((i) => i.count));
+  if (items.length === 0) return <p className="text-[12.5px] text-text-muted">No data in this range.</p>;
+  return (
+    <div className="flex flex-col gap-2">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-2">
+          <span className="w-28 shrink-0 truncate text-[12.5px] text-text-secondary" title={item.label}>
+            {item.label}
+          </span>
+          <div className="h-1.5 flex-1 rounded-full bg-surface-3">
+            <div className="h-full rounded-full bg-accent" style={{ width: `${(item.count / max) * 100}%` }} />
+          </div>
+          <span className="w-8 shrink-0 text-right text-[11.5px] text-text-muted">{item.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TopList({ title, items }: { title: string; items: { label: string; count: number }[] }) {
   return (
     <Card>
       <h2 className="mb-3 text-[13px] font-semibold text-text-primary">{title}</h2>
-      {items.length === 0 ? (
-        <p className="text-[12.5px] text-text-muted">No data in this range.</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {items.map((item) => (
-            <div key={item.label} className="flex items-center gap-2">
-              <span className="w-28 shrink-0 truncate text-[12.5px] text-text-secondary" title={item.label}>
-                {item.label}
-              </span>
-              <div className="h-1.5 flex-1 rounded-full bg-surface-3">
-                <div className="h-full rounded-full bg-accent" style={{ width: `${(item.count / max) * 100}%` }} />
-              </div>
-              <span className="w-8 shrink-0 text-right text-[11.5px] text-text-muted">{item.count}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <TopListRows items={items} />
     </Card>
   );
 }
 
-function SourceBreakdown({ sources }: { sources: DashboardData["sources"] }) {
+function SourceBreakdown({ sources, health }: { sources: DashboardData["sources"]; health: DashboardData["extensionHealth"] }) {
   return (
     <section className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-      <TopList
-        title="Extension vs Web Saves"
-        items={[
+      <Card>
+        <h2 className="mb-3 text-[13px] font-semibold text-text-primary">Extension vs Web Saves</h2>
+        <TopListRows items={[
           { label: "Extension", count: sources.extensionSaves },
           { label: "Web", count: sources.webSaves },
-        ]}
-      />
+        ]} />
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3 text-[11.5px] text-text-muted">
+          <span>
+            Success rate:{" "}
+            <strong className="text-text-primary">{health.successRate === null ? "—" : `${health.successRate}%`}</strong>
+          </span>
+          <span>
+            Duplicate rate:{" "}
+            <strong className="text-text-primary">{health.duplicateRate === null ? "—" : `${health.duplicateRate}%`}</strong>
+          </span>
+          <span>
+            Attempts: <strong className="text-text-primary">{health.saveStarted.toLocaleString()}</strong>
+          </span>
+        </div>
+      </Card>
       <TopList
         title="Import vs Manual"
         items={[

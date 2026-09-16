@@ -5,6 +5,7 @@ import {
   getDailyTimeseries,
   getTopDimension,
   getSourceBreakdown,
+  getExtensionSaveHealth,
   getRecentActivity,
   getUserStats,
   getVisitorBreakdown,
@@ -29,19 +30,31 @@ export async function GET(request: NextRequest) {
   const range: DateRange = { from, to };
 
   try {
-    const [overview, timeseries, topCategories, topStacks, topTags, topPricing, sources, recentActivity, userStats, visitorBreakdown] =
-      await Promise.all([
-        getOverview(service!, range),
-        getDailyTimeseries(service!, range),
-        getTopDimension(service!, "category", range),
-        getTopDimension(service!, "stack", range),
-        getTopDimension(service!, "tag", range),
-        getTopDimension(service!, "pricing", range),
-        getSourceBreakdown(service!, range),
-        getRecentActivity(service!),
-        getUserStats(service!),
-        getVisitorBreakdown(service!, range),
-      ]);
+    const [
+      overview,
+      timeseries,
+      topCategories,
+      topStacks,
+      topTags,
+      topPricing,
+      sources,
+      extensionHealth,
+      recentActivity,
+      userStats,
+      visitorBreakdown,
+    ] = await Promise.all([
+      getOverview(service!, range),
+      getDailyTimeseries(service!, range),
+      getTopDimension(service!, "category", range),
+      getTopDimension(service!, "stack", range),
+      getTopDimension(service!, "tag", range),
+      getTopDimension(service!, "pricing", range),
+      getSourceBreakdown(service!, range),
+      getExtensionSaveHealth(service!, range),
+      getRecentActivity(service!),
+      getUserStats(service!),
+      getVisitorBreakdown(service!, range),
+    ]);
 
     return NextResponse.json({
       overview,
@@ -51,6 +64,7 @@ export async function GET(request: NextRequest) {
       topTags,
       topPricing,
       sources,
+      extensionHealth,
       recentActivity,
       userStats,
       visitorBreakdown,

@@ -90,8 +90,15 @@ export type EventType =
   | "import_failed"
   | "export_performed"
   // extension
+  | "extension_popup_opened"
+  | "extension_metadata_loaded"
+  | "extension_suggestion_shown"
+  | "extension_suggestion_changed"
+  | "extension_save_started"
   | "extension_save_success"
   | "extension_save_failure"
+  | "extension_duplicate_detected"
+  | "extension_login_required"
   // visitor analytics
   | "page_view"
   // Phase 13: shareable stacks

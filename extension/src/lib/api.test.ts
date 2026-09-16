@@ -50,6 +50,60 @@ describe("api.ts", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer a1");
   });
 
+  it("always tags a save with importSource: chrome-extension, regardless of caller input", async () => {
+    const { setSession } = await import("./storage");
+    await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });
+
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ resource: { id: "res_1", title: "React", url: "https://react.dev", stackIds: [], tagIds: [] }, duplicate: false }),
+    });
+
+    const { saveResource } = await import("./api");
+    await saveResource({ url: "https://react.dev", title: "React" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init.body as string);
+    expect(body.importSource).toBe("chrome-extension");
+  });
+
+  it("suggestOrganization posts to /api/resources/suggest and returns the parsed suggestion", async () => {
+    const { setSession } = await import("./storage");
+    await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });
+
+    const suggestion = {
+      domain: "react.dev",
+      domainTotal: 4,
+      confident: true,
+      category: { id: "cat_1", confidence: "high" },
+      stack: { id: "stack_1", name: "Frontend", icon: "🌐" },
+      tags: ["react"],
+      usefulFor: null,
+      reasons: ["4 resources from react.dev are in Frontend"],
+    };
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => suggestion });
+
+    const { suggestOrganization } = await import("./api");
+    const result = await suggestOrganization("https://react.dev", "React");
+    expect(result).toEqual(suggestion);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/api/resources/suggest");
+  });
+
+  it("suggestOrganization never throws — a failed request resolves to null", async () => {
+    const { setSession } = await import("./storage");
+    await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });
+
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    fetchMock.mockRejectedValueOnce(new Error("network down"));
+
+    const { suggestOrganization } = await import("./api");
+    await expect(suggestOrganization("https://react.dev", "React")).resolves.toBeNull();
+  });
+
   it("reports a duplicate without creating a second resource", async () => {
     const { setSession } = await import("./storage");
     await setSession({ accessToken: "a1", refreshToken: "r1", expiresAt: null, userEmail: null });

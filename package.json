@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "build:extension": "node extension/scripts/generate-manifest.js && tsc -p extension/tsconfig.json && node extension/scripts/fix-content-scripts.js",
-    "package:extension": "npm run build:extension && node extension/scripts/package.js"
+    "package:extension": "npm run build:extension && node extension/scripts/package.js",
+    "package:extension:prod": "node extension/scripts/package-prod.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.6",

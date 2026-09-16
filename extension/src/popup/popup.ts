@@ -6,6 +6,7 @@ import {
   enrichResource,
   listStacks,
   listCategories,
+  suggestOrganization,
   restoreResource,
   deleteResource,
   resourceUrl,
@@ -17,7 +18,8 @@ import { isSupportedUrl } from "../lib/url.js";
 import { resolveInitialView, resolveResourceView } from "../lib/view-state.js";
 import { buildCategoryOptions } from "../lib/categories.js";
 import { createSequenceGuard } from "../lib/request-guard.js";
-import type { ExtResource } from "../lib/types.js";
+import { track } from "../lib/analytics.js";
+import type { ExtResource, OrganizationSuggestion } from "../lib/types.js";
 
 type ViewName =
   | "loading"
@@ -79,6 +81,8 @@ async function getActiveTab(): Promise<PageInfo | null> {
 let currentPage: PageInfo | null = null;
 let savedResource: ExtResource | null = null;
 let justCreatedResourceId: string | null = null;
+let currentSuggestion: OrganizationSuggestion | null = null;
+let tags: string[] = [];
 
 // Guards against a stale async startup response overwriting a newer one —
 // e.g. the user clicks Retry (a second init() run) while the first run's
@@ -103,6 +107,9 @@ async function init() {
   show("loading");
   setLoadingMessage("Checking…");
   justCreatedResourceId = null;
+  currentSuggestion = null;
+  tags = [];
+  if (requestId === 0) void track("extension_popup_opened"); // once per popup open, not once per internal retry
 
   currentPage = await getActiveTab();
   if (!startupGuard.isCurrent(requestId)) return; // superseded by a newer init() while awaiting the tab
@@ -116,9 +123,11 @@ async function init() {
 
   const view = resolveInitialView({ supportedUrl, connection });
   if (view !== "check-duplicate") {
+    if (view === "disconnected" || view === "expired") void track("extension_login_required");
     show(view);
     return;
   }
+  void track("extension_metadata_loaded"); // title/favicon from the tab are already in hand at this point
 
   setLoadingMessage("Checking your stack…");
   await checkDuplicateAndRender(requestId);
@@ -130,6 +139,7 @@ async function checkDuplicateAndRender(requestId: number) {
     const existing = await findExisting(currentPage.url);
     if (!startupGuard.isCurrent(requestId)) return; // superseded while awaiting the duplicate check
     if (resolveResourceView(existing) === "duplicate" && existing) {
+      void track("extension_duplicate_detected");
       await renderDuplicate(existing, requestId);
     } else {
       await renderNew(requestId);
@@ -192,10 +202,15 @@ async function renderNew(guardId?: number) {
   $("newTitle").textContent = currentPage.title;
   $("newUrl").textContent = currentPage.url;
   (document.getElementById("useCase") as HTMLInputElement).value = "";
-  (document.getElementById("tagsInput") as HTMLInputElement).value = "";
   (document.getElementById("noteInput") as HTMLTextAreaElement).value = "";
   const enrichStatusEl = document.getElementById("enrichStatus");
   if (enrichStatusEl) enrichStatusEl.textContent = "";
+  tags = [];
+  renderTagChips();
+  currentSuggestion = null;
+  suggestionChangeTracked = false;
+  $("suggestionBox").hidden = true;
+  $("noSuggestion").hidden = true;
 
   const stackSelect = document.getElementById("stackSelect") as HTMLSelectElement;
   stackSelect.innerHTML = '<option value="">No stack</option>';
@@ -203,34 +218,176 @@ async function renderNew(guardId?: number) {
   categorySelect.innerHTML = '<option value="">Uncategorized</option>';
 
   const { defaultStackId, defaultCategoryId } = await getSettings();
-  try {
-    const stacks = await listStacks();
+  let stacks: Awaited<ReturnType<typeof listStacks>> = [];
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
+  // Fetched together — the suggestion needs categories/stacks to resolve
+  // ids to names anyway, and this keeps the popup to one round trip of
+  // waiting rather than three sequential ones.
+  const [stacksResult, categoriesResult, suggestionResult] = await Promise.allSettled([
+    listStacks(),
+    listCategories(),
+    suggestOrganization(currentPage.url, currentPage.title),
+  ]);
+
+  if (stacksResult.status === "fulfilled") {
+    stacks = stacksResult.value;
     for (const stack of stacks) {
       const opt = document.createElement("option");
       opt.value = stack.id;
       opt.textContent = `${stack.icon} ${stack.name}`;
-      if (stack.id === defaultStackId) opt.selected = true;
       stackSelect.appendChild(opt);
     }
-  } catch {
-    // Optional organization — a failed stack list must never block saving.
-  }
-  try {
-    const categories = await listCategories();
+  } // A failed stack list must never block saving — the select just stays at "No stack".
+  if (categoriesResult.status === "fulfilled") {
+    categories = categoriesResult.value;
     for (const opt of buildCategoryOptions(categories)) {
       const el = document.createElement("option");
       el.value = opt.id;
       el.textContent = opt.label;
-      if (opt.id === defaultCategoryId) el.selected = true;
       categorySelect.appendChild(el);
     }
-  } catch {
-    // Same — optional, never blocks saving.
-  }
+  } // Same — optional, never blocks saving.
+
+  const suggestion = suggestionResult.status === "fulfilled" ? suggestionResult.value : null;
+  currentSuggestion = suggestion;
+  applySuggestion(suggestion, stacks, categories, defaultStackId, defaultCategoryId);
 
   await renderRecentSaves();
   if (guardId !== undefined && !startupGuard.isCurrent(guardId)) return; // superseded while loading stacks/categories/recents
   show("new");
+}
+
+/**
+ * Pre-fills the stack/category selects and tag chips from a suggestion —
+ * only ever called once, right after the fields are freshly reset by
+ * renderNew(); nothing later ever calls this again, which is what keeps
+ * a user's own subsequent edit authoritative (§7 — enrichment/
+ * suggestions never overwrite a choice already made). Falls back to the
+ * user's stored defaultStackId/defaultCategoryId when there's no
+ * suggestion for that field, same as before this feature existed.
+ */
+function applySuggestion(
+  suggestion: OrganizationSuggestion | null,
+  stacks: { id: string; name: string; icon: string }[],
+  categories: { id: string; name: string; parentId: string | null }[],
+  defaultStackId: string | null,
+  defaultCategoryId: string | null
+) {
+  const stackSelect = document.getElementById("stackSelect") as HTMLSelectElement;
+  const categorySelect = document.getElementById("categorySelect") as HTMLSelectElement;
+
+  const suggestedStackId = suggestion?.stack?.id ?? null;
+  const suggestedCategoryId = suggestion?.category?.id ?? null;
+  stackSelect.value = suggestedStackId ?? defaultStackId ?? "";
+  categorySelect.value = suggestedCategoryId ?? defaultCategoryId ?? "";
+  tags = suggestion?.tags ? [...suggestion.tags] : [];
+  renderTagChips();
+
+  const hasSuggestion = !!(suggestion && (suggestedCategoryId || suggestedStackId || tags.length > 0));
+  $("suggestionBox").hidden = !hasSuggestion;
+  $("noSuggestion").hidden = hasSuggestion;
+
+  const linesEl = $("suggestionLines");
+  const whyBtn = $("whySuggestionBtn") as HTMLButtonElement;
+  const reasonsEl = $("suggestionReasons");
+  linesEl.innerHTML = "";
+  reasonsEl.innerHTML = "";
+  whyBtn.hidden = true;
+  reasonsEl.hidden = true;
+  whyBtn.setAttribute("aria-expanded", "false");
+
+  if (!hasSuggestion) return;
+  void track("extension_suggestion_shown");
+
+  if (suggestedCategoryId) {
+    const category = categories.find((c) => c.id === suggestedCategoryId);
+    const parent = category?.parentId ? categories.find((c) => c.id === category.parentId) : null;
+    const label = category ? (parent ? `${parent.name} / ${category.name}` : category.name) : null;
+    if (label) linesEl.appendChild(suggestionLine(label));
+  }
+  if (suggestion?.stack) {
+    linesEl.appendChild(suggestionLine(`${suggestion.stack.icon} ${suggestion.stack.name}`));
+  }
+  if (tags.length > 0) {
+    const tagsLine = document.createElement("div");
+    tagsLine.className = "suggestion-tags";
+    for (const tag of tags) {
+      const span = document.createElement("span");
+      span.className = "suggestion-tag";
+      span.textContent = `#${tag}`;
+      tagsLine.appendChild(span);
+    }
+    linesEl.appendChild(tagsLine);
+  }
+
+  if (suggestion && suggestion.reasons.length > 0) {
+    whyBtn.hidden = false;
+    for (const reason of suggestion.reasons) {
+      const li = document.createElement("li");
+      li.textContent = reason;
+      reasonsEl.appendChild(li);
+    }
+  }
+}
+
+function suggestionLine(text: string): HTMLDivElement {
+  const div = document.createElement("div");
+  div.className = "suggestion-line";
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  dot.textContent = "✓";
+  div.appendChild(dot);
+  div.appendChild(document.createTextNode(text));
+  return div;
+}
+
+// ── Tag chips ────────────────────────────────────────────────────────────
+
+function renderTagChips() {
+  const container = $("tagChips");
+  const input = document.getElementById("tagsInput") as HTMLInputElement;
+  for (const chip of Array.from(container.querySelectorAll(".tag-chip"))) chip.remove();
+  for (const tag of tags) {
+    const chip = document.createElement("span");
+    chip.className = "tag-chip";
+    const label = document.createElement("span");
+    label.textContent = `#${tag}`;
+    chip.appendChild(label);
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.setAttribute("aria-label", `Remove tag ${tag}`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      tags = tags.filter((t) => t !== tag);
+      renderTagChips();
+      trackSuggestionOverrideIfChanged("tags");
+    });
+    chip.appendChild(removeBtn);
+    container.insertBefore(chip, input);
+  }
+}
+
+function addTagFromInput() {
+  const input = document.getElementById("tagsInput") as HTMLInputElement;
+  const raw = input.value.trim().replace(/^#/, "");
+  input.value = "";
+  if (!raw) return;
+  const normalized = raw.toLowerCase();
+  if (tags.some((t) => t.toLowerCase() === normalized)) return;
+  tags = [...tags, raw].slice(0, 8); // a small set of relevant tags, never dozens
+  renderTagChips();
+  trackSuggestionOverrideIfChanged("tags");
+}
+
+/** Fires extension_suggestion_changed at most once per popup session, the first time the user's choice diverges from what was actually suggested — never for a field with no suggestion to begin with. */
+let suggestionChangeTracked = false;
+function trackSuggestionOverrideIfChanged(field: "category" | "stack" | "tags") {
+  if (!currentSuggestion || suggestionChangeTracked) return;
+  if (field === "category" && !currentSuggestion.category) return;
+  if (field === "stack" && !currentSuggestion.stack) return;
+  if (field === "tags" && currentSuggestion.tags.length === 0) return;
+  suggestionChangeTracked = true;
+  void track("extension_suggestion_changed");
 }
 
 async function renderRecentSaves() {
@@ -270,10 +427,11 @@ function renderError(e: unknown) {
 
 async function doSave(force: boolean) {
   if (!currentPage) return;
+  addTagFromInput(); // commit whatever's still sitting in the tag input, unsubmitted, before reading `tags`
   show("saving");
+  void track("extension_save_started");
 
   const useCase = (document.getElementById("useCase") as HTMLInputElement).value.trim();
-  const tagsRaw = (document.getElementById("tagsInput") as HTMLInputElement).value.trim();
   const note = (document.getElementById("noteInput") as HTMLTextAreaElement).value.trim();
   const stackId = (document.getElementById("stackSelect") as HTMLSelectElement).value;
   const categoryId = (document.getElementById("categorySelect") as HTMLSelectElement).value;
@@ -285,23 +443,20 @@ async function doSave(force: boolean) {
       faviconUrl: currentPage.favIconUrl || null,
       categoryId: categoryId || null,
       useCases: useCase ? [useCase] : [],
-      tagNames: tagsRaw
-        ? tagsRaw
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : [],
+      tagNames: tags,
       stackIds: stackId ? [stackId] : [],
       notes: note,
       force,
     });
     savedResource = resource;
     if (duplicate && !force) {
+      void track("extension_duplicate_detected");
       await renderDuplicate(resource);
       return;
     }
 
     const successTitleEl = document.querySelector("#view-success .empty-title");
+    const successOrgEl = document.getElementById("successOrg");
     const undoBtn = $("undoSaveBtn") as HTMLButtonElement;
     if (duplicate) {
       // force + duplicate: the URL already existed, so nothing new was
@@ -317,12 +472,21 @@ async function doSave(force: boolean) {
       undoBtn.hidden = false;
       if (successTitleEl) successTitleEl.textContent = "Saved to KeepYourStack";
     }
+    if (successOrgEl) {
+      const stackName = currentSuggestion?.stack && stackId === currentSuggestion.stack.id ? currentSuggestion.stack.name : null;
+      const parts: string[] = [];
+      if (stackName) parts.push(stackName);
+      if (tags.length > 0) parts.push(tags.map((t) => `#${t}`).join(" "));
+      successOrgEl.textContent = parts.join(" · ");
+    }
+    void track("extension_save_success");
     show("success");
 
     const { autoEnrich, closeAfterSave } = await getSettings();
     if (autoEnrich) void enrichAfterSave(resource);
     if (closeAfterSave) setTimeout(() => window.close(), 1400);
   } catch (e) {
+    void track("extension_save_failure");
     renderError(e);
   }
 }
@@ -455,9 +619,25 @@ try {
 // again.
 document.getElementById("stackSelect")?.addEventListener("change", (e) => {
   const value = (e.target as HTMLSelectElement).value;
+  if (currentSuggestion?.stack && value !== currentSuggestion.stack.id) trackSuggestionOverrideIfChanged("stack");
   void setSettings({ defaultStackId: value || null });
 });
 document.getElementById("categorySelect")?.addEventListener("change", (e) => {
   const value = (e.target as HTMLSelectElement).value;
+  if (currentSuggestion?.category && value !== currentSuggestion.category.id) trackSuggestionOverrideIfChanged("category");
   void setSettings({ defaultCategoryId: value || null });
+});
+document.getElementById("tagsInput")?.addEventListener("keydown", (e) => {
+  const key = (e as KeyboardEvent).key;
+  if (key === "Enter" || key === ",") {
+    e.preventDefault();
+    addTagFromInput();
+  }
+});
+$("whySuggestionBtn").addEventListener("click", () => {
+  const btn = $("whySuggestionBtn");
+  const panel = $("suggestionReasons");
+  const expanded = btn.getAttribute("aria-expanded") === "true";
+  btn.setAttribute("aria-expanded", String(!expanded));
+  panel.hidden = expanded;
 });

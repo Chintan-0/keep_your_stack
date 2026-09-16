@@ -1,5 +1,5 @@
 import { getSession, getSettings, setSession } from "./storage.js";
-import type { ExtCategory, ExtStack, SaveInput, SaveResult } from "./types.js";
+import type { ExtCategory, ExtStack, OrganizationSuggestion, SaveInput, SaveResult } from "./types.js";
 
 export class ApiError extends Error {
   constructor(
@@ -127,13 +127,38 @@ export async function listCategories(): Promise<ExtCategory[]> {
 export async function saveResource(input: SaveInput): Promise<SaveResult> {
   const res = await authedFetch("/api/resources", {
     method: "POST",
-    body: JSON.stringify(input),
+    // Always tagged as an extension save, never left for the caller to
+    // set (or forget to set) — this is what lets the admin dashboard
+    // distinguish extension saves from web/manual saves and bookmark
+    // imports (resources.import_source).
+    body: JSON.stringify({ ...input, importSource: "chrome-extension" }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new ApiError(body?.error || "Couldn't save this page.", res.status);
   }
   return res.json();
+}
+
+/**
+ * Deterministic organization suggestion for a not-yet-saved page — never
+ * creates a resource, never waits on a real metadata fetch (see the
+ * route's own comment), so it can run in parallel with the duplicate
+ * check right when the popup opens. Best-effort: a failure here just
+ * means the popup falls back to plain manual selection, same as a failed
+ * stacks/categories list already does.
+ */
+export async function suggestOrganization(url: string, title: string): Promise<OrganizationSuggestion | null> {
+  try {
+    const res = await authedFetch("/api/resources/suggest", {
+      method: "POST",
+      body: JSON.stringify({ url, title }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 /** Un-archives a resource — used by the "Already saved in Archive" duplicate view's Restore action. */

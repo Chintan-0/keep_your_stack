@@ -101,7 +101,9 @@ the web app uses — it does not duplicate any business logic:
 | Restore an archived duplicate | `PATCH /api/resources/:id` (`isArchived: false`) | Only reachable from the "Already saved in Archive" duplicate view |
 | Undo a just-made save | `DELETE /api/resources/:id` | Only ever called on a resource this popup session itself just created |
 | Trigger enrichment after a save | `POST /api/resources/:id/enrich` | Fire-and-await, never blocks the save; gated by the "auto-enrich" option |
+| Suggest category/stack/tags before saving | `POST /api/resources/suggest` | Never creates a resource, never waits on a real metadata fetch (title/domain only) — see §6 below |
 | Refresh an expired token | `POST /api/auth/refresh` | Extension-only; wraps `supabase.auth.refreshSession` |
+| Record a product-analytics event | `POST /api/analytics/event` | Fire-and-forget, see §7 below — never blocks any action it's attached to |
 
 All of these got a small, backward-compatible addition on top of their
 existing (cookie-only, same-origin) behavior:
@@ -159,7 +161,56 @@ deliberate manual step (see §34 of the Phase 5 spec — minimal permissions,
 no broad host access, no permission the extension requests automatically
 without you choosing to rebuild for that origin).
 
-## 6. Testing locally
+## 6. Personal organization suggestions (Phase 15)
+
+Right when the popup opens, it asks `POST /api/resources/suggest` (in
+parallel with the duplicate check) for a deterministic — never AI —
+suggestion, and pre-fills (never force-locks) the Stack/Category selects
+and the tag chips from it. Two signals, combined server-side:
+
+1. **Personal history** — `suggest_resource_organization` (a Postgres
+   function, `supabase/migrations/20260101000013_...sql`) counts the
+   *calling user's own* existing resources from the same domain, grouped
+   by category/stack/tag. Requires at least 2 matching resources before
+   it's treated as confident — a single past save is coincidence, not a
+   pattern.
+2. **Content-based fallback** — the exact same deterministic rules every
+   other enrichment path already uses (`src/lib/enrichment.ts`'s
+   `suggestCategoryForResource`/`suggestTags`/`suggestUsefulFor`), applied
+   to title + domain only (no description — that would need a real
+   metadata fetch, which stays out of the pre-save path so the popup never
+   waits on a slow site).
+
+The suggestion is *never* auto-applied without being visibly shown first,
+and once shown, the user's own subsequent edit to any field is
+authoritative — nothing re-applies the suggestion later, including
+post-save enrichment (which already only ever fills a still-empty field —
+see `canOverwriteDescription`/`canOverwriteUsefulFor` and the
+`!resource.categoryId` check in `enrichResource`). "Why this suggestion?"
+expands the same plain-language reasons array the API returned — real
+counts, never an internal score.
+
+## 7. Extension analytics
+
+Fire-and-forget only (every call site uses `void track(...)`) — see
+`extension/src/lib/analytics.ts`. Never blocks saving, organizing,
+dragging, or navigation, and the popup renders identically whether or not
+any of these succeed:
+
+`extension_popup_opened`, `extension_metadata_loaded`,
+`extension_suggestion_shown`, `extension_suggestion_changed`,
+`extension_save_started`, `extension_save_success`,
+`extension_save_failure`, `extension_duplicate_detected`,
+`extension_login_required`.
+
+No page contents, no browsing history beyond the one page explicitly
+acted on, no free text — just the event name and a small allowlisted set
+of numeric/id metadata (see `/api/analytics/event`'s own `ALLOWED`
+set/metadata allowlist). Feeds the admin dashboard's Extension vs Web
+Saves panel (`getSourceBreakdown`) and its success-rate/duplicate-rate
+line (`getExtensionSaveHealth`) — both in `src/lib/data/admin-analytics.ts`.
+
+## 8. Testing locally
 
 Automated:
 
@@ -170,10 +221,10 @@ npx tsc --noEmit -p tsconfig.json      # web app + extension/src (extension's ow
 npm run build:extension                # extension/tsconfig.json — compiles the shipped extension itself
 ```
 
-Manual: see §7 below for the full real-Chrome checklist and its current
+Manual: see §9 below for the full real-Chrome checklist and its current
 (unrun) status.
 
-## 7. Manual QA checklist (real Chrome — not yet run by an agent)
+## 9. Manual QA checklist (real Chrome — not yet run by an agent)
 
 Everything below needs an actual Chrome window with the unpacked extension
 loaded. As of Phase 10, no agent session in this environment has had a
@@ -243,13 +294,19 @@ have:
       worker (`chrome://extensions` → "service worker" link) — no
       uncaught exceptions, no CORS errors, no undefined `chrome.*` calls
 
-## 8. Packaging
+## 10. Packaging
 
 ```bash
 # Local dev origins (default):
 npm run package:extension
 
-# A real deployment — this is what public/downloads/ should be built with:
+# Production — this is what public/downloads/ should always be built with.
+# Prefer this named script over typing the env var by hand: package.json's
+# package:extension:prod is exactly the command below, kept in one place so
+# a real production package is never accidentally built pointing at
+# localhost by someone forgetting to set EXTENSION_APP_ORIGINS.
+npm run package:extension:prod
+# — equivalent to:
 EXTENSION_APP_ORIGINS=https://keep-your-stack.vercel.app npm run package:extension
 ```
 

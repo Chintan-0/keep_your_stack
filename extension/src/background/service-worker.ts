@@ -1,6 +1,7 @@
 import { setSession, markEverConnected, getSettings, addRecentSave } from "../lib/storage.js";
 import { findExisting, saveResource, enrichResource, ApiError, AuthError } from "../lib/api.js";
 import { isSupportedUrl } from "../lib/url.js";
+import { track } from "../lib/analytics.js";
 import type { StoredSession } from "../lib/types.js";
 
 const MENU_SAVE_PAGE = "keepyourstack-save-page";
@@ -56,10 +57,12 @@ async function quickSave(url: string, title: string, faviconUrl: string | null |
   }
 
   const settings = await getSettings();
+  void track("extension_save_started");
 
   try {
     const existing = await findExisting(url);
     if (existing) {
+      void track("extension_duplicate_detected");
       if (existing.isArchived) {
         notify("Already saved in Archive", `"${existing.title}" is archived. Restore it from KeepYourStack.`, true);
       } else {
@@ -77,10 +80,13 @@ async function quickSave(url: string, title: string, faviconUrl: string | null |
     });
 
     void addRecentSave({ id: resource.id, title: resource.title, url: resource.url, savedAt: Date.now() });
+    void track("extension_save_success");
     notify("Saved to KeepYourStack", resource.title, settings.showSaveNotification);
     if (settings.autoEnrich) void enrichResource(resource.id);
   } catch (e) {
+    void track("extension_save_failure");
     if (e instanceof AuthError) {
+      void track("extension_login_required");
       notify("Not connected", "Open the KeepYourStack extension icon to connect your account.", true);
     } else if (e instanceof ApiError) {
       notify("Couldn't save this page", e.message, true);

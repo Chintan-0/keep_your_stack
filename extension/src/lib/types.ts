@@ -58,6 +58,22 @@ export interface SaveInput {
   stackIds?: string[];
   /** Explicit re-save of a URL that's already saved — never set implicitly. */
   force?: boolean;
+  /** Always "chrome-extension" — lets the admin dashboard distinguish extension saves from web/manual saves and bookmark imports. Never set by the user. */
+  importSource?: string;
+}
+
+/** One personal-organization suggestion candidate, from suggestResourceOrganization — see api.ts. */
+export interface OrganizationSuggestion {
+  domain: string;
+  domainTotal: number;
+  /** True once there's enough of the user's own history at this domain to suggest with confidence — see suggest_resource_organization's >=2 threshold. */
+  confident: boolean;
+  category: { id: string; confidence: "high" | "medium" | "low" | "none" } | null;
+  stack: { id: string; name: string; icon: string } | null;
+  tags: string[];
+  usefulFor: string | null;
+  /** Short, human-readable reasons — shown verbatim behind "Why this suggestion?"; never an internal score. */
+  reasons: string[];
 }
 
 /** One entry in the local "Recently Saved" list — a convenience, never the authoritative record (the backend is). */
