@@ -6,6 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** "Frontend Toolbox!" -> "frontend-toolbox". Used for shareable stack URLs (/@user/slug) — never a database id. */
+export function slugify(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "stack";
+}
+
 export function normalizeUrl(raw: string): string | null {
   let value = raw.trim();
   if (!value) return null;

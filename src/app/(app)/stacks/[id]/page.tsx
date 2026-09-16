@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store";
 import { ResourceCollection } from "@/components/resource-collection";
 import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@/components/filter-bar";
 import { ManageStackResourcesModal } from "@/components/manage-stack-resources-modal";
+import { ShareStackButton } from "@/components/share-stack-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Tag } from "@/components/ui/tag";
@@ -92,6 +93,7 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ShareStackButton stack={stack} />
             <Button variant="secondary" size="sm" onClick={() => setManageOpen(true)}>
               <Settings2 size={13} /> Manage Resources
             </Button>

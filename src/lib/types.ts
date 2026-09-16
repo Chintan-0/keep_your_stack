@@ -13,12 +13,16 @@ export interface Tag {
   name: string;
 }
 
+export type StackVisibility = "private" | "unlisted" | "public";
+
 export interface Stack {
   id: string;
   name: string;
   description: string;
   icon: string; // emoji
   color: string; // token key, e.g. "accent" | "violet" | "cyan" | "success" | "warning"
+  visibility: StackVisibility;
+  slug: string | null;
   createdAt: string;
 }
 

@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dropdown } from "@/components/ui/dropdown";
+import { QuickAccessSection } from "@/components/quick-access-section";
 import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
@@ -53,6 +54,7 @@ export default function SettingsPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
@@ -68,8 +70,9 @@ export default function SettingsPage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       setEmail(user.email ?? "");
-      const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle();
+      const { data: profile } = await supabase.from("profiles").select("name, username").eq("id", user.id).maybeSingle();
       setName(profile?.name ?? "");
+      setUsername(profile?.username ?? "");
     });
   }, []);
 
@@ -79,7 +82,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, ...(username.trim() ? { username: username.trim() } : {}) }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       toast.success("Profile saved");
@@ -180,7 +183,23 @@ export default function SettingsPage() {
               className="h-9 cursor-not-allowed rounded-[var(--radius-sm)] border border-border bg-surface-2 px-2.5 text-[13px] text-text-muted"
             />
           </Field>
+          <Field label="Username">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] text-text-muted">@</span>
+              <input
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                placeholder="yourname"
+                className="h-9 w-full rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
+              />
+            </div>
+          </Field>
         </div>
+        <p className="text-[12px] text-text-muted">
+          {username.trim()
+            ? `Your public profile: keep-your-stack.vercel.app/@${username.trim()}`
+            : "Set a username to share public stacks from a clean, personal URL."}
+        </p>
         <Button size="sm" className="w-fit" onClick={saveProfile} disabled={savingProfile}>
           {savingProfile ? "Saving…" : "Save Changes"}
         </Button>
@@ -206,6 +225,10 @@ export default function SettingsPage() {
             <LogOut size={14} /> Sign Out
           </Button>
         </div>
+      </Section>
+
+      <Section title="Quick Access" description="Skip re-entering credentials on devices you trust.">
+        <QuickAccessSection />
       </Section>
 
       <Section title="Appearance">

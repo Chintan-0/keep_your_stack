@@ -93,7 +93,17 @@ export type EventType =
   | "extension_save_success"
   | "extension_save_failure"
   // visitor analytics
-  | "page_view";
+  | "page_view"
+  // Phase 13: shareable stacks
+  | "public_profile_view"
+  | "public_stack_view"
+  | "stack_shared"
+  | "stack_visibility_changed"
+  | "stack_clone_started"
+  | "stack_clone_completed"
+  | "stack_clone_failed"
+  | "public_resource_opened"
+  | "public_resource_saved";
 
 export interface TrackEventInput {
   eventType: EventType;

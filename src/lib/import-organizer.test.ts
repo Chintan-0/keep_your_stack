@@ -10,7 +10,7 @@ const categories: Category[] = [
 ];
 
 const stacks: Stack[] = [
-  { id: "stack-1", name: "Frontend", description: "", icon: "🌐", color: "accent", createdAt: "" },
+  { id: "stack-1", name: "Frontend", description: "", icon: "🌐", color: "accent", visibility: "private", slug: null, createdAt: "" },
 ];
 
 describe("leafFolderName", () => {

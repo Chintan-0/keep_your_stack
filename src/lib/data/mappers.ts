@@ -45,6 +45,8 @@ export function mapStackRow(row: Database["public"]["Tables"]["stacks"]["Row"]):
     description: row.description,
     icon: row.icon,
     color: row.color,
+    visibility: (row.visibility as Stack["visibility"]) ?? "private",
+    slug: row.slug,
     createdAt: row.created_at,
   };
 }

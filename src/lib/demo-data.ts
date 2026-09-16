@@ -47,6 +47,8 @@ export const stacks: Stack[] = [
     description: "Everything I use for building modern web interfaces.",
     icon: "🌐",
     color: "accent",
+    visibility: "private" as const,
+    slug: null,
     createdAt: daysAgo(180),
   },
   {
@@ -55,6 +57,8 @@ export const stacks: Stack[] = [
     description: "Models, inference tools, and frameworks for AI features.",
     icon: "🤖",
     color: "violet",
+    visibility: "private" as const,
+    slug: null,
     createdAt: daysAgo(150),
   },
   {
@@ -63,6 +67,8 @@ export const stacks: Stack[] = [
     description: "Services, databases, and APIs behind the apps I build.",
     icon: "⚙️",
     color: "cyan",
+    visibility: "private" as const,
+    slug: null,
     createdAt: daysAgo(170),
   },
   {
@@ -71,6 +77,8 @@ export const stacks: Stack[] = [
     description: "Visual tools, assets, and references for interface design.",
     icon: "🎨",
     color: "warning",
+    visibility: "private" as const,
+    slug: null,
     createdAt: daysAgo(140),
   },
   {
@@ -79,6 +87,8 @@ export const stacks: Stack[] = [
     description: "Deploying, monitoring, and shipping without surprises.",
     icon: "☁️",
     color: "success",
+    visibility: "private" as const,
+    slug: null,
     createdAt: daysAgo(120),
   },
   {
@@ -87,6 +97,8 @@ export const stacks: Stack[] = [
     description: "Small tools I reach for constantly.",
     icon: "🛠️",
     color: "accent",
+    visibility: "private" as const,
+    slug: null,
     createdAt: daysAgo(200),
   },
   {
@@ -95,6 +107,8 @@ export const stacks: Stack[] = [
     description: "The stack I default to for side projects.",
     icon: "🧪",
     color: "violet",
+    visibility: "private" as const,
+    slug: null,
     createdAt: daysAgo(90),
   },
 ];

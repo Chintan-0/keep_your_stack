@@ -32,7 +32,13 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  // Public-sharing routes (Part D/E/H) — viewing a public profile,
+  // public stack, or unlisted share link must never require signing in.
+  // Middleware sees the pre-rewrite path (/@username[/slug], /share/token)
+  // — /u/ (what next.config.ts's rewrite resolves those to) is included
+  // too as defense in depth.
+  const isPublicSharingPath = /^\/@[^/]+(\/[^/]+)?$/.test(pathname) || pathname.startsWith("/share/") || pathname.startsWith("/u/");
+  const isPublicPath = isPublicSharingPath || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   // /downloads/ (e.g. the Chrome extension zip) must be fetchable by
   // anyone, not just signed-in users — the proxy's own matcher already
   // excludes it so this shouldn't normally even run for that path, but
