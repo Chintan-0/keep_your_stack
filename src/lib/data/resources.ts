@@ -590,15 +590,24 @@ export async function bulkAddToStack(client: Client, userId: string, resourceIds
 }
 
 /** Same batching rationale as bulkAddToStack — one insert for every (resource, tag) pair rather than N requests. Reuses ensureTags so tag creation/normalization/dedup stays the single existing implementation. */
-export async function bulkAddTags(client: Client, userId: string, resourceIds: string[], tagNames: string[]): Promise<number> {
-  if (resourceIds.length === 0 || tagNames.length === 0) return 0;
+export async function bulkAddTags(
+  client: Client,
+  userId: string,
+  resourceIds: string[],
+  tagNames: string[]
+): Promise<{ count: number; tagIds: string[] }> {
+  if (resourceIds.length === 0 || tagNames.length === 0) return { count: 0, tagIds: [] };
   const tagIds = await ensureTags(client, userId, clampTagNames(tagNames));
-  if (tagIds.length === 0) return 0;
+  if (tagIds.length === 0) return { count: 0, tagIds: [] };
 
   const rows = resourceIds.flatMap((resource_id) => tagIds.map((tag_id) => ({ resource_id, tag_id })));
   const { error } = await client.from("resource_tags").upsert(rows, { onConflict: "resource_id,tag_id", ignoreDuplicates: true });
   if (error) throw new Error(error.message);
-  return resourceIds.length;
+  // Returning the resolved tag ids lets callers patch their own cached
+  // resource state directly instead of re-fetching every affected
+  // resource one-by-one (a real problem at Stack Studio's import scale —
+  // see src/lib/store.ts's bulkAddTags).
+  return { count: resourceIds.length, tagIds };
 }
 
 /** Bulk archive/restore — a single UPDATE ... WHERE id IN (...), same shape as bulkMoveResources. */

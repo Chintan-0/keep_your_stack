@@ -12,13 +12,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const count = await bulkAddTags(
+    const { count, tagIds } = await bulkAddTags(
       supabase,
       user.id,
       body.resourceIds.filter((id: unknown) => typeof id === "string"),
       body.tagNames.filter((t: unknown) => typeof t === "string")
     );
-    return NextResponse.json({ count });
+    return NextResponse.json({ count, tagIds });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't add those tags." }, { status: 400 });
   }

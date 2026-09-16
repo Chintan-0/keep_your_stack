@@ -20,6 +20,17 @@ import { normalizeUrl, getDomain } from "./utils";
 // anything real. (Small per-device preferences like theme still use
 // localStorage — see src/lib/theme-store.ts — that's fine to keep local.)
 
+// A single Stack Studio import can select thousands of resources for one
+// bulk action. Splitting into sequential (never simultaneous) chunks keeps
+// any one request body/DB `.in()` list a bounded size without ever firing
+// concurrent requests at the server.
+const BULK_CHUNK_SIZE = 500;
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -485,10 +496,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       resources: prev.map((r) => (resourceIds.includes(r.id) ? { ...r, categoryId } : r)),
     });
     try {
-      const { moved } = await api<{ moved: number }>("/api/resources/bulk-move", {
-        method: "POST",
-        body: JSON.stringify({ resourceIds, categoryId }),
-      });
+      let moved = 0;
+      for (const part of chunk(resourceIds, BULK_CHUNK_SIZE)) {
+        const { moved: partMoved } = await api<{ moved: number }>("/api/resources/bulk-move", {
+          method: "POST",
+          body: JSON.stringify({ resourceIds: part, categoryId }),
+        });
+        moved += partMoved;
+      }
       return moved;
     } catch (e) {
       set({ resources: prev });
@@ -505,10 +520,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       ),
     });
     try {
-      const { added } = await api<{ added: number }>("/api/resources/bulk-stack", {
-        method: "POST",
-        body: JSON.stringify({ resourceIds, stackId }),
-      });
+      let added = 0;
+      for (const part of chunk(resourceIds, BULK_CHUNK_SIZE)) {
+        const { added: partAdded } = await api<{ added: number }>("/api/resources/bulk-stack", {
+          method: "POST",
+          body: JSON.stringify({ resourceIds: part, stackId }),
+        });
+        added += partAdded;
+      }
       return added;
     } catch (e) {
       set({ resources: prev });
@@ -520,26 +539,30 @@ export const useStore = create<StoreState>()((set, get) => ({
   bulkAddTags: async (resourceIds, tagNames) => {
     const prev = get().resources;
     try {
-      const { count } = await api<{ count: number }>("/api/resources/bulk-tag", {
-        method: "POST",
-        body: JSON.stringify({ resourceIds, tagNames }),
-      });
+      let count = 0;
+      let tagIds: string[] = [];
+      for (const part of chunk(resourceIds, BULK_CHUNK_SIZE)) {
+        const res = await api<{ count: number; tagIds: string[] }>("/api/resources/bulk-tag", {
+          method: "POST",
+          body: JSON.stringify({ resourceIds: part, tagNames }),
+        });
+        count += res.count;
+        tagIds = res.tagIds; // same resolved ids every chunk (tags are created/reused once, up front)
+      }
       void get().refreshTags();
-      // Optimistic tag-id merge isn't safe pre-request (new tags may not
-      // have ids yet) — just refetch the affected resources' real state
-      // via a full hydrate-free approach: re-pull each from the server.
-      // Cheap enough (bulk operations are a rare, deliberate action, not a
-      // hot path) and guarantees correctness over guessing new tag ids.
-      await Promise.all(
-        resourceIds.map(async (id) => {
-          try {
-            const { resource } = await api<{ resource: Resource }>(`/api/resources/${id}`);
-            set({ resources: get().resources.map((r) => (r.id === id ? resource : r)) });
-          } catch {
-            // Non-critical — this one card just won't show its new tags until the next full reload.
-          }
-        })
-      );
+      // The endpoint now returns the resolved tag ids directly, so every
+      // affected resource can be patched in local state in one pass —
+      // no more re-fetching each resource individually (a real N-request
+      // problem at Stack Studio's import scale, not just "a rare, small
+      // multi-select" as this used to assume).
+      if (tagIds.length > 0) {
+        const idSet = new Set(resourceIds);
+        set({
+          resources: get().resources.map((r) =>
+            idSet.has(r.id) ? { ...r, tagIds: Array.from(new Set([...r.tagIds, ...tagIds])) } : r
+          ),
+        });
+      }
       return count;
     } catch (e) {
       set({ resources: prev });
@@ -554,10 +577,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       resources: prev.map((r) => (resourceIds.includes(r.id) ? { ...r, isArchived: archived } : r)),
     });
     try {
-      const { count } = await api<{ count: number }>("/api/resources/bulk-archive", {
-        method: "POST",
-        body: JSON.stringify({ resourceIds, archived }),
-      });
+      let count = 0;
+      for (const part of chunk(resourceIds, BULK_CHUNK_SIZE)) {
+        const { count: partCount } = await api<{ count: number }>("/api/resources/bulk-archive", {
+          method: "POST",
+          body: JSON.stringify({ resourceIds: part, archived }),
+        });
+        count += partCount;
+      }
       void get().refreshStats();
       return count;
     } catch (e) {

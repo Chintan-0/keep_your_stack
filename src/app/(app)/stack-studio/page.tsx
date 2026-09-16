@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
   UploadCloud,
   ArrowLeft,
@@ -49,7 +50,40 @@ function track(eventType: string, metadata?: Record<string, unknown>) {
   }).catch(() => {});
 }
 
-const RENDER_BATCH = 60;
+// Matches the grid's own Tailwind breakpoints (sm/lg/xl) so the
+// virtualizer's row layout lines up with the CSS grid it's windowing.
+const COLUMN_BREAKPOINTS: [minWidth: number, columns: number][] = [
+  [1280, 4],
+  [1024, 3],
+  [640, 2],
+];
+function columnsForWidth(width: number): number {
+  for (const [minWidth, columns] of COLUMN_BREAKPOINTS) {
+    if (width >= minWidth) return columns;
+  }
+  return 1;
+}
+
+/** Tracks how many grid columns are currently rendered, so the workspace board can be windowed by ROW instead of by individual card. */
+function useResponsiveColumns(): number {
+  const [columns, setColumns] = useState(() => (typeof window !== "undefined" ? columnsForWidth(window.innerWidth) : 4));
+  useEffect(() => {
+    function onResize() {
+      setColumns(columnsForWidth(window.innerWidth));
+    }
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return columns;
+}
+
+type BoardRow =
+  | { type: "header"; key: string; name: string; count: number; categoryId: string | null }
+  | { type: "cards"; key: string; items: StudioItem[]; categoryId: string | null };
+
+const HEADER_ROW_ESTIMATE = 36;
+const CARD_ROW_ESTIMATE = 168;
 
 export default function StackStudioPage() {
   const router = useRouter();
@@ -75,7 +109,6 @@ export default function StackStudioPage() {
   const [importStats, setImportStats] = useState({ discovered: 0, imported: 0, duplicates: 0, failed: 0, needsReview: 0 });
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [visibleCount, setVisibleCount] = useState(RENDER_BATCH);
   const [reviewFilter, setReviewFilter] = useState<"all" | "confident" | "review">("all");
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
@@ -181,13 +214,22 @@ export default function StackStudioPage() {
 
     // Best-effort deterministic enrichment, bounded concurrency — never
     // blocks the workspace from opening; runs in the background after.
+    // The enrich endpoint already returns the updated resource, so there's
+    // no need for a second pass of per-resource GETs afterward — at
+    // Stack Studio's import scale (thousands of resources) that second
+    // pass used to be an unbounded Promise.all, i.e. thousands of
+    // simultaneous requests. Capturing the response here removes it
+    // entirely instead of just bounding it.
     setProgress({ done: 0, total: created.length, phase: "Fetching metadata…" });
+    const enrichedById = new Map<string, Resource>();
     await runWithConcurrency(
       created,
       5,
       async (resource) => {
         try {
-          await fetch(`/api/resources/${resource.id}/enrich`, { method: "POST" });
+          const res = await fetch(`/api/resources/${resource.id}/enrich`, { method: "POST" });
+          const body = await res.json().catch(() => null);
+          if (res.ok && body?.resource) enrichedById.set(resource.id, body.resource as Resource);
         } catch {
           // Metadata unavailable for this one — it keeps its original bookmark title, not a failed import.
         }
@@ -197,17 +239,7 @@ export default function StackStudioPage() {
       }
     );
 
-    // Re-fetch the just-created resources so the workspace has whatever
-    // enrichment actually found (title/description may have improved).
-    let finalResources = created;
-    try {
-      const refreshed = await Promise.all(
-        created.map((r) => fetch(`/api/resources/${r.id}`).then((res) => res.json()).then((b) => b.resource as Resource).catch(() => r))
-      );
-      finalResources = refreshed;
-    } catch {
-      // Fall back to the pre-enrichment versions — still usable, just possibly missing a description.
-    }
+    const finalResources = created.map((r) => enrichedById.get(r.id) ?? r);
 
     const bookmarkByUrl = new Map(toImport.map((b) => [normalizeUrl(b.url), b]));
     const studioItems: StudioItem[] = finalResources.map((r) => {
@@ -264,6 +296,36 @@ export default function StackStudioPage() {
     }
     return Array.from(groups.entries());
   }, [filteredItems, categories]);
+
+  const columns = useResponsiveColumns();
+
+  // Flattens "N groups of M cards" into "rows" — one header row per group,
+  // then one row per `columns` cards — so a single window virtualizer can
+  // cap rendered DOM nodes to roughly what fits the viewport (+ overscan)
+  // regardless of whether there are 100 or 10,000 imported resources. Each
+  // row still carries the category id it belongs to, so drag-and-drop drop
+  // targets keep working per-row instead of needing one giant wrapper per
+  // group (which would defeat the point — that wrapper would itself hold
+  // every card in the group).
+  const boardRows = useMemo<BoardRow[]>(() => {
+    const rows: BoardRow[] = [];
+    for (const [name, group] of grouped) {
+      const categoryId = name === "Needs Review" ? null : categories.find((c) => c.name === name)?.id ?? null;
+      rows.push({ type: "header", key: `h:${name}`, name, count: group.length, categoryId });
+      for (let i = 0; i < group.length; i += columns) {
+        rows.push({ type: "cards", key: `${name}:${i}`, items: group.slice(i, i + columns), categoryId });
+      }
+    }
+    return rows;
+  }, [grouped, categories, columns]);
+
+  const boardListRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useWindowVirtualizer({
+    count: boardRows.length,
+    estimateSize: (index) => (boardRows[index]?.type === "header" ? HEADER_ROW_ESTIMATE : CARD_ROW_ESTIMATE),
+    overscan: 6,
+    scrollMargin: boardListRef.current?.offsetTop ?? 0,
+  });
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -389,7 +451,7 @@ export default function StackStudioPage() {
     toast.success(`Organized ${applied} resource${applied === 1 ? "" : "s"}.`);
   }
 
-  const reviewItems = items.filter((i) => reviewBucket(i.confidence) === "review");
+  const reviewItems = useMemo(() => items.filter((i) => reviewBucket(i.confidence) === "review"), [items]);
   const currentReviewItem = reviewItems[reviewIndex];
 
   function openReviewMode(startId?: string) {
@@ -630,40 +692,55 @@ export default function StackStudioPage() {
           <p className="text-[13.5px] text-text-secondary">Nothing to organize yet.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          {grouped.map(([name, group]) => (
-            <div
-              key={name}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleDrop(e, categories.find((c) => c.name === name)?.id ?? null)}
-              className="flex flex-col gap-2"
-            >
-              <h2 className="flex items-center gap-2 text-[12.5px] font-semibold uppercase tracking-wide text-text-secondary">
-                {name} <span className="rounded-full bg-surface-3 px-1.5 font-mono text-[10.5px] text-text-muted">{group.length}</span>
-              </h2>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {group.slice(0, visibleCount).map((item) => (
-                  <StudioCard
-                    key={item.id}
-                    item={item}
-                    categories={categories}
-                    selected={selectedIds.has(item.id)}
-                    onToggleSelect={() => toggleSelect(item.id)}
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData("text/plain", item.id)}
-                    onOpenReview={reviewBucket(item.confidence) === "review" ? () => openReviewMode(item.id) : undefined}
-                  />
-                ))}
+        // Windowed: only rows within (or near) the viewport are ever
+        // mounted, via boardRows/rowVirtualizer above — total DOM nodes
+        // stay bounded by viewport height, not by how many resources were
+        // imported. Selection/drag state lives in selectedIds (a Set) and
+        // items (in-memory), not on the DOM, so scrolling a row out of
+        // view and back never loses it.
+        <div ref={boardListRef} style={{ position: "relative", height: rowVirtualizer.getTotalSize() }}>
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = boardRows[virtualRow.index];
+            if (!row) return null;
+            return (
+              <div
+                key={row.key}
+                data-index={virtualRow.index}
+                ref={rowVirtualizer.measureElement}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => handleDrop(e, row.categoryId)}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
+                  paddingBottom: 8,
+                }}
+              >
+                {row.type === "header" ? (
+                  <h2 className="flex items-center gap-2 pt-4 text-[12.5px] font-semibold uppercase tracking-wide text-text-secondary">
+                    {row.name} <span className="rounded-full bg-surface-3 px-1.5 font-mono text-[10.5px] text-text-muted">{row.count}</span>
+                  </h2>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {row.items.map((item) => (
+                      <StudioCard
+                        key={item.id}
+                        item={item}
+                        categories={categories}
+                        selected={selectedIds.has(item.id)}
+                        onToggleSelect={() => toggleSelect(item.id)}
+                        draggable
+                        onDragStart={(e) => e.dataTransfer.setData("text/plain", item.id)}
+                        onOpenReview={reviewBucket(item.confidence) === "review" ? () => openReviewMode(item.id) : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
-          {visibleCount < filteredItems.length && (
-            <div className="flex justify-center">
-              <Button variant="secondary" size="sm" onClick={() => setVisibleCount((c) => c + RENDER_BATCH)}>
-                Show more
-              </Button>
-            </div>
-          )}
+            );
+          })}
         </div>
       )}
 
