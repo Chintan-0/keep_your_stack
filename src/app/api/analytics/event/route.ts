@@ -16,6 +16,18 @@ const ALLOWED: ReadonlySet<EventType> = new Set([
   "public_resource_opened",
   "public_resource_saved",
   "stack_shared",
+  "bookmark_import_started",
+  "bookmark_import_completed",
+  "bookmark_import_failed",
+  "bookmark_import_previewed",
+  "bookmark_duplicate_detected",
+  "stack_studio_opened",
+  "auto_organize_started",
+  "auto_organize_completed",
+  "resource_organization_changed",
+  "bulk_organization_completed",
+  "review_started",
+  "review_completed",
 ]);
 
 export async function POST(request: NextRequest) {
@@ -45,6 +57,10 @@ export async function POST(request: NextRequest) {
     for (const key of ["stackId", "resourceId"]) {
       const value = (rawMetadata as Record<string, unknown>)[key];
       if (typeof value === "string") metadata[key] = value.slice(0, 100);
+    }
+    for (const key of ["count", "total", "imported", "duplicates", "failed", "needsReview"]) {
+      const value = (rawMetadata as Record<string, unknown>)[key];
+      if (typeof value === "number" && Number.isFinite(value)) metadata[key] = value;
     }
   }
 

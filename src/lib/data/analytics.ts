@@ -103,7 +103,20 @@ export type EventType =
   | "stack_clone_completed"
   | "stack_clone_failed"
   | "public_resource_opened"
-  | "public_resource_saved";
+  | "public_resource_saved"
+  // Phase 14: Stack Studio
+  | "bookmark_import_started"
+  | "bookmark_import_completed"
+  | "bookmark_import_failed"
+  | "bookmark_import_previewed"
+  | "bookmark_duplicate_detected"
+  | "stack_studio_opened"
+  | "auto_organize_started"
+  | "auto_organize_completed"
+  | "resource_organization_changed"
+  | "bulk_organization_completed"
+  | "review_started"
+  | "review_completed";
 
 export interface TrackEventInput {
   eventType: EventType;

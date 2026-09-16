@@ -15,6 +15,7 @@ import {
   Plus,
   Activity,
   Shield,
+  Wand2,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
@@ -195,6 +196,7 @@ export function Sidebar() {
       )}
 
       <div className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3">
+        <NavLink href="/stack-studio" icon={Wand2} label="Stack Studio" />
         <NavLink href="/import" icon={Upload} label="Import Bookmarks" />
         <NavLink href="/extension" icon={Puzzle} label="Browser Extension" />
         <NavLink href="/settings" icon={SlidersHorizontal} label="Settings" />

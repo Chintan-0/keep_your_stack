@@ -102,6 +102,12 @@ interface StoreState {
   deleteCategory: (id: string, reassignTo: string | null) => Promise<{ movedResources: number; deletedSubcategories: number }>;
   /** Bulk "Move to" — one request, one local update. */
   bulkMoveResources: (resourceIds: string[], categoryId: string | null) => Promise<number>;
+  /** Adds every resource to a stack in one batched request. */
+  bulkAddToStack: (resourceIds: string[], stackId: string) => Promise<number>;
+  /** Adds tag(s) to every resource in one batched request (creates any new tags via the existing ensureTags path). */
+  bulkAddTags: (resourceIds: string[], tagNames: string[]) => Promise<number>;
+  /** Archives or restores every resource in one batched request. */
+  bulkArchiveResources: (resourceIds: string[], archived: boolean) => Promise<number>;
   /** Fetches the page and fills in description/Useful For/tags/category from real evidence — never overwrites a user edit. */
   enrichResource: (id: string) => Promise<Resource["enrichmentStatus"]>;
 
@@ -487,6 +493,76 @@ export const useStore = create<StoreState>()((set, get) => ({
     } catch (e) {
       set({ resources: prev });
       toast.error(e instanceof Error ? e.message : "Couldn't move those resources. Try again.");
+      throw e;
+    }
+  },
+
+  bulkAddToStack: async (resourceIds, stackId) => {
+    const prev = get().resources;
+    set({
+      resources: prev.map((r) =>
+        resourceIds.includes(r.id) && !r.stackIds.includes(stackId) ? { ...r, stackIds: [...r.stackIds, stackId] } : r
+      ),
+    });
+    try {
+      const { added } = await api<{ added: number }>("/api/resources/bulk-stack", {
+        method: "POST",
+        body: JSON.stringify({ resourceIds, stackId }),
+      });
+      return added;
+    } catch (e) {
+      set({ resources: prev });
+      toast.error(e instanceof Error ? e.message : "Couldn't add those resources to the stack. Try again.");
+      throw e;
+    }
+  },
+
+  bulkAddTags: async (resourceIds, tagNames) => {
+    const prev = get().resources;
+    try {
+      const { count } = await api<{ count: number }>("/api/resources/bulk-tag", {
+        method: "POST",
+        body: JSON.stringify({ resourceIds, tagNames }),
+      });
+      void get().refreshTags();
+      // Optimistic tag-id merge isn't safe pre-request (new tags may not
+      // have ids yet) — just refetch the affected resources' real state
+      // via a full hydrate-free approach: re-pull each from the server.
+      // Cheap enough (bulk operations are a rare, deliberate action, not a
+      // hot path) and guarantees correctness over guessing new tag ids.
+      await Promise.all(
+        resourceIds.map(async (id) => {
+          try {
+            const { resource } = await api<{ resource: Resource }>(`/api/resources/${id}`);
+            set({ resources: get().resources.map((r) => (r.id === id ? resource : r)) });
+          } catch {
+            // Non-critical — this one card just won't show its new tags until the next full reload.
+          }
+        })
+      );
+      return count;
+    } catch (e) {
+      set({ resources: prev });
+      toast.error(e instanceof Error ? e.message : "Couldn't add those tags. Try again.");
+      throw e;
+    }
+  },
+
+  bulkArchiveResources: async (resourceIds, archived) => {
+    const prev = get().resources;
+    set({
+      resources: prev.map((r) => (resourceIds.includes(r.id) ? { ...r, isArchived: archived } : r)),
+    });
+    try {
+      const { count } = await api<{ count: number }>("/api/resources/bulk-archive", {
+        method: "POST",
+        body: JSON.stringify({ resourceIds, archived }),
+      });
+      void get().refreshStats();
+      return count;
+    } catch (e) {
+      set({ resources: prev });
+      toast.error(e instanceof Error ? e.message : "Couldn't update those resources. Try again.");
       throw e;
     }
   },

@@ -15,6 +15,7 @@ import {
   Archive,
   FolderPlus,
   FolderTree,
+  Wand2,
 } from "lucide-react";
 import { useUIStore } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
@@ -160,6 +161,9 @@ export function CommandPalette() {
               </Command.Item>
               <Command.Item value="archive" onSelect={() => go("/archive")} className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-text-primary aria-selected:bg-surface-hover">
                 <Archive size={15} className="text-text-secondary" /> Archive
+              </Command.Item>
+              <Command.Item value="stack-studio" onSelect={() => go("/stack-studio")} className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-text-primary aria-selected:bg-surface-hover">
+                <Wand2 size={15} className="text-text-secondary" /> Stack Studio
               </Command.Item>
               <Command.Item value="import-bookmarks" onSelect={() => go("/import")} className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-text-primary aria-selected:bg-surface-hover">
                 <Upload size={15} className="text-text-secondary" /> Import Bookmarks

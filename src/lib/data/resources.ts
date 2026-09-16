@@ -566,6 +566,55 @@ export async function bulkMoveResources(
 }
 
 /**
+ * Adds `stackId` to every resource in `resourceIds` in one batch insert
+ * instead of one request per resource (Stack Studio's bulk "Add to
+ * stack" — Part J's explicit "do not fire hundreds of individual API
+ * requests"). Ownership of both the stack and every resource is enforced
+ * by RLS on the insert itself (resource_stacks' own "insert via owned
+ * resource and stack" policy — see supabase/migrations/
+ * 20260101000002_rls_policies.sql), not re-checked here; a resource id
+ * that isn't the caller's own simply doesn't get a row inserted for it,
+ * same fail-safe behavior addResourceToStack already relies on.
+ */
+export async function bulkAddToStack(client: Client, userId: string, resourceIds: string[], stackId: string): Promise<number> {
+  if (resourceIds.length === 0) return 0;
+  const { data, error } = await client
+    .from("resource_stacks")
+    .upsert(
+      resourceIds.map((resource_id) => ({ resource_id, stack_id: stackId })),
+      { onConflict: "resource_id,stack_id", ignoreDuplicates: true }
+    )
+    .select("resource_id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
+}
+
+/** Same batching rationale as bulkAddToStack — one insert for every (resource, tag) pair rather than N requests. Reuses ensureTags so tag creation/normalization/dedup stays the single existing implementation. */
+export async function bulkAddTags(client: Client, userId: string, resourceIds: string[], tagNames: string[]): Promise<number> {
+  if (resourceIds.length === 0 || tagNames.length === 0) return 0;
+  const tagIds = await ensureTags(client, userId, clampTagNames(tagNames));
+  if (tagIds.length === 0) return 0;
+
+  const rows = resourceIds.flatMap((resource_id) => tagIds.map((tag_id) => ({ resource_id, tag_id })));
+  const { error } = await client.from("resource_tags").upsert(rows, { onConflict: "resource_id,tag_id", ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+  return resourceIds.length;
+}
+
+/** Bulk archive/restore — a single UPDATE ... WHERE id IN (...), same shape as bulkMoveResources. */
+export async function bulkSetArchived(client: Client, userId: string, resourceIds: string[], archived: boolean): Promise<number> {
+  if (resourceIds.length === 0) return 0;
+  const { data, error } = await client
+    .from("resources")
+    .update({ is_archived: archived })
+    .eq("user_id", userId)
+    .in("id", resourceIds)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
+}
+
+/**
  * Throws (rather than silently no-op-succeeding) when `id` doesn't exist
  * or isn't the caller's own — otherwise a delete request for someone
  * else's id (or a typo'd id) would report success despite affecting zero
