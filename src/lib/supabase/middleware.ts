@@ -42,7 +42,17 @@ export async function updateSession(request: NextRequest) {
   // login. It redirects an already-signed-in visitor on to /home itself
   // (see src/app/page.tsx), so this only ever needs to let an
   // *unauthenticated* request through here.
-  const isPublicPath = pathname === "/" || isPublicSharingPath || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  //
+  // "/opengraph-image" is Next.js's file-based convention for
+  // src/app/opengraph-image.tsx (Phase 17's homepage social-preview
+  // image) — found broken in production: a crawler (Discord/Slack/X)
+  // fetching it got redirected to the login page instead of the image,
+  // since this route doesn't match "/" or any other public-path rule.
+  // The equivalent per-Stack route (src/app/u/[username]/[slug]/
+  // opengraph-image.tsx) already worked because it's nested under /u/,
+  // already public via isPublicSharingPath above.
+  const isPublicPath =
+    pathname === "/" || pathname === "/opengraph-image" || isPublicSharingPath || PUBLIC_PATHS.some((p) => pathname.startsWith(p));
   // /downloads/ (e.g. the Chrome extension zip) must be fetchable by
   // anyone, not just signed-in users — the proxy's own matcher already
   // excludes it so this shouldn't normally even run for that path, but
