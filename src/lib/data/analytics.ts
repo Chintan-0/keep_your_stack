@@ -135,7 +135,22 @@ export type EventType =
   // a stack trace, request body, or anything user-typed — see
   // logServerError()/reportClientError() below for exactly what's kept.
   | "server_error"
-  | "client_error";
+  | "client_error"
+  // Phase 17: activation funnel (§5) — "first_*" fires once per user,
+  // alongside (never instead of) the normal event, the moment a cheap
+  // count check confirms it's genuinely the first occurrence. Kept
+  // separate from deriving "first" after the fact from raw event history
+  // so the admin funnel query stays a simple count, not a window function
+  // over every event ever recorded.
+  | "onboarding_started"
+  | "onboarding_completed"
+  | "onboarding_skipped"
+  | "stack_created"
+  | "first_resource_saved"
+  | "first_import_completed"
+  | "first_stack_created"
+  | "first_favorite"
+  | "feedback_submitted";
 
 export interface TrackEventInput {
   eventType: EventType;
@@ -174,6 +189,18 @@ export async function trackEvent(input: TrackEventInput): Promise<void> {
  * `message` is truncated defensively since even an intentionally-thrown
  * Error's message is still free text a caller could influence.
  */
+/**
+ * Fires a "first_*" milestone event exactly once per user, the moment a
+ * cheap count check confirms `count` is genuinely 1 — i.e. the row the
+ * caller just created is the user's very first of its kind. Callers pass
+ * whatever count they already had to compute anyway (resource/stack
+ * totals, a search-history count) rather than this function running a
+ * query of its own, so it adds no extra database round-trip.
+ */
+export function trackIfFirst(eventType: EventType, userId: string, count: number): void {
+  if (count === 1) void trackEvent({ eventType, userId });
+}
+
 export async function logServerError(route: string, error: unknown, userId?: string | null): Promise<void> {
   const message = error instanceof Error ? error.message : "Unknown error";
   void trackEvent({

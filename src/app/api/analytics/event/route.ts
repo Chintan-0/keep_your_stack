@@ -45,6 +45,9 @@ const ALLOWED: ReadonlySet<EventType> = new Set([
   "homepage_signup_clicked",
   "homepage_login_clicked",
   "client_error",
+  "onboarding_started",
+  "onboarding_completed",
+  "onboarding_skipped",
 ]);
 
 export async function POST(request: NextRequest) {

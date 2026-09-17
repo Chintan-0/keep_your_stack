@@ -134,6 +134,14 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
 
   async function save(force = false) {
     setSaving(true);
+    // A "Useful For" phrase the user typed but never explicitly committed
+    // (pressing Enter or clicking Add) would otherwise be silently
+    // dropped on save — found during a real end-to-end test (Phase 17
+    // §35): typing context then hitting "Save Resource" directly, without
+    // an extra Enter, discarded exactly the thing the modal was
+    // encouraging the user to add. Flush it into the real list first.
+    const pendingUseCase = useCaseDraft.trim();
+    const finalUseCases = pendingUseCase ? [...useCases, pendingUseCase] : useCases;
     try {
       const { resource, duplicate } = await addResource(
         {
@@ -141,7 +149,7 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
           title,
           description,
           categoryId,
-          useCases,
+          useCases: finalUseCases,
           notes,
           tagNames: tags,
           stackIds,

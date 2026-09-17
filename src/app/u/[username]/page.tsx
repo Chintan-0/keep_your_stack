@@ -11,7 +11,14 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   const profile = await getPublicProfile(username).catch(() => null);
   if (!profile) return { title: "Profile not found · KeepYourStack" };
   const title = `${profile.name ?? `@${profile.username}`} · KeepYourStack`;
-  return { title, openGraph: { title, siteName: "KeepYourStack" }, twitter: { card: "summary", title } };
+  const description = `@${profile.username}'s public toolbox on KeepYourStack.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/@${username}` },
+    openGraph: { title, description, siteName: "KeepYourStack", url: `/@${username}`, type: "profile" },
+    twitter: { card: "summary_large_image", title, description },
+  };
 }
 
 export default async function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {

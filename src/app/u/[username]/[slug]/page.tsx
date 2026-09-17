@@ -18,8 +18,9 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   return {
     title,
     description,
-    openGraph: { title, description, siteName: "KeepYourStack" },
-    twitter: { card: "summary", title, description },
+    alternates: { canonical: `/@${username}/${slug}` },
+    openGraph: { title, description, siteName: "KeepYourStack", url: `/@${username}/${slug}`, type: "website" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 

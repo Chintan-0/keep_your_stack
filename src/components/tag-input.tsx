@@ -48,6 +48,12 @@ export function TagInput({ value, onChange }: { value: string[]; onChange: (tags
               onChange(value.slice(0, -1));
             }
           }}
+          // Commit a typed-but-not-yet-submitted tag when focus leaves the
+          // field too, not only on Enter/comma — otherwise clicking
+          // straight from here to "Save" silently drops it, the same
+          // class of bug found (and fixed) in the "Useful For" fields
+          // during a real end-to-end test (Phase 17 §35).
+          onBlur={() => commit(draft)}
           placeholder={value.length ? "" : "webp, images, optimization..."}
           className="min-w-[100px] flex-1 bg-transparent py-0.5 text-[13px] text-text-primary placeholder-text-muted focus:outline-none"
         />

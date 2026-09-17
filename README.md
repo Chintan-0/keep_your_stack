@@ -1,11 +1,66 @@
 # KeepYourStack
 
-A personal toolbox for developers: save useful sites and tools, add context
-about why they're worth keeping, organize them into stacks, and find them
-again later by what they *do* rather than what they're called.
+**A personal toolbox for building on the internet.**
+
+Bookmarks answer "where did I save this?" KeepYourStack answers "what was
+that tool I needed for this?" Save the useful things you find online, add
+context about why they're worth keeping, organize them by how you actually
+build, and find them again by what they *do* — not what they're called.
 
 Built with Next.js (App Router), TypeScript, Tailwind, Zustand, and Supabase
-(Postgres + Auth).
+(Postgres + Auth). Live at [keep-your-stack.vercel.app](https://keep-your-stack.vercel.app).
+
+## Why it exists
+
+Browser bookmarks are a junk drawer: flat, unsearchable by intent, and
+disconnected from *why* you saved something. KeepYourStack treats a saved
+resource as more than a URL — it has a category (what it is), a stack
+(where you use it), tags (what it relates to), a "useful for" (why you'd
+reach for it), and a personal note (why *you* saved it). Search matches
+against all of that, so "test APIs" finds Hoppscotch even if you never
+typed its name.
+
+## Core features
+
+- **Resource library** — save, categorize, tag, and search anything with a URL
+- **Stacks** — group tools by project or workflow (a "Backend Stack," a "Design Stack")
+- **Power Search** — deterministic full-text + trigram search across title, tags,
+  category, notes, and domain, with "why this matched" and "did you mean" — no AI,
+  no semantic search, fully explainable
+- **Stack Studio** — import a Chrome bookmarks export, review duplicates, and
+  organize hundreds or thousands of bookmarks with deterministic (rule-based, not
+  AI) category/stack suggestions before anything is saved
+- **Chrome extension** — save the page you're on in a few seconds, with the same
+  personal-history-based suggestions as Stack Studio
+- **Public/unlisted/private sharing** — publish a Stack at `/@you/stack-name` for
+  others to browse and save into their own library
+- **Data portability** — export to JSON, CSV, or standard Netscape bookmark HTML;
+  restore from your own JSON backup
+- **Admin analytics** — first-party, privacy-conscious product analytics (no
+  third-party tracker) including a signup → activation funnel and retention signals
+
+## Screenshots
+
+Not yet checked into the repo — the live product is the most accurate
+preview for now: [keep-your-stack.vercel.app](https://keep-your-stack.vercel.app).
+(Homepage/library/Stack Studio/public-Stack screenshots are a real launch-asset
+task — see `PHASE_17_REPORT.md`'s Known Limitations — deliberately not
+faked here with placeholder images.)
+
+## Getting started
+
+```bash
+git clone https://github.com/Chintan-0/keep_your_stack.git
+cd keep_your_stack/keepyourstack-app
+npm install
+cp .env.example .env.local
+npx supabase start   # needs Docker — starts local Postgres/Auth/PostgREST
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000), sign up, and either add
+a resource, import a bookmarks export, or click **Load Demo Data** (Settings
+→ Data) to explore with realistic sample content.
 
 ## Setup
 

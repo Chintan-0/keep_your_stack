@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { validateUsername } from "@/lib/username-validation";
 
+// Read-only bits the client needs but the (app) layout's own server-side
+// fetch doesn't pass down (it only reads name/email for the top bar) — the
+// onboarding checklist (Phase 17) needs to know if this profile already
+// dismissed it, without a second full page fetch.
+export async function GET() {
+  const { supabase, user, unauthorized } = await requireUser();
+  if (unauthorized) return unauthorized;
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("onboarding_dismissed_at")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ onboardingDismissedAt: data?.onboarding_dismissed_at ?? null });
+}
+
 export async function PATCH(request: NextRequest) {
   const { supabase, user, unauthorized } = await requireUser();
   if (unauthorized) return unauthorized;
@@ -12,8 +29,12 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Name can't be empty." }, { status: 400 });
   }
 
-  const patch: { name?: string; username?: string } = {};
+  const patch: { name?: string; username?: string; onboarding_dismissed_at?: string } = {};
   if (name !== undefined) patch.name = name;
+  // Only ever set to "now" — there's no product need to un-dismiss it, and
+  // allowing an arbitrary client-supplied timestamp here would be pointless
+  // surface area for no benefit.
+  if (body?.dismissOnboarding === true) patch.onboarding_dismissed_at = new Date().toISOString();
 
   if (typeof body?.username === "string") {
     const result = validateUsername(body.username);

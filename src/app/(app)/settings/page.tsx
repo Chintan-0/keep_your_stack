@@ -290,10 +290,10 @@ export default function SettingsPage() {
       <Section title="Browser Extension" description="Save the page you're viewing without leaving your browser.">
         <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-border bg-surface-2 px-3.5 py-2.5">
           <span className="flex items-center gap-2 text-[13px] text-text-primary">
-            <Puzzle size={15} /> Coming next — not installed yet
+            <Puzzle size={15} /> Chrome extension available now
           </span>
           <Button size="sm" variant="secondary" onClick={() => router.push("/extension")}>
-            Preview
+            Get the extension
           </Button>
         </div>
       </Section>

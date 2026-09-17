@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/data/auth";
 import { listResources, listResourcesPage, createResource, findResourceByUrl } from "@/lib/data/resources";
 import { normalizeUrl } from "@/lib/utils";
 import { corsPreflight, withCors } from "@/lib/cors";
-import { trackEvent, logServerError } from "@/lib/data/analytics";
+import { trackEvent, trackIfFirst, logServerError } from "@/lib/data/analytics";
 
 export async function GET(request: NextRequest) {
   const { supabase, user, unauthorized } = await requireUser(request);
@@ -106,6 +106,11 @@ export async function POST(request: NextRequest) {
     } else {
       void trackEvent({ eventType: "resource_created", userId: user.id, metadata: { extension: isExtension } });
       if (isExtension) void trackEvent({ eventType: "extension_save_success", userId: user.id });
+      // One extra indexed count query, only on a successful non-duplicate
+      // save — cheap, and the only reliable way to know "is this genuinely
+      // their first resource ever" without a separate counter column.
+      const { count } = await supabase.from("resources").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+      if (typeof count === "number") trackIfFirst("first_resource_saved", user.id, count);
     }
 
     return withCors(request, NextResponse.json(result, { status: result.duplicate ? 200 : 201 }));

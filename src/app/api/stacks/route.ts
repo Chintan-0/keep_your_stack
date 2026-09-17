@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { listStacks, createStack } from "@/lib/data/stacks";
 import { corsPreflight, withCors } from "@/lib/cors";
+import { trackEvent, trackIfFirst } from "@/lib/data/analytics";
 
 // GET is also called by the Chrome extension (optional Stack dropdown in
 // the popup), hence the Bearer-token support + CORS below. POST (creating
@@ -42,6 +43,9 @@ export async function POST(request: NextRequest) {
       icon: body.icon ?? "📦",
       color: body.color ?? "accent",
     });
+    void trackEvent({ eventType: "stack_created", userId: user.id });
+    const { count } = await supabase.from("stacks").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+    if (typeof count === "number") trackIfFirst("first_stack_created", user.id, count);
     return NextResponse.json({ stack }, { status: 201 });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't create the stack." }, { status: 500 });

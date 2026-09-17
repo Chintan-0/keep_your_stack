@@ -82,9 +82,9 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
       </button>
 
       <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-6">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-surface-3 text-2xl">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-surface-3 text-2xl">
               {stack.icon}
             </span>
             <div>
@@ -92,7 +92,7 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
               <p className="font-mono text-[12.5px] text-text-muted">{stackResources.length} resources</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ShareStackButton stack={stack} />
             <Button variant="secondary" size="sm" onClick={() => setManageOpen(true)}>
               <Settings2 size={13} /> Manage Resources
@@ -145,12 +145,18 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
       <ResourceCollection
         resources={filtered}
         view={view}
-        emptyTitle="No resources in this stack yet."
-        emptyDescription="Add resources you already saved, or save a new one directly into this stack."
+        emptyTitle="A Stack is where a resource fits into the way you build."
+        emptyDescription="Group tools by where or how you use them — not just what they are."
         emptyAction={
-          <Button size="sm" onClick={() => setManageOpen(true)}>
-            <Settings2 size={13} /> Manage Resources
-          </Button>
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface-2 px-3 py-2 font-mono text-[12px] text-text-secondary">
+              <span className="text-text-primary">Frontend Stack</span>
+              <span className="text-text-muted">→ React → Next.js → Tailwind → Figma</span>
+            </div>
+            <Button size="sm" onClick={() => setManageOpen(true)}>
+              <Settings2 size={13} /> Add resources
+            </Button>
+          </div>
         }
       />
 

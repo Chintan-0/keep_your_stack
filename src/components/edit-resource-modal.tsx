@@ -49,10 +49,16 @@ function EditResourceForm({ resource, onClose }: { resource: Resource; onClose: 
   }
 
   function save() {
+    // Same fix as add-resource-modal.tsx: a "Useful For" phrase typed but
+    // never explicitly committed (Enter/Add) would otherwise be silently
+    // dropped on save (found during a real end-to-end test, Phase 17
+    // §35) — flush it into the real list first.
+    const pendingUseCase = useCaseDraft.trim();
+    const finalUseCases = pendingUseCase ? [...useCases, pendingUseCase] : useCases;
     updateResource(resource.id, {
       title: title.trim() || resource.domain,
       description,
-      useCases,
+      useCases: finalUseCases,
       categoryId,
       tagNames,
       stackIds,

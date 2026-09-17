@@ -21,6 +21,10 @@ interface UIState {
   createStackOpen: boolean;
   openCreateStack: () => void;
   closeCreateStack: () => void;
+
+  feedbackOpen: boolean;
+  openFeedback: () => void;
+  closeFeedback: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -42,4 +46,8 @@ export const useUIStore = create<UIState>((set) => ({
   createStackOpen: false,
   openCreateStack: () => set({ createStackOpen: true }),
   closeCreateStack: () => set({ createStackOpen: false }),
+
+  feedbackOpen: false,
+  openFeedback: () => set({ feedbackOpen: true }),
+  closeFeedback: () => set({ feedbackOpen: false }),
 }));

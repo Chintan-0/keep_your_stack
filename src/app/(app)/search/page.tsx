@@ -13,6 +13,7 @@ import { ResourceCollection } from "@/components/resource-collection";
 import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@/components/filter-bar";
 import { categoryName, cn } from "@/lib/utils";
 import { tokenizeQuery, highlightSegments } from "@/lib/search-highlight";
+import { markSearchPerformed } from "@/components/onboarding-panel";
 
 const EXAMPLES = ["compress images", "test graphql", "react components", "svg to react"];
 const RECENT_SEARCHES_KEY = "kys_recent_searches";
@@ -120,6 +121,7 @@ export default function SearchPage() {
           setResults(body.results);
           setDidYouMean(body.didYouMean ?? []);
           setError(null);
+          markSearchPerformed();
         }
       } catch {
         if (!cancelled) {
@@ -352,9 +354,22 @@ export default function SearchPage() {
             <div className="flex flex-col items-center gap-4 py-10 text-center">
               <SearchIcon size={22} className="text-text-muted" />
               <div>
-                <p className="text-[14px] font-medium text-text-primary">Nothing strong matched &ldquo;{query}&rdquo;.</p>
-                {results.length > 0 && (
+                <p className="text-[14px] font-medium text-text-primary">Nothing matched &ldquo;{query}&rdquo;.</p>
+                {results.length > 0 ? (
                   <p className="mt-1 text-[12.5px] text-text-secondary">Your filters excluded every match — try clearing them.</p>
+                ) : (
+                  <div className="mt-2 max-w-xs text-[12.5px] text-text-secondary">
+                    <p>Try:</p>
+                    <ul className="mt-1 flex flex-col gap-0.5 text-text-muted">
+                      <li>· another phrase</li>
+                      <li>· a tag</li>
+                      <li>· a category</li>
+                      <li>· what the tool <em>does</em>, not its name</li>
+                    </ul>
+                    <p className="mt-2 font-mono text-[11.5px] text-text-muted">
+                      instead of &ldquo;Hoppscotch&rdquo; try &ldquo;test APIs&rdquo;
+                    </p>
+                  </div>
                 )}
               </div>
               {didYouMean.length > 0 && (

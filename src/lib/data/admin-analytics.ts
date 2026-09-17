@@ -370,3 +370,59 @@ export async function getVisitorBreakdown(client: Client, range: DateRange): Pro
     landingPages: tally("landing_path"),
   };
 }
+
+export interface ActivationFunnel {
+  visitors: number;
+  signups: number;
+  firstResource: number;
+  firstSearch: number;
+  activated: number;
+}
+
+/**
+ * The V1 funnel (§21): visitors -> signups -> first resource -> first
+ * search -> activated. Whole-history counts, not scoped to the dashboard's
+ * date-range picker — a funnel step is "has this ever happened," not "did
+ * it happen this week," so filtering by range here would just make small
+ * accounts look artificially like they have low activation. See
+ * admin_activation_funnel() in supabase/migrations for exactly how each
+ * step and "activated" are defined from real event data.
+ */
+export async function getActivationFunnel(client: Client): Promise<ActivationFunnel> {
+  const { data, error } = await client.rpc("admin_activation_funnel").single();
+  if (error) throw new Error(error.message);
+  const row = data as Record<string, number>;
+  return {
+    visitors: row.visitors ?? 0,
+    signups: row.signups ?? 0,
+    firstResource: row.first_resource ?? 0,
+    firstSearch: row.first_search ?? 0,
+    activated: row.activated ?? 0,
+  };
+}
+
+export interface RetentionStats {
+  eligibleForD1: number;
+  returnedD1: number;
+  eligibleForD7: number;
+  returnedD7: number;
+  activeUsers30d: number;
+  resourcesPerActiveUser: number;
+  searchesPerActiveUser: number;
+}
+
+/** Returning-user + per-active-user usage signals (§22). See admin_retention_stats() for exact definitions. */
+export async function getRetentionStats(client: Client): Promise<RetentionStats> {
+  const { data, error } = await client.rpc("admin_retention_stats").single();
+  if (error) throw new Error(error.message);
+  const row = data as Record<string, number>;
+  return {
+    eligibleForD1: row.eligible_for_d1 ?? 0,
+    returnedD1: row.returned_d1 ?? 0,
+    eligibleForD7: row.eligible_for_d7 ?? 0,
+    returnedD7: row.returned_d7 ?? 0,
+    activeUsers30d: row.active_users_30d ?? 0,
+    resourcesPerActiveUser: row.resources_per_active_user ?? 0,
+    searchesPerActiveUser: row.searches_per_active_user ?? 0,
+  };
+}

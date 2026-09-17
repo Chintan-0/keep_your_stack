@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { getResource, updateResource, deleteResource, NotFoundError, type ResourcePatch } from "@/lib/data/resources";
 import { corsPreflight, withCors } from "@/lib/cors";
-import { trackEvent, type EventType } from "@/lib/data/analytics";
+import { trackEvent, trackIfFirst, type EventType } from "@/lib/data/analytics";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -57,6 +57,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (patch.isArchived === false) events.push("resource_restored");
     if (events.length === 0) events.push("resource_updated");
     for (const eventType of events) void trackEvent({ eventType, userId: user.id });
+
+    if (patch.isFavorite === true) {
+      const { count } = await supabase
+        .from("resources")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_favorite", true);
+      if (typeof count === "number") trackIfFirst("first_favorite", user.id, count);
+    }
 
     return withCors(request, NextResponse.json({ resource }));
   } catch (e) {

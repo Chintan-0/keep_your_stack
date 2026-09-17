@@ -82,6 +82,16 @@ interface DashboardData {
     referrers: { label: string; count: number }[];
     landingPages: { label: string; count: number }[];
   };
+  activationFunnel: { visitors: number; signups: number; firstResource: number; firstSearch: number; activated: number };
+  retention: {
+    eligibleForD1: number;
+    returnedD1: number;
+    eligibleForD7: number;
+    returnedD7: number;
+    activeUsers30d: number;
+    resourcesPerActiveUser: number;
+    searchesPerActiveUser: number;
+  };
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -112,6 +122,15 @@ const EVENT_LABELS: Record<string, string> = {
   enrichment_failed: "Enrichment failed",
   server_error: "Server error",
   client_error: "Client error",
+  onboarding_started: "Onboarding started",
+  onboarding_completed: "Onboarding completed",
+  onboarding_skipped: "Onboarding skipped",
+  stack_created: "Stack created",
+  first_resource_saved: "First resource saved 🎉",
+  first_import_completed: "First import completed 🎉",
+  first_stack_created: "First stack created 🎉",
+  first_favorite: "First favorite 🎉",
+  feedback_submitted: "Feedback submitted",
 };
 
 export function AdminDashboard() {
@@ -196,6 +215,8 @@ export function AdminDashboard() {
         ) : data ? (
           <>
             <Overview data={data} />
+            <ActivationFunnel funnel={data.activationFunnel} />
+            <RetentionSignals retention={data.retention} />
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <ChartCard title="Visitors & Page Views">
                 <MiniLineChart
@@ -298,6 +319,93 @@ function Overview({ data }: { data: DashboardData }) {
       <Kpi icon={Puzzle} label="Extension Saves" value={o.extensionSaves} prev={o.prevExtensionSaves} />
       <Kpi icon={Download} label="Bookmark Imports" value={o.importsCompleted} prev={o.prevImportsCompleted} />
       <Kpi icon={AlertTriangle} label="Failed Operations" value={o.failedOperations} prev={o.prevFailedOperations} />
+    </section>
+  );
+}
+
+// Phase 17 (§21): the V1 growth funnel — visitors -> signups -> first
+// resource -> first search -> activated. Whole-history counts (see
+// admin_activation_funnel() in supabase/migrations), not scoped to the
+// date-range picker above — a funnel step is "has this ever happened."
+// Conversion between steps is computed here, not manufactured: a step
+// with a zero prior-step count shows "—" rather than a division-by-zero
+// percentage or a fabricated number.
+function ActivationFunnel({ funnel }: { funnel: DashboardData["activationFunnel"] }) {
+  const steps = [
+    { label: "Visitors", value: funnel.visitors },
+    { label: "Signups", value: funnel.signups },
+    { label: "First Resource", value: funnel.firstResource },
+    { label: "First Search", value: funnel.firstSearch },
+    { label: "Activated", value: funnel.activated },
+  ];
+  const max = Math.max(1, ...steps.map((s) => s.value));
+  const totalTracked = steps.some((s) => s.value > 0);
+
+  return (
+    <Card>
+      <h2 className="mb-1 text-[13px] font-semibold text-text-primary">Activation Funnel</h2>
+      <p className="mb-4 text-[11.5px] text-text-muted">
+        Whole-account history — a user has saved/imported a resource and successfully found it again via Search
+        counts as activated.
+      </p>
+      {!totalTracked ? (
+        <p className="text-[12.5px] text-text-muted">Not enough historical data yet to show a funnel.</p>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {steps.map((step, i) => {
+            const prevValue = i > 0 ? steps[i - 1].value : null;
+            const conversion = prevValue && prevValue > 0 ? `${Math.round((step.value / prevValue) * 100)}%` : null;
+            return (
+              <div key={step.label} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-[12.5px] text-text-secondary">{step.label}</span>
+                <div className="h-2 flex-1 rounded-full bg-surface-3">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${(step.value / max) * 100}%` }} />
+                </div>
+                <span className="w-12 shrink-0 text-right text-[12.5px] font-medium text-text-primary">
+                  {step.value.toLocaleString()}
+                </span>
+                <span className="w-10 shrink-0 text-right font-mono text-[11px] text-text-muted">{conversion ?? "—"}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Phase 17 (§22): returning-user + per-active-user usage signals — only
+// metrics directly computable from existing analytics_events/profiles
+// data (admin_retention_stats()), not a full analytics warehouse.
+function RetentionSignals({ retention }: { retention: DashboardData["retention"] }) {
+  const d1 = retention.eligibleForD1 > 0 ? `${Math.round((retention.returnedD1 / retention.eligibleForD1) * 100)}%` : null;
+  const d7 = retention.eligibleForD7 > 0 ? `${Math.round((retention.returnedD7 / retention.eligibleForD7) * 100)}%` : null;
+  return (
+    <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <Card className="flex flex-col gap-1">
+        <span className="text-[11.5px] font-medium uppercase tracking-wide text-text-muted">Returned after 1 day</span>
+        <p className="text-[22px] font-semibold text-text-primary">{d1 ?? "—"}</p>
+        <p className="text-[11px] text-text-muted">
+          {retention.eligibleForD1 > 0 ? `${retention.returnedD1} of ${retention.eligibleForD1} eligible` : "Not enough historical data yet"}
+        </p>
+      </Card>
+      <Card className="flex flex-col gap-1">
+        <span className="text-[11.5px] font-medium uppercase tracking-wide text-text-muted">Returned after 7 days</span>
+        <p className="text-[22px] font-semibold text-text-primary">{d7 ?? "—"}</p>
+        <p className="text-[11px] text-text-muted">
+          {retention.eligibleForD7 > 0 ? `${retention.returnedD7} of ${retention.eligibleForD7} eligible` : "Not enough historical data yet"}
+        </p>
+      </Card>
+      <Card className="flex flex-col gap-1">
+        <span className="text-[11.5px] font-medium uppercase tracking-wide text-text-muted">Resources / active user</span>
+        <p className="text-[22px] font-semibold text-text-primary">{retention.resourcesPerActiveUser}</p>
+        <p className="text-[11px] text-text-muted">last 30 days · {retention.activeUsers30d} active users</p>
+      </Card>
+      <Card className="flex flex-col gap-1">
+        <span className="text-[11.5px] font-medium uppercase tracking-wide text-text-muted">Searches / active user</span>
+        <p className="text-[22px] font-semibold text-text-primary">{retention.searchesPerActiveUser}</p>
+        <p className="text-[11px] text-text-muted">last 30 days</p>
+      </Card>
     </section>
   );
 }

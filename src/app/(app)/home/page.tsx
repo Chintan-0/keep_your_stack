@@ -9,8 +9,8 @@ import { useUIStore } from "@/lib/ui-store";
 import { ResourceCard } from "@/components/resource-card";
 import { StackCard } from "@/components/stack-card";
 import { ResourceCardSkeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
+import { OnboardingPanel } from "@/components/onboarding-panel";
 
 const EXAMPLES = ["compress webp", "test graphql", "format prisma", "convert svg", "database tool"];
 
@@ -22,17 +22,6 @@ export default function DashboardPage() {
   const stats = useStore((s) => s.stats);
   const hasHydrated = useStore((s) => s.hasHydrated);
   const openAddResource = useUIStore((s) => s.openAddResource);
-  const loadDemoData = useStore((s) => s.loadDemoData);
-  const [loadingDemoData, setLoadingDemoData] = useState(false);
-
-  async function handleLoadDemoData() {
-    setLoadingDemoData(true);
-    try {
-      await loadDemoData();
-    } finally {
-      setLoadingDemoData(false);
-    }
-  }
 
   // `resources` is only the newest page (see store.hydrate), not the whole
   // library — fine for "Recently Added" (already newest-first, 8 « page
@@ -52,6 +41,8 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-10">
+      <OnboardingPanel />
+
       {/* Hero search */}
       <section className="rounded-[var(--radius-xl)] border border-border bg-gradient-to-br from-surface-2 via-surface to-surface-2 p-6 sm:p-9">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-5 text-center">
@@ -103,43 +94,30 @@ export default function DashboardPage() {
         <StatPill label="Added recently" value={stats?.addedRecently ?? 0} icon={Sparkles} accent="text-cyan" />
       </section>
 
-      {/* Recently added */}
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Recently Added" href="/recent" />
-        {!hasHydrated ? (
+      {/* Recently added — the OnboardingPanel above already covers the
+          empty-library message in full (with real next-step actions), so
+          this section only renders once there's actually something to
+          show, rather than a second, redundant empty state right below
+          it. */}
+      {!hasHydrated ? (
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="Recently Added" href="/recent" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <ResourceCardSkeleton key={i} />
             ))}
           </div>
-        ) : recentlyAdded.length === 0 ? (
-          <EmptyState
-            icon={Package}
-            title="Your toolbox is empty."
-            description="Save your first useful resource."
-            action={
-              <div className="flex flex-col items-center gap-2">
-                <Button onClick={() => openAddResource()} size="sm">
-                  <Plus size={14} /> Add Resource
-                </Button>
-                <button
-                  onClick={handleLoadDemoData}
-                  disabled={loadingDemoData}
-                  className="text-[12px] text-text-muted hover:text-text-primary cursor-pointer"
-                >
-                  {loadingDemoData ? "Loading…" : "or load some example resources"}
-                </button>
-              </div>
-            }
-          />
-        ) : (
+        </section>
+      ) : recentlyAdded.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <SectionHeader title="Recently Added" href="/recent" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {recentlyAdded.map((r) => (
               <ResourceCard key={r.id} resource={r} />
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      ) : null}
 
       {/* Your stacks */}
       <section className="flex flex-col gap-3">

@@ -22,6 +22,7 @@ const CommandPalette = dynamic(() => import("@/components/command-palette").then
 const AddResourceModal = dynamic(() => import("@/components/add-resource-modal").then((m) => m.AddResourceModal), { ssr: false });
 const EditResourceModal = dynamic(() => import("@/components/edit-resource-modal").then((m) => m.EditResourceModal), { ssr: false });
 const CreateStackModal = dynamic(() => import("@/components/create-stack-modal").then((m) => m.CreateStackModal), { ssr: false });
+const FeedbackModal = dynamic(() => import("@/components/feedback-modal").then((m) => m.FeedbackModal), { ssr: false });
 
 export function AppShell({
   children,
@@ -45,6 +46,7 @@ export function AppShell({
       <AddResourceModal />
       <EditResourceModal />
       <CreateStackModal />
+      <FeedbackModal />
       <KeyboardShortcuts />
     </div>
   );

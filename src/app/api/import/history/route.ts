@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { listImportHistory, recordImport } from "@/lib/data/import-history";
-import { trackEvent } from "@/lib/data/analytics";
+import { trackEvent, trackIfFirst } from "@/lib/data/analytics";
 
 export async function GET() {
   const { supabase, user, unauthorized } = await requireUser();
@@ -38,11 +38,16 @@ export async function POST(request: NextRequest) {
     // trackable from here since the import itself runs as several chunked
     // /api/import calls before this summary lands; imported=0 with
     // failed>0 is treated as a failed import, not a completed one.
+    const succeeded = entry.imported > 0 || entry.failed === 0;
     void trackEvent({
-      eventType: entry.imported > 0 || entry.failed === 0 ? "import_completed" : "import_failed",
+      eventType: succeeded ? "import_completed" : "import_failed",
       userId: user.id,
       metadata: { source: entry.source, total: entry.total, imported: entry.imported, failed: entry.failed },
     });
+    if (succeeded) {
+      const { count } = await supabase.from("import_history").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+      if (typeof count === "number") trackIfFirst("first_import_completed", user.id, count);
+    }
     return NextResponse.json({ entry });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Couldn't record this import." }, { status: 500 });

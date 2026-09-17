@@ -12,11 +12,25 @@ export interface Database {
           email: string | null;
           avatar_url: string | null;
           username: string | null;
+          onboarding_dismissed_at: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["profiles"]["Row"]> & { id: string };
         Update: Partial<Database["public"]["Tables"]["profiles"]["Row"]>;
+        Relationships: [];
+      };
+      feedback: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          category: string;
+          message: string;
+          context: Record<string, unknown>;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["feedback"]["Row"]> & { category: string; message: string };
+        Update: Partial<Database["public"]["Tables"]["feedback"]["Row"]>;
         Relationships: [];
       };
       categories: {
@@ -340,6 +354,22 @@ export interface Database {
       admin_top_dimension: {
         Args: { p_kind: string; p_from: string; p_to: string; p_limit?: number };
         Returns: { label: string; count: number }[];
+      };
+      admin_activation_funnel: {
+        Args: Record<string, never>;
+        Returns: { visitors: number; signups: number; first_resource: number; first_search: number; activated: number };
+      };
+      admin_retention_stats: {
+        Args: Record<string, never>;
+        Returns: {
+          eligible_for_d1: number;
+          returned_d1: number;
+          eligible_for_d7: number;
+          returned_d7: number;
+          active_users_30d: number;
+          resources_per_active_user: number;
+          searches_per_active_user: number;
+        };
       };
       search_resources: {
         Args: { p_query: string };

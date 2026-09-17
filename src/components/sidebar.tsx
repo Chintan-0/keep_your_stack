@@ -16,6 +16,7 @@ import {
   Activity,
   Shield,
   Wand2,
+  MessageSquare,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
@@ -74,6 +75,7 @@ export function Sidebar() {
   const tags = useStore((s) => s.tags);
   const linkChecks = useStore((s) => s.linkChecks);
   const openAddResource = useUIStore((s) => s.openAddResource);
+  const openFeedback = useUIStore((s) => s.openFeedback);
   const now = useNow();
 
   // Purely a UX nicety — hiding/showing this link is NOT the security
@@ -201,6 +203,12 @@ export function Sidebar() {
         <NavLink href="/extension" icon={Puzzle} label="Browser Extension" />
         <NavLink href="/settings" icon={SlidersHorizontal} label="Settings" />
         {isAdmin && <NavLink href="/admin" icon={Shield} label="Admin" />}
+        <button
+          onClick={openFeedback}
+          className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+        >
+          <MessageSquare size={16} className="text-text-muted" /> Feedback
+        </button>
       </div>
       </aside>
     </>

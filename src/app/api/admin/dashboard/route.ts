@@ -9,6 +9,8 @@ import {
   getRecentActivity,
   getUserStats,
   getVisitorBreakdown,
+  getActivationFunnel,
+  getRetentionStats,
   type DateRange,
 } from "@/lib/data/admin-analytics";
 import { logServerError } from "@/lib/data/analytics";
@@ -43,6 +45,8 @@ export async function GET(request: NextRequest) {
       recentActivity,
       userStats,
       visitorBreakdown,
+      activationFunnel,
+      retention,
     ] = await Promise.all([
       getOverview(service!, range),
       getDailyTimeseries(service!, range),
@@ -55,6 +59,8 @@ export async function GET(request: NextRequest) {
       getRecentActivity(service!),
       getUserStats(service!),
       getVisitorBreakdown(service!, range),
+      getActivationFunnel(service!),
+      getRetentionStats(service!),
     ]);
 
     return NextResponse.json({
@@ -69,6 +75,8 @@ export async function GET(request: NextRequest) {
       recentActivity,
       userStats,
       visitorBreakdown,
+      activationFunnel,
+      retention,
     });
   } catch (e) {
     void logServerError("GET /api/admin/dashboard", e);
