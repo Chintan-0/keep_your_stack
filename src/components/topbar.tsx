@@ -44,12 +44,18 @@ export function TopBar({ userEmail, userName }: { userEmail: string; userName: s
       </div>
 
       <div className="flex items-center gap-2 justify-self-end">
+        {/* The sidebar's "+ Add Resource" is the one dominant primary
+            action for this — this stays a small, secondary icon button
+            (never filled purple) so the two don't compete, but is still
+            reachable from anywhere, including on mobile where the
+            sidebar is hidden behind the hamburger menu. */}
         <button
           onClick={() => openAddResource()}
-          className="flex items-center gap-1.5 rounded-[var(--radius-md)] bg-accent px-3 py-1.5 text-[13px] font-medium text-white shadow-sm shadow-accent/20 transition-colors hover:bg-accent-hover cursor-pointer"
+          className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+          aria-label="Add Resource"
+          title="Add Resource"
         >
-          <Plus size={15} />
-          <span className="hidden sm:inline">Add Resource</span>
+          <Plus size={17} />
         </button>
         <Link
           href="/settings"

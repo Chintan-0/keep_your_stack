@@ -132,10 +132,10 @@ export function ResourceCard({
     <div
       onClick={selectable ? onToggleSelect : undefined}
       className={cn(
-        "group relative flex flex-col gap-3 rounded-[var(--radius-lg)] border bg-surface p-4 transition-all",
+        "group relative flex flex-col gap-3 rounded-[var(--radius-lg)] border bg-surface p-4 transition-all duration-200 motion-reduce:transition-colors",
         selectable
           ? cn("cursor-pointer", selected ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong")
-          : "border-border hover:border-border-strong hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20"
+          : "border-border hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20 motion-reduce:hover:translate-y-0"
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -159,12 +159,14 @@ export function ResourceCard({
           <button
             onClick={() => toggleFavorite(resource.id)}
             className={cn(
-              "shrink-0 rounded-md p-1 transition-colors cursor-pointer",
-              resource.isFavorite ? "text-warning" : "text-text-muted hover:text-warning"
+              "shrink-0 rounded-md p-1 transition-all duration-150 cursor-pointer motion-reduce:transition-none",
+              resource.isFavorite
+                ? "text-warning opacity-100"
+                : "text-text-muted opacity-40 hover:text-warning hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"
             )}
-            aria-label="Toggle favorite"
+            aria-label={resource.isFavorite ? "Remove from favorites" : "Add to favorites"}
           >
-            <Heart size={16} fill={resource.isFavorite ? "currentColor" : "none"} />
+            <Heart size={16} fill={resource.isFavorite ? "currentColor" : "none"} className="transition-transform duration-150 active:scale-90 motion-reduce:transition-none" />
           </button>
         )}
       </div>

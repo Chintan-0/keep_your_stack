@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, ArrowRight, Package, Star, Sparkles } from "lucide-react";
+import { Search, ArrowRight } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { useUIStore } from "@/lib/ui-store";
 import { ResourceCard } from "@/components/resource-card";
 import { StackCard } from "@/components/stack-card";
 import { ResourceCardSkeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
+import { Tag } from "@/components/ui/tag";
 import { OnboardingPanel } from "@/components/onboarding-panel";
+import { needsReview as isNeedsReview, cn } from "@/lib/utils";
 
 const EXAMPLES = ["compress webp", "test graphql", "format prisma", "convert svg", "database tool"];
 
@@ -19,20 +19,33 @@ export default function DashboardPage() {
   const [query, setQuery] = useState("");
   const resources = useStore((s) => s.resources);
   const stacks = useStore((s) => s.stacks);
+  const tags = useStore((s) => s.tags);
+  const linkChecks = useStore((s) => s.linkChecks);
   const stats = useStore((s) => s.stats);
   const hasHydrated = useStore((s) => s.hasHydrated);
-  const openAddResource = useUIStore((s) => s.openAddResource);
 
   // `resources` is only the newest page (see store.hydrate), not the whole
   // library — fine for "Recently Added" (already newest-first, 8 « page
-  // size) and the favorites preview (first 4 among the newest — the exact
-  // rare case where none of a user's favorites are recent enough to be in
-  // that page just hides the section, same as having zero favorites).
-  // The stat pills use the dedicated `stats` counts instead, which cover
-  // the real total regardless of how much has been paginated in.
+  // size), the favorites preview, and the popular-tags tally (a "what's
+  // trending in what I've loaded" signal, same limitation the sidebar's
+  // own popular-tags list already has — not new). The stat strip uses the
+  // dedicated `stats` counts instead, which cover the real total
+  // regardless of how much has been paginated in.
   const active = useMemo(() => resources.filter((r) => !r.isArchived), [resources]);
   const favorites = active.filter((r) => r.isFavorite);
   const recentlyAdded = active.slice(0, 8);
+  const needsReviewCount = active.filter((r) => isNeedsReview(r, linkChecks[r.id]?.status)).length;
+  const healthyCount = Math.max(0, active.length - needsReviewCount);
+
+  const popularTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of active) for (const id of r.tagIds) counts.set(id, (counts.get(id) ?? 0) + 1);
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([id]) => tags.find((t) => t.id === id))
+      .filter(Boolean) as { id: string; name: string }[];
+  }, [active, tags]);
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -40,58 +53,79 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-11">
       <OnboardingPanel />
 
-      {/* Hero search */}
-      <section className="rounded-[var(--radius-xl)] border border-border bg-gradient-to-br from-surface-2 via-surface to-surface-2 p-6 sm:p-9">
-        <div className="mx-auto flex max-w-2xl flex-col items-center gap-5 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-3 px-3 py-1 font-mono text-[11px] text-text-secondary">
-            <Sparkles size={12} className="text-accent" /> {stats?.total ?? active.length} resources saved
-          </span>
-          <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[32px]">
-            What are you looking for?
-          </h1>
-          <p className="max-w-md text-[14px] text-text-secondary">
-            Search your stack by tool, use case, tag, or note.
-          </p>
+      {/* Hero search — the one large, primary interaction on this page.
+          No card border/background box around it and no Add Resource
+          button underneath: the search itself is the hero action, kept
+          visually distinct from the compact utility search in the top
+          bar (⌘K) by scale, placement, and the supporting copy around it. */}
+      <section className="flex flex-col items-center gap-5 pt-2 text-center">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">Your toolbox</span>
+        <h1 className="text-[30px] font-semibold tracking-tight text-text-primary sm:text-[38px]">
+          What are you looking for?
+        </h1>
+        <p className="max-w-sm text-[14px] text-text-secondary">Search by tool, use case, tag, or note.</p>
 
-          <form onSubmit={submitSearch} className="relative w-full">
-            <Search size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="compress webp, test graphql, jwt decoder…"
-              className="h-12 w-full rounded-[var(--radius-md)] border border-border-strong bg-surface-3 pl-11 pr-16 text-[14px] text-text-primary placeholder-text-muted shadow-inner focus:border-accent focus:outline-none"
-            />
-            <kbd className="kbd absolute right-3.5 top-1/2 -translate-y-1/2 rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted">
-              ⌘K
-            </kbd>
-          </form>
+        <form onSubmit={submitSearch} className="relative w-full max-w-2xl">
+          <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
+          <label htmlFor="home-search" className="sr-only">
+            Search your library
+          </label>
+          <input
+            id="home-search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="compress webp, test graphql, jwt decoder…"
+            className="h-14 w-full rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 pl-12 pr-16 text-[15px] text-text-primary placeholder-text-muted transition-shadow duration-200 focus:border-accent focus:shadow-[0_0_0_4px_var(--accent-soft)] focus:outline-none motion-reduce:transition-none"
+          />
+          <kbd className="kbd absolute right-4 top-1/2 -translate-y-1/2 rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted">
+            ⌘K
+          </kbd>
+        </form>
 
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                onClick={() => router.push(`/search?q=${encodeURIComponent(ex)}`)}
-                className="rounded-full border border-border bg-surface-2 px-3 py-1.5 font-mono text-[12px] text-text-secondary transition-colors hover:border-accent/40 hover:text-text-primary cursor-pointer"
-              >
-                {ex}
-              </button>
-            ))}
-          </div>
-
-          <Button size="lg" onClick={() => openAddResource()} className="mt-1">
-            <Plus size={16} /> Add Resource
-          </Button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {EXAMPLES.map((ex) => (
+            <button
+              key={ex}
+              onClick={() => router.push(`/search?q=${encodeURIComponent(ex)}`)}
+              className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+            >
+              {ex}
+            </button>
+          ))}
         </div>
+
+        {/* Small, integrated workspace context — not decorative filler.
+            Only appears once there's real data to show. */}
+        {hasHydrated && active.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 pt-1 text-[12px] text-text-muted">
+            <span>{stats?.total ?? active.length} resources</span>
+            <span aria-hidden="true">·</span>
+            <span>
+              {stacks.length} {stacks.length === 1 ? "stack" : "stacks"}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{healthyCount} healthy</span>
+          </div>
+        )}
       </section>
 
-      {/* Quick stats */}
-      <section className="grid grid-cols-3 gap-3">
-        <StatPill label="Resources" value={stats?.total ?? active.length} icon={Package} />
-        <StatPill label="Favorites" value={stats?.favorites ?? favorites.length} icon={Star} accent="text-warning" />
-        <StatPill label="Added recently" value={stats?.addedRecently ?? 0} icon={Sparkles} accent="text-cyan" />
+      {/* Library at a glance — a metrics strip, not four repeated card
+          boxes: the number carries the weight, the label is secondary,
+          and color is used only to echo the meaning already in the
+          section it links to (blue → the library, amber → favorites,
+          cyan → recently added, violet → stacks), never as the only
+          signal (the label text says the same thing either way). */}
+      <section className="flex flex-wrap items-center gap-x-8 gap-y-5 border-y border-border/70 py-5">
+        <MetricLink href="/resources" value={stats?.total ?? active.length} label="Resources" colorClass="text-blue" />
+        <Divider />
+        <MetricLink href="/favorites" value={stats?.favorites ?? favorites.length} label="Favorites" colorClass="text-warning" />
+        <Divider />
+        <MetricLink href="/recent" value={stats?.addedRecently ?? 0} label="Added recently" colorClass="text-cyan" />
+        <Divider />
+        <MetricLink href="/stacks" value={stacks.length} label={stacks.length === 1 ? "Stack" : "Stacks"} colorClass="text-violet" />
       </section>
 
       {/* Recently added — the OnboardingPanel above already covers the
@@ -100,7 +134,7 @@ export default function DashboardPage() {
           show, rather than a second, redundant empty state right below
           it. */}
       {!hasHydrated ? (
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4">
           <SectionHeader title="Recently Added" href="/recent" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -109,7 +143,7 @@ export default function DashboardPage() {
           </div>
         </section>
       ) : recentlyAdded.length > 0 ? (
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4">
           <SectionHeader title="Recently Added" href="/recent" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {recentlyAdded.map((r) => (
@@ -120,18 +154,20 @@ export default function DashboardPage() {
       ) : null}
 
       {/* Your stacks */}
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Your Stacks" href="/stacks" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {stacks.map((s) => (
-            <StackCard key={s.id} stack={s} count={active.filter((r) => r.stackIds.includes(s.id)).length} />
-          ))}
-        </div>
-      </section>
+      {stacks.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <SectionHeader title="Your Stacks" href="/stacks" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {stacks.slice(0, 8).map((s) => (
+              <StackCard key={s.id} stack={s} count={active.filter((r) => r.stackIds.includes(s.id)).length} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Favorites */}
       {favorites.length > 0 && (
-        <section className="flex flex-col gap-3">
+        <section className="flex flex-col gap-4">
           <SectionHeader title="Favorites" href="/favorites" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {favorites.slice(0, 4).map((r) => (
@@ -140,7 +176,49 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      {/* Popular tags — a quick filter into the library, not a decorative
+          list: clicking one searches the real library by that tag. */}
+      {popularTags.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <SectionHeader title="Popular Tags" href="/resources" />
+          <div className="flex flex-wrap gap-2">
+            {popularTags.map((t) => (
+              <Tag key={t.id} onClick={() => router.push(`/resources?tag=${t.id}`)}>
+                {t.name}
+              </Tag>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
+  );
+}
+
+function Divider() {
+  return <span aria-hidden="true" className="hidden h-9 w-px bg-border sm:block" />;
+}
+
+function MetricLink({
+  href,
+  value,
+  label,
+  colorClass,
+}: {
+  href: string;
+  value: number;
+  label: string;
+  colorClass: string;
+}) {
+  return (
+    <Link href={href} className="group flex items-baseline gap-2">
+      <span className={cn("text-[26px] font-semibold leading-none tracking-tight transition-colors duration-150", colorClass)}>
+        {value}
+      </span>
+      <span className="text-[12.5px] text-text-secondary transition-colors duration-150 group-hover:text-text-primary">
+        {label}
+      </span>
+    </Link>
   );
 }
 
@@ -150,34 +228,10 @@ function SectionHeader({ title, href }: { title: string; href: string }) {
       <h2 className="text-[15px] font-semibold text-text-primary">{title}</h2>
       <Link
         href={href}
-        className="flex items-center gap-1 text-[12.5px] font-medium text-text-secondary hover:text-accent"
+        className="flex items-center gap-1 text-[12.5px] font-medium text-text-secondary transition-colors duration-150 hover:text-accent"
       >
         View all <ArrowRight size={13} />
       </Link>
-    </div>
-  );
-}
-
-function StatPill({
-  label,
-  value,
-  icon: Icon,
-  accent,
-}: {
-  label: string;
-  value: number;
-  icon: React.ElementType;
-  accent?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-border bg-surface px-4 py-3.5">
-      <div className={`flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] bg-surface-3 ${accent ?? "text-accent"}`}>
-        <Icon size={16} />
-      </div>
-      <div>
-        <p className="text-[17px] font-semibold leading-tight text-text-primary">{value}</p>
-        <p className="text-[11.5px] text-text-secondary">{label}</p>
-      </div>
     </div>
   );
 }

@@ -159,7 +159,7 @@ export function Sidebar() {
             View all
           </Link>
         </div>
-        {stacks.map((s) => {
+        {stacks.slice(0, 6).map((s) => {
           const count = active.filter((r) => r.stackIds.includes(s.id)).length;
           return (
             <Link
@@ -197,18 +197,26 @@ export function Sidebar() {
         </div>
       )}
 
-      <div className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3">
-        <NavLink href="/stack-studio" icon={Wand2} label="Stack Studio" />
-        <NavLink href="/import" icon={Upload} label="Import Bookmarks" />
-        <NavLink href="/extension" icon={Puzzle} label="Browser Extension" />
-        <NavLink href="/settings" icon={SlidersHorizontal} label="Settings" />
-        {isAdmin && <NavLink href="/admin" icon={Shield} label="Admin" />}
-        <button
-          onClick={openFeedback}
-          className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary cursor-pointer"
-        >
-          <MessageSquare size={16} className="text-text-muted" /> Feedback
-        </button>
+      <div className="mt-auto flex flex-col gap-4 border-t border-border pt-3">
+        <div className="flex flex-col gap-0.5">
+          <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Organize</p>
+          <NavLink href="/stack-studio" icon={Wand2} label="Stack Studio" />
+          <NavLink href="/import" icon={Upload} label="Import Bookmarks" />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Connect</p>
+          <NavLink href="/extension" icon={Puzzle} label="Browser Extension" />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <NavLink href="/settings" icon={SlidersHorizontal} label="Settings" />
+          {isAdmin && <NavLink href="/admin" icon={Shield} label="Admin" />}
+          <button
+            onClick={openFeedback}
+            className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+          >
+            <MessageSquare size={16} className="text-text-muted" /> Feedback
+          </button>
+        </div>
       </div>
       </aside>
     </>

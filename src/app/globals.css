@@ -16,9 +16,17 @@
   --accent-soft: rgba(111, 123, 255, 0.12);
   --violet: #a78bfa;
   --cyan: #22d3ee;
+  --cyan-soft: rgba(34, 211, 238, 0.12);
+  /* A distinct blue, separate from --accent's indigo — the accent is
+     reserved for primary actions/active state/brand (see button.tsx and
+     the home dashboard refresh); this is purely semantic (e.g. the
+     "Resources" metric), not a second brand color. */
+  --blue: #5b9dff;
+  --blue-soft: rgba(91, 157, 255, 0.12);
   --success: #34d399;
   --success-soft: rgba(52, 211, 153, 0.12);
   --warning: #f5b756;
+  --warning-soft: rgba(245, 183, 86, 0.12);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
   --radius-sm: 8px;
@@ -43,9 +51,13 @@
   --color-accent-soft: var(--accent-soft);
   --color-violet: var(--violet);
   --color-cyan: var(--cyan);
+  --color-cyan-soft: var(--cyan-soft);
+  --color-blue: var(--blue);
+  --color-blue-soft: var(--blue-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --font-sans: var(--font-inter);
