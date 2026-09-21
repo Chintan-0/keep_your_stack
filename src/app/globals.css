@@ -15,18 +15,29 @@
   --accent-hover: #838ffc;
   --accent-soft: rgba(111, 123, 255, 0.12);
   --violet: #a78bfa;
+  --violet-soft: rgba(167, 139, 250, 0.12);
   --cyan: #22d3ee;
   --cyan-soft: rgba(34, 211, 238, 0.12);
   /* A distinct blue, separate from --accent's indigo — the accent is
      reserved for primary actions/active state/brand (see button.tsx and
      the home dashboard refresh); this is purely semantic (e.g. the
-     "Resources" metric), not a second brand color. */
+     "Resources" metric, the "Development" category), not a second brand
+     color. */
   --blue: #5b9dff;
   --blue-soft: rgba(91, 157, 255, 0.12);
   --success: #34d399;
   --success-soft: rgba(52, 211, 153, 0.12);
   --warning: #f5b756;
   --warning-soft: rgba(245, 183, 86, 0.12);
+  /* Coral — a warm pink-red, distinct from --danger's brighter alert red.
+     Used for a small set of category/tag accents (e.g. "Design") where a
+     literal red would misleadingly read as an error/destructive state. */
+  --coral: #fb7185;
+  --coral-soft: rgba(251, 113, 133, 0.12);
+  /* Orange — imports/activity/organization accents, distinct from amber
+     (favorites/attention) and coral (design/destructive-adjacent). */
+  --orange: #fb923c;
+  --orange-soft: rgba(251, 146, 60, 0.12);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
   --radius-sm: 8px;
@@ -50,6 +61,7 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-soft: var(--accent-soft);
   --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
   --color-cyan: var(--cyan);
   --color-cyan-soft: var(--cyan-soft);
   --color-blue: var(--blue);
@@ -58,6 +70,10 @@
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-coral: var(--coral);
+  --color-coral-soft: var(--coral-soft);
+  --color-orange: var(--orange);
+  --color-orange-soft: var(--orange-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --font-sans: var(--font-inter);

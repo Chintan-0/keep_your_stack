@@ -83,7 +83,10 @@ interface StoreState {
   stacks: Stack[];
   tags: Tag[];
   categories: Category[];
+  /** True once the resources page has loaded — see hydrate()'s own comment for why this isn't "literally everything." */
   hasHydrated: boolean;
+  /** Internal re-entry guard for hydrate() — not meant to be read by components. */
+  _hydrating: boolean;
 
   /**
    * Dashboard stat counts (total/favorites/added-recently), fetched via 3
@@ -191,32 +194,71 @@ export const useStore = create<StoreState>()((set, get) => ({
   // thousands). Dashboard counts come from the separate, cheap `stats`
   // query instead of being derived from however much of `resources` has
   // loaded, which would undercount past the first page.
+  //
+  // Guarded against re-entry: React's Strict Mode (dev only) mounts
+  // StoreHydrator's effect twice, which was firing this whole batch of
+  // requests twice concurrently — confirmed live (two overlapping waves
+  // of the same 6 requests, each slower than either alone since they
+  // contended for the same local Postgres connection). `hasHydrated`
+  // isn't enough of a guard on its own (both calls start before either
+  // finishes), so a separate in-flight flag is needed.
+  _hydrating: false,
+  // Each request resolves into the store independently, as soon as *it*
+  // finishes, rather than the whole page waiting on Promise.all for every
+  // one of the six before showing anything real — the difference between
+  // "resources and stats appear the moment they're ready" and "everything
+  // waits for whichever of the six is slowest," which used to be
+  // link-checks or stats on a large account. Every request has its own
+  // catch: one failing source (say, tags) never blanks the others (§26) —
+  // it just leaves that one slice at its empty default with a single
+  // toast, while resources/stats/stacks still render normally.
+  // `hasHydrated` now specifically means "resources are ready" (that's
+  // what every consumer of this flag actually checks for — see
+  // ResourceCollection, Archive, Search, etc.), not "literally everything
+  // is ready."
   hydrate: async () => {
-    try {
-      const [resourcesPage, stacksRes, tagsRes, categoriesRes, linkChecksRes, stats] = await Promise.all([
-        api<{ resources: Resource[]; total: number; hasMore: boolean }>(
-          `/api/resources?limit=${RESOURCES_PAGE_SIZE}`
-        ),
-        api<{ stacks: Stack[] }>("/api/stacks"),
-        api<{ tags: Tag[] }>("/api/tags"),
-        api<{ categories: Category[] }>("/api/categories"),
-        api<{ linkChecks: Record<string, LinkHealth> }>("/api/library/link-checks").catch(() => ({ linkChecks: {} })),
-        api<{ stats: ResourceStats }>("/api/resources/stats").catch(() => ({ stats: null as ResourceStats | null })),
-      ]);
-      set({
-        resources: resourcesPage.resources,
-        resourcesHasMore: resourcesPage.hasMore,
-        stacks: stacksRes.stacks,
-        tags: tagsRes.tags,
-        categories: categoriesRes.categories,
-        linkChecks: linkChecksRes.linkChecks,
-        stats: stats.stats,
-        hasHydrated: true,
+    if (get()._hydrating || get().hasHydrated) return;
+    set({ _hydrating: true });
+
+    const fail = (what: string) => {
+      toast.error(`Couldn't load ${what}. Try refreshing.`);
+    };
+
+    const resourcesReq = api<{ resources: Resource[]; total: number; hasMore: boolean }>(
+      `/api/resources?limit=${RESOURCES_PAGE_SIZE}`
+    )
+      .then((r) => set({ resources: r.resources, resourcesHasMore: r.hasMore }))
+      .catch(() => fail("your resources"))
+      .finally(() => set({ hasHydrated: true, _hydrating: false }));
+
+    const statsReq = api<{ stats: ResourceStats }>("/api/resources/stats")
+      .then((r) => set({ stats: r.stats }))
+      .catch(() => {
+        // Best-effort — the hero/metrics fall back to deriving from
+        // `resources` when `stats` is null, so this alone never blocks
+        // anything or needs its own toast.
       });
-    } catch {
-      set({ hasHydrated: true });
-      toast.error("Couldn't load your stack. Check your connection and reload.");
-    }
+
+    const stacksReq = api<{ stacks: Stack[] }>("/api/stacks")
+      .then((r) => set({ stacks: r.stacks }))
+      .catch(() => fail("your stacks"));
+
+    const tagsReq = api<{ tags: Tag[] }>("/api/tags")
+      .then((r) => set({ tags: r.tags }))
+      .catch(() => fail("your tags"));
+
+    const categoriesReq = api<{ categories: Category[] }>("/api/categories")
+      .then((r) => set({ categories: r.categories }))
+      .catch(() => fail("your categories"));
+
+    const linkChecksReq = api<{ linkChecks: Record<string, LinkHealth> }>("/api/library/link-checks")
+      .then((r) => set({ linkChecks: r.linkChecks }))
+      .catch(() => {
+        // Best-effort, same reasoning as Phase 16's original fallback —
+        // only powers "needs review" badges/counts, never critical.
+      });
+
+    await Promise.all([resourcesReq, statsReq, stacksReq, tagsReq, categoriesReq, linkChecksReq]);
   },
 
   loadMoreResources: async () => {

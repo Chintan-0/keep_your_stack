@@ -8,6 +8,7 @@ import { useUIStore } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
 import { Tag } from "@/components/ui/tag";
 import { categoryName, cn } from "@/lib/utils";
+import { categoryColor, tagColor, SEMANTIC_COLOR_CLASSES } from "@/lib/colors";
 
 export function ResourceCard({
   resource,
@@ -35,6 +36,17 @@ export function ResourceCard({
     .slice(0, 3) as { id: string; name: string }[];
 
   const stack = useStore((s) => s.stacks.find((st) => resource.stackIds.includes(st.id)));
+  const category = categories.find((c) => c.id === resource.categoryId);
+  // A category always has a deterministic accent (falls back to a hashed
+  // one when the name doesn't match a known keyword — see
+  // src/lib/colors.ts). For a resource with no category yet, hash on its
+  // domain instead of falling back to one fixed color for every
+  // uncategorized card — still fully deterministic (same domain, same
+  // color, every time) but keeps a library that's mostly uncategorized
+  // (e.g. a fresh bulk import, before anyone's sorted it) from rendering
+  // as a wall of identical accents.
+  const accentColorKey = categoryColor(category?.name || resource.domain);
+  const accent = SEMANTIC_COLOR_CLASSES[accentColorKey];
 
   const Checkbox = selectable ? (
     <button
@@ -89,7 +101,9 @@ export function ResourceCard({
         <span className="hidden shrink-0 text-[11px] text-text-muted md:block">{categoryName(resource.categoryId, categories)}</span>
         <div className="hidden shrink-0 gap-1 md:flex">
           {resourceTags.map((t) => (
-            <Tag key={t.id}>{t.name}</Tag>
+            <Tag key={t.id} color={tagColor(t.name)}>
+              {t.name}
+            </Tag>
           ))}
         </div>
         {!selectable && (
@@ -132,16 +146,25 @@ export function ResourceCard({
     <div
       onClick={selectable ? onToggleSelect : undefined}
       className={cn(
-        "group relative flex flex-col gap-3 rounded-[var(--radius-lg)] border bg-surface p-4 transition-all duration-200 motion-reduce:transition-colors",
+        "group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border bg-surface p-4 pt-[14px] transition-all duration-200 motion-reduce:transition-colors",
         selectable
           ? cn("cursor-pointer", selected ? "border-accent bg-accent-soft" : "border-border hover:border-border-strong")
           : "border-border hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20 motion-reduce:hover:translate-y-0"
       )}
     >
+      {/* A thin category-colored accent line — the card's one deliberate
+          spot of color, not a full colored background (§5). */}
+      <span aria-hidden="true" className={cn("absolute inset-x-0 top-0 h-[3px]", accent.dot)} />
+
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2.5">
           {Checkbox}
-          <Favicon seed={resource.title} size={32} />
+          <span
+            className="relative flex shrink-0 items-center justify-center rounded-[10px]"
+            style={{ boxShadow: selectable ? undefined : `0 0 16px -2px var(--${accentColorKey})` }}
+          >
+            <Favicon seed={resource.title} size={32} />
+          </span>
           <div className="min-w-0">
             {selectable ? (
               <h3 className="truncate text-[14px] font-semibold text-text-primary">{resource.title}</h3>
@@ -193,13 +216,15 @@ export function ResourceCard({
       {resourceTags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {resourceTags.map((t) => (
-            <Tag key={t.id}>{t.name}</Tag>
+            <Tag key={t.id} color={tagColor(t.name)}>
+              {t.name}
+            </Tag>
           ))}
         </div>
       )}
 
       <div className="mt-auto flex items-center justify-between pt-1">
-        <span className="truncate text-[11px] text-text-muted">
+        <span className={cn("truncate text-[11px]", stack ? "text-text-muted" : accent.text)}>
           {stack ? (
             <span className="flex items-center gap-1">
               {stack.icon} {stack.name}

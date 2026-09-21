@@ -2,12 +2,12 @@ import Link from "next/link";
 import type { Stack } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const COLOR_MAP: Record<string, { text: string; soft: string }> = {
-  accent: { text: "text-accent", soft: "bg-accent-soft" },
-  violet: { text: "text-violet", soft: "bg-violet/15" },
-  cyan: { text: "text-cyan", soft: "bg-cyan-soft" },
-  success: { text: "text-success", soft: "bg-success-soft" },
-  warning: { text: "text-warning", soft: "bg-warning-soft" },
+const COLOR_MAP: Record<string, { text: string; soft: string; dot: string }> = {
+  accent: { text: "text-accent", soft: "bg-accent-soft", dot: "bg-accent" },
+  violet: { text: "text-violet", soft: "bg-violet-soft", dot: "bg-violet" },
+  cyan: { text: "text-cyan", soft: "bg-cyan-soft", dot: "bg-cyan" },
+  success: { text: "text-success", soft: "bg-success-soft", dot: "bg-success" },
+  warning: { text: "text-warning", soft: "bg-warning-soft", dot: "bg-warning" },
 };
 
 export function StackCard({ stack, count }: { stack: Stack; count: number }) {
@@ -15,8 +15,14 @@ export function StackCard({ stack, count }: { stack: Stack; count: number }) {
   return (
     <Link
       href={`/stacks/${stack.id}`}
-      className="group flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20 motion-reduce:transform-none motion-reduce:transition-colors"
+      className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface p-4 pl-[18px] transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20 motion-reduce:transform-none motion-reduce:transition-colors"
     >
+      {/* A thin colored spine along the left edge — the same restrained
+          "one accent line, not a colored card" language as ResourceCard's
+          top bar, oriented differently so the two read as siblings rather
+          than duplicates. */}
+      <span aria-hidden="true" className={cn("absolute inset-y-0 left-0 w-[3px]", color.dot)} />
+
       <span
         className={cn("flex h-9 w-9 items-center justify-center rounded-[var(--radius-sm)] text-base", color.soft)}
       >

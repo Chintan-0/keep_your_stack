@@ -14,6 +14,7 @@ import { FilterBar, DEFAULT_FILTERS, applyFiltersAndSort, type Filters } from "@
 import { categoryName, cn } from "@/lib/utils";
 import { tokenizeQuery, highlightSegments } from "@/lib/search-highlight";
 import { markSearchPerformed } from "@/components/onboarding-panel";
+import { tagColor } from "@/lib/colors";
 
 const EXAMPLES = ["compress images", "test graphql", "react components", "svg to react"];
 const RECENT_SEARCHES_KEY = "kys_recent_searches";
@@ -447,7 +448,7 @@ export default function SearchPage() {
                       {resource.tagIds.slice(0, 4).map((tid) => {
                         const t = useStore.getState().tags.find((tag) => tag.id === tid);
                         return t ? (
-                          <Tag key={tid}>
+                          <Tag key={tid} color={tagColor(t.name)}>
                             <Highlight text={t.name} tokens={tokens} />
                           </Tag>
                         ) : null;

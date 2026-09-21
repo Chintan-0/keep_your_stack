@@ -11,8 +11,27 @@ import { ResourceCardSkeleton } from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
 import { OnboardingPanel } from "@/components/onboarding-panel";
 import { needsReview as isNeedsReview, cn } from "@/lib/utils";
+import { SEMANTIC_COLOR_CLASSES, tagColor, type SemanticColor } from "@/lib/colors";
 
-const EXAMPLES = ["compress webp", "test graphql", "format prisma", "convert svg", "database tool"];
+// Fixed, hand-placed positions (not randomized — stable across renders and
+// reloads) for the small real-tag chips floating around the hero on large
+// screens only. Kept well clear of the search field's own horizontal
+// space (roughly 25%–75% x, center y) so they never overlap the input.
+const FLOATING_CHIP_POSITIONS: React.CSSProperties[] = [
+  { left: "6%", top: "8%" },
+  { right: "8%", top: "14%" },
+  { left: "10%", bottom: "10%" },
+  { right: "6%", bottom: "18%" },
+  { left: "50%", top: "2%", transform: "translateX(-50%)" },
+];
+
+const EXAMPLES: { text: string; color: SemanticColor }[] = [
+  { text: "compress webp", color: "cyan" },
+  { text: "test graphql", color: "blue" },
+  { text: "format prisma", color: "violet" },
+  { text: "convert svg", color: "warning" },
+  { text: "database tool", color: "cyan" },
+];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -47,6 +66,11 @@ export default function DashboardPage() {
       .filter(Boolean) as { id: string; name: string }[];
   }, [active, tags]);
 
+  // A handful of the user's own real tags/categories, gently placed around
+  // the hero (desktop only — see the className below) — real workspace
+  // context, not decorative placeholder words (§9).
+  const floatingChips = useMemo(() => popularTags.slice(0, 5), [popularTags]);
+
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     if (query.trim()) router.push(`/search?q=${encodeURIComponent(query.trim())}`);
@@ -60,8 +84,42 @@ export default function DashboardPage() {
           No card border/background box around it and no Add Resource
           button underneath: the search itself is the hero action, kept
           visually distinct from the compact utility search in the top
-          bar (⌘K) by scale, placement, and the supporting copy around it. */}
-      <section className="flex flex-col items-center gap-5 pt-2 text-center">
+          bar (⌘K) by scale, placement, and the supporting copy around it.
+          A soft multi-tone radial gradient (indigo/blue/cyan, very low
+          opacity) and a handful of the user's own real tags sit behind
+          it for depth — decorative but never fake data, and dropped
+          entirely below lg so small screens stay clean and fast (§29). */}
+      <section className="relative flex flex-col items-center gap-5 overflow-hidden pt-2 text-center">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 hidden lg:block"
+          style={{
+            background:
+              "radial-gradient(480px 280px at 20% 15%, rgba(111,123,255,0.10), transparent 70%), radial-gradient(420px 260px at 82% 20%, rgba(91,157,255,0.08), transparent 70%), radial-gradient(460px 300px at 50% 100%, rgba(34,211,238,0.07), transparent 70%)",
+          }}
+        />
+        {floatingChips.length > 0 && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 hidden lg:block">
+            {floatingChips.map((t, i) => {
+              const pos = FLOATING_CHIP_POSITIONS[i % FLOATING_CHIP_POSITIONS.length];
+              const palette = SEMANTIC_COLOR_CLASSES[tagColor(t.name)];
+              return (
+                <span
+                  key={t.id}
+                  className={cn(
+                    "absolute rounded-full border border-transparent px-2.5 py-1 font-mono text-[11px] opacity-60",
+                    palette.soft,
+                    palette.text
+                  )}
+                  style={pos}
+                >
+                  {t.name}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
         <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-muted">Your toolbox</span>
         <h1 className="text-[30px] font-semibold tracking-tight text-text-primary sm:text-[38px]">
           What are you looking for?
@@ -78,7 +136,7 @@ export default function DashboardPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="compress webp, test graphql, jwt decoder…"
-            className="h-14 w-full rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 pl-12 pr-16 text-[15px] text-text-primary placeholder-text-muted transition-shadow duration-200 focus:border-accent focus:shadow-[0_0_0_4px_var(--accent-soft)] focus:outline-none motion-reduce:transition-none"
+            className="h-14 w-full rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 pl-12 pr-16 text-[15px] text-text-primary placeholder-text-muted shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] transition-shadow duration-200 focus:border-accent focus:shadow-[0_0_0_4px_var(--accent-soft),0_0_24px_-8px_var(--cyan)] focus:outline-none motion-reduce:transition-none"
           />
           <kbd className="kbd absolute right-4 top-1/2 -translate-y-1/2 rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted">
             ⌘K
@@ -86,15 +144,23 @@ export default function DashboardPage() {
         </form>
 
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              onClick={() => router.push(`/search?q=${encodeURIComponent(ex)}`)}
-              className="rounded-full border border-border bg-surface-2 px-3 py-1.5 text-[12.5px] text-text-secondary transition-colors duration-150 hover:border-accent/40 hover:bg-surface-3 hover:text-text-primary cursor-pointer"
-            >
-              {ex}
-            </button>
-          ))}
+          {EXAMPLES.map((ex) => {
+            const palette = SEMANTIC_COLOR_CLASSES[ex.color];
+            return (
+              <button
+                key={ex.text}
+                onClick={() => router.push(`/search?q=${encodeURIComponent(ex.text)}`)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-[12.5px] transition-all duration-150 hover:brightness-110 cursor-pointer",
+                  palette.soft,
+                  palette.text
+                )}
+              >
+                <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", palette.dot)} />
+                {ex.text}
+              </button>
+            );
+          })}
         </div>
 
         {/* Small, integrated workspace context — not decorative filler.
@@ -118,14 +184,11 @@ export default function DashboardPage() {
           section it links to (blue → the library, amber → favorites,
           cyan → recently added, violet → stacks), never as the only
           signal (the label text says the same thing either way). */}
-      <section className="flex flex-wrap items-center gap-x-8 gap-y-5 border-y border-border/70 py-5">
-        <MetricLink href="/resources" value={stats?.total ?? active.length} label="Resources" colorClass="text-blue" />
-        <Divider />
-        <MetricLink href="/favorites" value={stats?.favorites ?? favorites.length} label="Favorites" colorClass="text-warning" />
-        <Divider />
-        <MetricLink href="/recent" value={stats?.addedRecently ?? 0} label="Added recently" colorClass="text-cyan" />
-        <Divider />
-        <MetricLink href="/stacks" value={stacks.length} label={stacks.length === 1 ? "Stack" : "Stacks"} colorClass="text-violet" />
+      <section className="flex flex-wrap items-center gap-x-3 gap-y-3">
+        <MetricPill href="/resources" value={stats?.total ?? active.length} label="Resources" color="blue" />
+        <MetricPill href="/favorites" value={stats?.favorites ?? favorites.length} label="Favorites" color="warning" />
+        <MetricPill href="/recent" value={stats?.addedRecently ?? 0} label="Added recently" color="cyan" />
+        <MetricPill href="/stacks" value={stacks.length} label={stacks.length === 1 ? "Stack" : "Stacks"} color="violet" />
       </section>
 
       {/* Recently added — the OnboardingPanel above already covers the
@@ -184,7 +247,7 @@ export default function DashboardPage() {
           <SectionHeader title="Popular Tags" href="/resources" />
           <div className="flex flex-wrap gap-2">
             {popularTags.map((t) => (
-              <Tag key={t.id} onClick={() => router.push(`/resources?tag=${t.id}`)}>
+              <Tag key={t.id} color={tagColor(t.name)} onClick={() => router.push(`/resources?tag=${t.id}`)}>
                 {t.name}
               </Tag>
             ))}
@@ -195,26 +258,28 @@ export default function DashboardPage() {
   );
 }
 
-function Divider() {
-  return <span aria-hidden="true" className="hidden h-9 w-px bg-border sm:block" />;
-}
-
-function MetricLink({
+function MetricPill({
   href,
   value,
   label,
-  colorClass,
+  color,
 }: {
   href: string;
   value: number;
   label: string;
-  colorClass: string;
+  color: SemanticColor;
 }) {
+  const palette = SEMANTIC_COLOR_CLASSES[color];
   return (
-    <Link href={href} className="group flex items-baseline gap-2">
-      <span className={cn("text-[26px] font-semibold leading-none tracking-tight transition-colors duration-150", colorClass)}>
-        {value}
-      </span>
+    <Link
+      href={href}
+      className={cn(
+        "group flex items-center gap-2.5 rounded-[var(--radius-md)] border border-transparent px-3.5 py-2.5 transition-all duration-150 hover:border-border",
+        palette.soft
+      )}
+    >
+      <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", palette.dot)} />
+      <span className={cn("text-[22px] font-semibold leading-none tracking-tight", palette.text)}>{value}</span>
       <span className="text-[12.5px] text-text-secondary transition-colors duration-150 group-hover:text-text-primary">
         {label}
       </span>

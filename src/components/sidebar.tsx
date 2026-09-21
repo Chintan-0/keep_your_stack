@@ -22,6 +22,7 @@ import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { useNow } from "@/lib/use-now";
 import { cn, needsReview as isNeedsReview } from "@/lib/utils";
+import { SEMANTIC_COLOR_CLASSES, tagColor } from "@/lib/colors";
 
 const COLOR_DOT: Record<string, string> = {
   accent: "bg-accent",
@@ -184,15 +185,23 @@ export function Sidebar() {
         <div className="flex flex-col gap-1.5">
           <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Popular tags</p>
           <div className="flex flex-wrap gap-1.5 px-2.5">
-            {popularTags.map((t) => (
-              <Link
-                key={t.id}
-                href={`/resources?tag=${t.id}`}
-                className="rounded-full border border-border bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-text-secondary hover:border-border-strong hover:text-text-primary"
-              >
-                {t.name}
-              </Link>
-            ))}
+            {popularTags.map((t) => {
+              const palette = SEMANTIC_COLOR_CLASSES[tagColor(t.name)];
+              return (
+                <Link
+                  key={t.id}
+                  href={`/resources?tag=${t.id}`}
+                  className={cn(
+                    "flex items-center gap-1 rounded-full border border-transparent px-2 py-0.5 font-mono text-[11px] transition-colors hover:brightness-110",
+                    palette.soft,
+                    palette.text
+                  )}
+                >
+                  <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", palette.dot)} />
+                  {t.name}
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
@@ -200,12 +209,12 @@ export function Sidebar() {
       <div className="mt-auto flex flex-col gap-4 border-t border-border pt-3">
         <div className="flex flex-col gap-0.5">
           <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Organize</p>
-          <NavLink href="/stack-studio" icon={Wand2} label="Stack Studio" />
-          <NavLink href="/import" icon={Upload} label="Import Bookmarks" />
+          <NavLink href="/stack-studio" icon={Wand2} label="Stack Studio" iconClassName="text-violet" />
+          <NavLink href="/import" icon={Upload} label="Import Bookmarks" iconClassName="text-orange" />
         </div>
         <div className="flex flex-col gap-0.5">
           <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Connect</p>
-          <NavLink href="/extension" icon={Puzzle} label="Browser Extension" />
+          <NavLink href="/extension" icon={Puzzle} label="Browser Extension" iconClassName="text-cyan" />
         </div>
         <div className="flex flex-col gap-0.5">
           <NavLink href="/settings" icon={SlidersHorizontal} label="Settings" />
