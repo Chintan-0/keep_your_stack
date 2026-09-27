@@ -150,7 +150,16 @@ export type EventType =
   | "first_import_completed"
   | "first_stack_created"
   | "first_favorite"
-  | "feedback_submitted";
+  | "feedback_submitted"
+  // Stack Studio 2.0: visual canvas workspace
+  | "stack_studio_map_viewed"
+  | "studio_resource_moved"
+  | "studio_category_created"
+  | "studio_auto_organize_started"
+  | "studio_auto_organize_completed"
+  | "studio_filter_used"
+  | "studio_search_used"
+  | "studio_map_interaction";
 
 export interface TrackEventInput {
   eventType: EventType;

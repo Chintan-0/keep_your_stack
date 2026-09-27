@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Link2, Loader2, AlertTriangle, CheckCircle2, Sparkles, ChevronDown } from "lucide-react";
+import { Link2, Loader2, AlertTriangle, CheckCircle2, ChevronDown } from "lucide-react";
 import { Modal, ModalHeader } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Favicon } from "@/components/ui/favicon";
@@ -62,7 +62,11 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
   const [domain, setDomain] = useState("");
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [useCaseDraft, setUseCaseDraft] = useState("");
+  // Not user-editable in this form (kept lightweight — see removal of the
+  // "Useful For" field, Stack Studio 2.0 §2). Still populated from
+  // deterministic enrichment below when confidence allows, and still fully
+  // editable afterward from the Edit Resource modal or the resource detail
+  // page.
   const [useCases, setUseCases] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
@@ -125,23 +129,8 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function addUseCase() {
-    const v = useCaseDraft.trim();
-    if (!v) return;
-    setUseCases((prev) => [...prev, v]);
-    setUseCaseDraft("");
-  }
-
   async function save(force = false) {
     setSaving(true);
-    // A "Useful For" phrase the user typed but never explicitly committed
-    // (pressing Enter or clicking Add) would otherwise be silently
-    // dropped on save — found during a real end-to-end test (Phase 17
-    // §35): typing context then hitting "Save Resource" directly, without
-    // an extra Enter, discarded exactly the thing the modal was
-    // encouraging the user to add. Flush it into the real list first.
-    const pendingUseCase = useCaseDraft.trim();
-    const finalUseCases = pendingUseCase ? [...useCases, pendingUseCase] : useCases;
     try {
       const { resource, duplicate } = await addResource(
         {
@@ -149,7 +138,7 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
           title,
           description,
           categoryId,
-          useCases: finalUseCases,
+          useCases,
           notes,
           tagNames: tags,
           stackIds,
@@ -296,46 +285,6 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
                 placeholder="What does this do?"
                 className="resize-none rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 py-2 text-[13px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
               />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
-                <Sparkles size={13} className="text-accent" /> What is this useful for?
-              </label>
-              <div className="flex gap-2">
-                <input
-                  value={useCaseDraft}
-                  onChange={(e) => setUseCaseDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addUseCase();
-                    }
-                  }}
-                  placeholder="e.g. Compress images before upload"
-                  className="h-9 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
-                />
-                <Button type="button" variant="secondary" size="sm" onClick={addUseCase}>
-                  Add
-                </Button>
-              </div>
-              {useCases.length > 0 && (
-                <ul className="flex flex-col gap-1 pt-0.5">
-                  {useCases.map((uc, i) => (
-                    <li key={i} className="flex items-center gap-2 text-[12.5px] text-text-secondary">
-                      <span className="text-accent">•</span>
-                      {uc}
-                      <button
-                        type="button"
-                        onClick={() => setUseCases(useCases.filter((_, idx) => idx !== i))}
-                        className="ml-auto text-text-muted hover:text-danger cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
 
             {!showMoreContext ? (

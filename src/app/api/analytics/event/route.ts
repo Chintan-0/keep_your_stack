@@ -48,6 +48,14 @@ const ALLOWED: ReadonlySet<EventType> = new Set([
   "onboarding_started",
   "onboarding_completed",
   "onboarding_skipped",
+  "stack_studio_map_viewed",
+  "studio_resource_moved",
+  "studio_category_created",
+  "studio_auto_organize_started",
+  "studio_auto_organize_completed",
+  "studio_filter_used",
+  "studio_search_used",
+  "studio_map_interaction",
 ]);
 
 export async function POST(request: NextRequest) {
@@ -89,7 +97,7 @@ export async function POST(request: NextRequest) {
       const value = (rawMetadata as Record<string, unknown>)[key];
       if (typeof value === "string") metadata[key] = value.slice(0, key === "message" ? 200 : 100);
     }
-    for (const key of ["count", "total", "imported", "duplicates", "failed", "needsReview"]) {
+    for (const key of ["count", "total", "imported", "duplicates", "failed", "needsReview", "resourceCount"]) {
       const value = (rawMetadata as Record<string, unknown>)[key];
       if (typeof value === "number" && Number.isFinite(value)) metadata[key] = value;
     }

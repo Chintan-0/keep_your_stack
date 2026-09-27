@@ -24,6 +24,7 @@ import { columnsForWidth, buildBoardRows, type BoardRow } from "@/lib/stack-stud
 import { runWithConcurrency } from "@/lib/concurrency";
 import { Button } from "@/components/ui/button";
 import { StudioCard, type StudioItem } from "@/components/stack-studio/studio-card";
+import { StudioCanvas } from "@/components/stack-studio/studio-canvas";
 import type { Resource } from "@/lib/types";
 
 // Stack Studio deliberately reuses, rather than reimplements, every piece
@@ -36,7 +37,7 @@ import type { Resource } from "@/lib/types";
 // (Phase 11) for the session record — no new backend import machinery,
 // only a new front-end experience and the organization workspace around it.
 
-type Stage = "entry" | "preview" | "importing" | "workspace" | "summary";
+type Stage = "entry" | "preview" | "importing" | "workspace" | "summary" | "canvas";
 
 interface Classified extends ParsedBookmark {
   normalized: string | null;
@@ -78,8 +79,48 @@ export default function StackStudioPage() {
   const bulkAddTags = useStore((s) => s.bulkAddTags);
   const bulkArchiveResources = useStore((s) => s.bulkArchiveResources);
   const hydrate = useStore((s) => s.hydrate);
+  const hasHydrated = useStore((s) => s.hasHydrated);
+  const allResources = useStore((s) => s.resources);
+  const loadMoreResources = useStore((s) => s.loadMoreResources);
+  const libraryTotal = useStore((s) => s.stats?.total);
 
   const [stage, setStage] = useState<Stage>("entry");
+  // The Studio's default view is the canvas — the whole library, spatially
+  // — not the bookmark-import drop zone (§3). "entry" now only means "you
+  // have nothing yet" or "you explicitly chose to import more." This runs
+  // once, after the store finishes its first hydrate, so a returning user
+  // with an existing library lands straight on their map instead of seeing
+  // the import screen flash first.
+  const initializedStage = useRef(false);
+  useEffect(() => {
+    if (initializedStage.current || !hasHydrated) return;
+    initializedStage.current = true;
+    if (allResources.length > 0) setStage("canvas");
+  }, [hasHydrated, allResources.length]);
+
+  // The rest of the app deliberately keeps `resources` paginated (Home §—
+  // "must NOT fetch the entire library"), but the Studio's whole premise is
+  // a spatial map of the ENTIRE library — a 300-resource map isn't a map of
+  // anything. Rather than gate the canvas behind one giant fetch, keep
+  // paging in the background the moment the canvas is reached: the shell
+  // and first 300 resources appear immediately (same store, same
+  // hydrate()), and the map fills in progressively as more pages arrive —
+  // never a blank stare-at-nothing wait.
+  const startedFullLoad = useRef(false);
+  const [loadingFullLibrary, setLoadingFullLibrary] = useState(false);
+  useEffect(() => {
+    if (stage !== "canvas" || startedFullLoad.current) return;
+    if (!useStore.getState().resourcesHasMore) return;
+    startedFullLoad.current = true;
+    setLoadingFullLibrary(true);
+    void (async () => {
+      while (useStore.getState().resourcesHasMore) {
+        await loadMoreResources();
+      }
+      setLoadingFullLibrary(false);
+    })();
+  }, [stage, loadMoreResources]);
+
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -530,9 +571,18 @@ export default function StackStudioPage() {
           <p className="text-[11px] text-text-muted">Chrome / Firefox / Edge exported HTML bookmarks</p>
         </div>
 
-        <Link href="/home" className="flex items-center gap-1 text-[12.5px] text-text-secondary hover:text-text-primary">
-          <ArrowLeft size={13} /> Back to library
-        </Link>
+        {allResources.length > 0 ? (
+          <button
+            onClick={() => setStage("canvas")}
+            className="flex items-center gap-1 text-[12.5px] text-text-secondary hover:text-text-primary cursor-pointer"
+          >
+            <ArrowLeft size={13} /> Back to your map
+          </button>
+        ) : (
+          <Link href="/home" className="flex items-center gap-1 text-[12.5px] text-text-secondary hover:text-text-primary">
+            <ArrowLeft size={13} /> Back to library
+          </Link>
+        )}
       </div>
     );
   }
@@ -614,7 +664,7 @@ export default function StackStudioPage() {
           ))}
         </div>
         <div className="flex items-center justify-center gap-3">
-          <Button variant="secondary" onClick={() => setStage("workspace")}>
+          <Button variant="secondary" onClick={() => setStage("canvas")}>
             Keep organizing
           </Button>
           <Button onClick={() => router.push("/resources")}>View my library</Button>
@@ -623,7 +673,23 @@ export default function StackStudioPage() {
     );
   }
 
-  // ── Workspace ────────────────────────────────────────────────────────
+  if (stage === "canvas") {
+    return (
+      <StudioCanvas
+        highlightRecent={items.length > 0}
+        onImport={() => setStage("entry")}
+        reviewCount={reviewItems.length}
+        onOpenReviewBoard={reviewItems.length > 0 ? () => setStage("workspace") : undefined}
+        loadingMore={loadingFullLibrary}
+        loadedCount={allResources.length}
+        totalCount={libraryTotal}
+      />
+    );
+  }
+
+  // ── Workspace (secondary "review board" — reachable from the canvas's
+  // "Needs review" chip when a recent import left low-confidence items
+  // unresolved; see §40, preserve rather than replace) ───────────────────
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -635,6 +701,11 @@ export default function StackStudioPage() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {allResources.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setStage("canvas")}>
+              Back to map
+            </Button>
+          )}
           <Button variant="secondary" size="sm" onClick={() => void runAutoOrganize()}>
             <Sparkles size={13} /> Auto-organize
           </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
@@ -34,6 +34,7 @@ import { CategorySelector } from "@/components/category-selector";
 import { ResourceCard } from "@/components/resource-card";
 import { formatAbsoluteDate, formatRelativeDate, PRICING_LABELS, PLATFORM_LABELS, cn } from "@/lib/utils";
 import { tokenizeQuery } from "@/lib/search-highlight";
+import { useDismissableMenu } from "@/lib/use-dismissable-menu";
 
 export default function ResourceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -56,6 +57,8 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useDismissableMenu(menuOpen, () => setMenuOpen(false), menuRef);
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveCategoryId, setMoveCategoryId] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
@@ -153,7 +156,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
               <p className="font-mono text-[12.5px] text-text-muted">{resource.domain}</p>
             </div>
           </div>
-          <div className="relative flex items-center gap-1.5">
+          <div ref={menuRef} className="relative flex items-center gap-1.5">
             <button
               onClick={() => toggleFavorite(resource.id)}
               className={cn(
@@ -166,47 +169,63 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
             </button>
             <button
               onClick={() => setMenuOpen((v) => !v)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setMenuOpen(true);
+                }
+              }}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
               className="rounded-md p-2 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
               aria-label="More actions"
             >
               <MoreHorizontal size={18} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-[var(--radius-md)] border border-border-strong bg-surface-2 py-1 shadow-xl">
+              <div
+                role="menu"
+                aria-label="Resource actions"
+                className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-[var(--radius-md)] border border-border-strong bg-surface-2 py-1 shadow-xl animate-fade-in"
+              >
                 <button
+                  role="menuitem"
                   onClick={() => {
-                    openEditResource(resource.id);
                     setMenuOpen(false);
+                    openEditResource(resource.id);
                   }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-surface-3 cursor-pointer"
                 >
                   <Pencil size={14} /> Edit
                 </button>
                 <button
+                  role="menuitem"
                   onClick={() => {
+                    setMenuOpen(false);
                     navigator.clipboard?.writeText(resource.url);
                     toast.success("URL copied");
-                    setMenuOpen(false);
                   }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-surface-3 cursor-pointer"
                 >
                   <Copy size={14} /> Copy URL
                 </button>
                 <button
+                  role="menuitem"
                   onClick={() => {
+                    setMenuOpen(false);
                     setMoveCategoryId(resource.categoryId);
                     setMoveOpen(true);
-                    setMenuOpen(false);
                   }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-surface-3 cursor-pointer"
                 >
                   <FolderInput size={14} /> Move
                 </button>
                 <button
+                  role="menuitem"
                   onClick={() => {
+                    setMenuOpen(false);
                     archiveResource(resource.id);
                     toast.success("Archived");
-                    setMenuOpen(false);
                     router.push("/resources");
                   }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-surface-3 cursor-pointer"
@@ -214,9 +233,10 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
                   <Archive size={14} /> Archive
                 </button>
                 <button
+                  role="menuitem"
                   onClick={() => {
-                    setConfirmDelete(true);
                     setMenuOpen(false);
+                    setConfirmDelete(true);
                   }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-danger hover:bg-danger-soft cursor-pointer"
                 >
