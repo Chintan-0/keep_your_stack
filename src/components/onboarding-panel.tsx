@@ -114,7 +114,7 @@ export function OnboardingPanel() {
           <button
             onClick={() => void dismiss("onboarding_skipped")}
             aria-label="Skip onboarding"
-            className="shrink-0 rounded-md p-1 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+            className="shrink-0 rounded-[var(--radius-sm)] p-1 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
           >
             <X size={16} />
           </button>
@@ -170,7 +170,7 @@ export function OnboardingPanel() {
         <button
           onClick={() => void dismiss("onboarding_skipped")}
           aria-label="Dismiss checklist"
-          className="rounded-md p-0.5 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+          className="rounded-[var(--radius-sm)] p-0.5 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
         >
           <X size={14} />
         </button>

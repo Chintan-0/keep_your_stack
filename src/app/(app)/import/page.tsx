@@ -1004,7 +1004,7 @@ export default function ImportPage() {
                             {!isInvalid && (
                               <button
                                 onClick={() => setExpandedUrl(isExpanded ? null : b.url)}
-                                className="shrink-0 rounded-md p-1.5 text-text-muted hover:bg-surface-hover hover:text-text-primary cursor-pointer"
+                                className="shrink-0 rounded-[var(--radius-sm)] p-1.5 text-text-muted hover:bg-surface-hover hover:text-text-primary cursor-pointer"
                                 aria-label="Edit this bookmark's organization"
                               >
                                 <Pencil size={13} />

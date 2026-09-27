@@ -16,7 +16,7 @@ export function TopBar({ userEmail, userName }: { userEmail: string; userName: s
       <div className="flex items-center gap-2">
         <button
           onClick={() => setMobileNavOpen(true)}
-          className="rounded-md p-1.5 text-text-secondary hover:bg-surface-3 md:hidden cursor-pointer"
+          className="rounded-[var(--radius-sm)] p-1.5 text-text-secondary hover:bg-surface-3 md:hidden cursor-pointer"
           aria-label="Open menu"
         >
           <Menu size={18} />

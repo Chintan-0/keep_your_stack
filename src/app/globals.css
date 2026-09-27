@@ -41,6 +41,13 @@
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
   --scrollbar-thumb-hover: #3a4356;
+  /* A subtle top-edge highlight for large "glass-ish" surfaces (the Home
+     hero search). A light streak reads as a catch-light on a dark
+     surface; light mode needs the opposite (a faint dark inset) or the
+     same rgba(255,255,255,..) is either invisible or looks like a stray
+     bright sliver on an already-light surface — see globals.css light
+     block below. */
+  --surface-inset-highlight: rgba(255, 255, 255, 0.04);
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -135,6 +142,7 @@ html {
   --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.08);
   --scrollbar-thumb-hover: #b9bfc9;
+  --surface-inset-highlight: rgba(0, 0, 0, 0.035);
 }
 
 @media (prefers-color-scheme: light) {
@@ -170,6 +178,7 @@ html {
     --danger: #dc2626;
     --danger-soft: rgba(220, 38, 38, 0.08);
     --scrollbar-thumb-hover: #b9bfc9;
+    --surface-inset-highlight: rgba(0, 0, 0, 0.035);
   }
 }
 

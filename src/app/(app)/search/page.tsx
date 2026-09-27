@@ -367,7 +367,7 @@ export default function SearchPage() {
                       <li>· a category</li>
                       <li>· what the tool <em>does</em>, not its name</li>
                     </ul>
-                    <p className="mt-2 font-mono text-[11.5px] text-text-muted">
+                    <p className="mt-2 text-[11.5px] text-text-muted">
                       instead of &ldquo;Hoppscotch&rdquo; try &ldquo;test APIs&rdquo;
                     </p>
                   </div>
@@ -427,7 +427,7 @@ export default function SearchPage() {
                       <button
                         onClick={() => toggleFavorite(resource.id)}
                         className={cn(
-                          "rounded-md p-1.5 cursor-pointer",
+                          "rounded-[var(--radius-sm)] p-1.5 cursor-pointer",
                           resource.isFavorite ? "text-warning" : "text-text-muted hover:text-warning"
                         )}
                       >
@@ -437,7 +437,7 @@ export default function SearchPage() {
                         href={resource.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-md p-1.5 text-text-muted hover:text-accent cursor-pointer"
+                        className="rounded-[var(--radius-sm)] p-1.5 text-text-muted hover:text-accent cursor-pointer"
                       >
                         <ArrowUpRight size={15} />
                       </a>

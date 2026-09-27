@@ -111,7 +111,7 @@ export function ResourceCard({
             <button
               onClick={() => toggleFavorite(resource.id)}
               className={cn(
-                "shrink-0 rounded-md p-1.5 transition-colors cursor-pointer",
+                "shrink-0 rounded-[var(--radius-sm)] p-1.5 transition-colors cursor-pointer",
                 resource.isFavorite ? "text-warning" : "text-text-muted hover:text-warning"
               )}
               aria-label="Toggle favorite"
@@ -121,7 +121,7 @@ export function ResourceCard({
             {showEdit && (
               <button
                 onClick={() => openEditResource(resource.id)}
-                className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:text-text-primary cursor-pointer"
+                className="shrink-0 rounded-[var(--radius-sm)] p-1.5 text-text-muted transition-colors hover:text-text-primary cursor-pointer"
                 aria-label="Edit resource"
               >
                 <Pencil size={15} />
@@ -131,7 +131,7 @@ export function ResourceCard({
               href={resource.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="shrink-0 rounded-md p-1.5 text-text-muted transition-colors hover:text-accent cursor-pointer"
+              className="shrink-0 rounded-[var(--radius-sm)] p-1.5 text-text-muted transition-colors hover:text-accent cursor-pointer"
               aria-label="Open resource"
             >
               <ArrowUpRight size={16} />
@@ -160,7 +160,7 @@ export function ResourceCard({
         <div className="flex min-w-0 items-center gap-2.5">
           {Checkbox}
           <span
-            className="relative flex shrink-0 items-center justify-center rounded-[10px]"
+            className="relative flex shrink-0 items-center justify-center rounded-[var(--radius-md)]"
             style={{ boxShadow: selectable ? undefined : `0 0 16px -2px var(--${accentColorKey})` }}
           >
             <Favicon seed={resource.title} size={32} />
@@ -182,7 +182,7 @@ export function ResourceCard({
           <button
             onClick={() => toggleFavorite(resource.id)}
             className={cn(
-              "shrink-0 rounded-md p-1 transition-all duration-150 cursor-pointer motion-reduce:transition-none",
+              "shrink-0 rounded-[var(--radius-sm)] p-1 transition-all duration-150 cursor-pointer motion-reduce:transition-none",
               resource.isFavorite
                 ? "text-warning opacity-100"
                 : "text-text-muted opacity-40 hover:text-warning hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100"

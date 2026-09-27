@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { CanvasNode } from "./canvas-node";
 import { RegionDensityField } from "./region-density-field";
 import { KysLoader } from "@/components/ui/kys-loader";
+import { WarningBadge } from "@/components/ui/warning-badge";
 import { AutoOrganizeModal } from "./auto-organize-modal";
 import { StudioMobileList } from "./studio-mobile-list";
 import { Button } from "@/components/ui/button";
@@ -839,12 +840,7 @@ function StudioToolbar({
         ))}
         <div className="ml-auto flex items-center gap-2">
           {reviewCount > 0 && onOpenReviewBoard && (
-            <button
-              onClick={onOpenReviewBoard}
-              className="rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-[12px] font-medium text-warning cursor-pointer"
-            >
-              Needs review · {reviewCount}
-            </button>
+            <WarningBadge onClick={onOpenReviewBoard}>Needs review · {reviewCount}</WarningBadge>
           )}
           <Button variant="secondary" size="sm" onClick={onImport}>
             <UploadCloud size={13} /> Import

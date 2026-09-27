@@ -117,7 +117,7 @@ export function Sidebar() {
     <>
       {mobileNavOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/60 md:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-fade-in md:hidden"
           onClick={() => setMobileNavOpen(false)}
         />
       )}

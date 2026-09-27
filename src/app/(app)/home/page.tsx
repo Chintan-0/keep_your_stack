@@ -136,7 +136,7 @@ export default function DashboardPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="compress webp, test graphql, jwt decoder…"
-            className="h-14 w-full rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 pl-12 pr-16 text-[15px] text-text-primary placeholder-text-muted shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)] transition-shadow duration-200 focus:border-accent focus:shadow-[0_0_0_4px_var(--accent-soft),0_0_24px_-8px_var(--cyan)] focus:outline-none motion-reduce:transition-none"
+            className="h-14 w-full rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 pl-12 pr-16 text-[15px] text-text-primary placeholder-text-muted shadow-[inset_0_1px_0_0_var(--surface-inset-highlight)] transition-shadow duration-200 focus:border-accent focus:shadow-[0_0_0_4px_var(--accent-soft),0_0_24px_-8px_var(--cyan)] focus:outline-none motion-reduce:transition-none"
           />
           <kbd className="kbd absolute right-4 top-1/2 -translate-y-1/2 rounded border border-border px-1.5 py-0.5 text-[10px] text-text-muted">
             ⌘K

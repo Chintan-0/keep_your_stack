@@ -24,6 +24,7 @@ import { columnsForWidth, buildBoardRows, type BoardRow } from "@/lib/stack-stud
 import { runWithConcurrency } from "@/lib/concurrency";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { WarningBadge } from "@/components/ui/warning-badge";
 import { StudioCard, type StudioItem } from "@/components/stack-studio/studio-card";
 import { StudioCanvas } from "@/components/stack-studio/studio-canvas";
 import type { Resource } from "@/lib/types";
@@ -738,12 +739,9 @@ export default function StackStudioPage() {
           </button>
         )}
         {reviewItems.length > 0 && (
-          <button
-            onClick={() => openReviewMode()}
-            className="ml-auto rounded-full border border-warning/40 bg-warning/10 px-3 py-1 text-[12px] font-medium text-warning cursor-pointer"
-          >
+          <WarningBadge onClick={() => openReviewMode()} className="ml-auto">
             Needs your brain 🧠 · {reviewItems.length}
-          </button>
+          </WarningBadge>
         )}
       </div>
 
@@ -965,7 +963,7 @@ function ReviewOverlay({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
       <div className="flex w-full max-w-md flex-col gap-4 rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 p-6 shadow-2xl">
         <div className="flex items-center justify-between text-[12px] text-text-muted">
           <span>

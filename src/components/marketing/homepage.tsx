@@ -315,7 +315,7 @@ function ContextFirst() {
         <Reveal delay={150}>
           <div className="rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 p-5 shadow-xl">
             <div className="flex items-center gap-2.5 border-b border-border pb-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-cyan/15 font-bold text-cyan">H</span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-cyan/15 font-bold text-cyan">H</span>
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold text-text-primary">Hoppscotch</p>
                 <p className="truncate font-mono text-[11px] text-text-muted">hoppscotch.io</p>

@@ -160,7 +160,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
             <button
               onClick={() => toggleFavorite(resource.id)}
               className={cn(
-                "rounded-md p-2 transition-colors cursor-pointer",
+                "rounded-[var(--radius-sm)] p-2 transition-colors cursor-pointer",
                 resource.isFavorite ? "text-warning" : "text-text-muted hover:text-warning"
               )}
               aria-label="Toggle favorite"
@@ -177,7 +177,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
               }}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="rounded-md p-2 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+              className="rounded-[var(--radius-sm)] p-2 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
               aria-label="More actions"
             >
               <MoreHorizontal size={18} />

@@ -74,7 +74,7 @@ export function ModalHeader({
       </div>
       <button
         onClick={onClose}
-        className="rounded-md p-1 text-text-secondary hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+        className="rounded-[var(--radius-sm)] p-1 text-text-secondary hover:bg-surface-3 hover:text-text-primary cursor-pointer"
         aria-label="Close"
       >
         <X size={18} />

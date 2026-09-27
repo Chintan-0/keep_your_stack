@@ -5,7 +5,7 @@ export function Favicon({ seed, size = 32, className }: { seed: string; size?: n
   const color = faviconColor(seed);
   return (
     <div
-      className={cn("flex items-center justify-center rounded-[8px] font-semibold shrink-0", className)}
+      className={cn("flex items-center justify-center rounded-[var(--radius-sm)] font-semibold shrink-0", className)}
       style={{
         width: size,
         height: size,
