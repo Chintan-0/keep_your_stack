@@ -7,7 +7,7 @@ import { Search, ArrowRight } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ResourceCard } from "@/components/resource-card";
 import { StackCard } from "@/components/stack-card";
-import { ResourceCardSkeleton } from "@/components/ui/skeleton";
+import { ResourceCardSkeleton, StackCardSkeleton } from "@/components/ui/skeleton";
 import { Tag } from "@/components/ui/tag";
 import { OnboardingPanel } from "@/components/onboarding-panel";
 import { needsReview as isNeedsReview, cn } from "@/lib/utils";
@@ -217,15 +217,26 @@ export default function DashboardPage() {
       ) : null}
 
       {/* Your stacks */}
-      {stacks.length > 0 && (
+      {!hasHydrated ? (
         <section className="flex flex-col gap-4">
           <SectionHeader title="Your Stacks" href="/stacks" />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {stacks.slice(0, 8).map((s) => (
-              <StackCard key={s.id} stack={s} count={active.filter((r) => r.stackIds.includes(s.id)).length} />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <StackCardSkeleton key={i} />
             ))}
           </div>
         </section>
+      ) : (
+        stacks.length > 0 && (
+          <section className="flex flex-col gap-4">
+            <SectionHeader title="Your Stacks" href="/stacks" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {stacks.slice(0, 8).map((s) => (
+                <StackCard key={s.id} stack={s} count={active.filter((r) => r.stackIds.includes(s.id)).length} />
+              ))}
+            </div>
+          </section>
+        )
       )}
 
       {/* Favorites */}

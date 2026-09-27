@@ -23,6 +23,7 @@ import { suggestOrganization, reviewBucket } from "@/lib/stack-studio";
 import { columnsForWidth, buildBoardRows, type BoardRow } from "@/lib/stack-studio-board";
 import { runWithConcurrency } from "@/lib/concurrency";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { StudioCard, type StudioItem } from "@/components/stack-studio/studio-card";
 import { StudioCanvas } from "@/components/stack-studio/studio-canvas";
 import type { Resource } from "@/lib/types";
@@ -626,18 +627,16 @@ export default function StackStudioPage() {
   }
 
   if (stage === "importing") {
-    const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
     return (
-      <div className="mx-auto flex max-w-lg flex-col items-center gap-5 px-4 py-24 text-center">
-        <Sparkles size={26} className="animate-pulse text-accent" />
-        <h1 className="text-lg font-semibold text-text-primary">{progress.phase || "Importing your bookmarks…"}</h1>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-3">
-          <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${pct}%` }} />
-        </div>
-        <p className="font-mono text-[12.5px] text-text-muted">
-          {progress.done.toLocaleString()} / {progress.total.toLocaleString()}
-        </p>
-      </div>
+      <LoadingOverlay
+        open
+        fixed
+        title={progress.phase || "Importing your bookmarks…"}
+        phase={progress.phase === "Fetching metadata…" ? "finalizing" : "loading"}
+        current={progress.done}
+        total={progress.total}
+        detail={duplicateCount > 0 ? `${duplicateCount.toLocaleString()} duplicates skipped` : undefined}
+      />
     );
   }
 

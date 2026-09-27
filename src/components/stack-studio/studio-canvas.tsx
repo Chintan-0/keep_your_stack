@@ -29,6 +29,7 @@ import { tokenizeQuery } from "@/lib/search-highlight";
 import { cn } from "@/lib/utils";
 import { CanvasNode } from "./canvas-node";
 import { RegionDensityField } from "./region-density-field";
+import { KysLoader } from "@/components/ui/kys-loader";
 import { AutoOrganizeModal } from "./auto-organize-modal";
 import { StudioMobileList } from "./studio-mobile-list";
 import { Button } from "@/components/ui/button";
@@ -819,7 +820,7 @@ function StudioToolbar({
         </div>
         {loadingMore && (
           <span className="flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-2.5 py-1 font-mono text-[10.5px] text-text-muted">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+            <KysLoader size="sm" />
             Loading your library… {loadedCount?.toLocaleString()}
             {totalCount ? ` / ${totalCount.toLocaleString()}` : ""}
           </span>
