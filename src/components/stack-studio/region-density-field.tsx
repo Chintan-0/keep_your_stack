@@ -60,12 +60,23 @@ export function RegionDensityField({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const dpr = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1;
-    canvas.width = Math.max(1, Math.round(width * dpr));
-    canvas.height = Math.max(1, Math.round(height * dpr));
+    // The canvas's CSS display size (`width`/`height` below) is the
+    // region's real, unscaled world-space size — for a library-spanning
+    // "Uncategorized" region that can be several thousand CSS px across.
+    // QA found allocating the actual bitmap at that size (even at DPR 1)
+    // produced a multi-ten-million-pixel canvas that silently failed to
+    // paint at all (rendered fully blank/white) rather than erroring. The
+    // content is a sparse, soft dot field — it doesn't need a pixel-crisp
+    // bitmap at world scale, especially since the outer canvas is itself
+    // scaled down by the current zoom level on screen. Cap the actual
+    // bitmap resolution and let the browser stretch it via CSS instead.
+    const MAX_BITMAP_DIM = 480;
+    const bitmapScale = Math.min(1, MAX_BITMAP_DIM / Math.max(width, height, 1));
+    canvas.width = Math.max(1, Math.round(width * bitmapScale));
+    canvas.height = Math.max(1, Math.round(height * bitmapScale));
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.scale(dpr, dpr);
+    ctx.scale(bitmapScale, bitmapScale);
     ctx.clearRect(0, 0, width, height);
     const dotColor = getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim() || "#888888";
 

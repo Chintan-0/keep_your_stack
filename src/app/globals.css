@@ -40,6 +40,7 @@
   --orange-soft: rgba(251, 146, 60, 0.12);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
+  --scrollbar-thumb-hover: #3a4356;
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -88,6 +89,20 @@ html {
   color-scheme: dark;
 }
 
+/*
+ * Light mode is its own designed theme, not an inverted dark mode — a
+ * flat white-bg/white-card/gray-text/purple-button light theme reproduces
+ * the exact "everything looks the same" problem in a different palette
+ * (Phase 15.7 §18). --background is a cool off-white (not pure #fff) so
+ * --surface (true white) reads as a distinct, elevated layer above it.
+ * Every semantic accent (accent/violet/cyan/blue/warning/coral/orange/
+ * danger) gets its OWN darkened light-mode value, not the dark-mode hex
+ * reused verbatim — several of the dark palette's colors (cyan, warning
+ * especially) fail WCAG text contrast against a near-white background at
+ * their original lightness. The *-soft tint backgrounds keep the original
+ * vivid hue (a low-opacity wash reads fine on light or dark) and only
+ * need a slightly higher opacity to stay visible against white.
+ */
 :root[data-theme="light"] {
   color-scheme: light;
   --background: #f6f7f9;
@@ -100,9 +115,26 @@ html {
   --text-primary: #1a1d24;
   --text-secondary: #5b6270;
   --text-muted: #8b93a3;
-  --accent-soft: rgba(111, 123, 255, 0.1);
-  --success-soft: rgba(16, 150, 100, 0.1);
+  --accent: #5457d6;
+  --accent-hover: #4448c4;
+  --accent-soft: rgba(84, 87, 214, 0.1);
+  --violet: #7c4fe0;
+  --violet-soft: rgba(124, 79, 224, 0.12);
+  --cyan: #0a8aa3;
+  --cyan-soft: rgba(10, 138, 163, 0.12);
+  --blue: #2568d6;
+  --blue-soft: rgba(37, 104, 214, 0.12);
+  --success: #0f9d67;
+  --success-soft: rgba(15, 157, 103, 0.1);
+  --warning: #b06a05;
+  --warning-soft: rgba(176, 106, 5, 0.12);
+  --coral: #d43d56;
+  --coral-soft: rgba(212, 61, 86, 0.12);
+  --orange: #c05a0a;
+  --orange-soft: rgba(192, 90, 10, 0.12);
+  --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.08);
+  --scrollbar-thumb-hover: #b9bfc9;
 }
 
 @media (prefers-color-scheme: light) {
@@ -118,9 +150,26 @@ html {
     --text-primary: #1a1d24;
     --text-secondary: #5b6270;
     --text-muted: #8b93a3;
-    --accent-soft: rgba(111, 123, 255, 0.1);
-    --success-soft: rgba(16, 150, 100, 0.1);
+    --accent: #5457d6;
+    --accent-hover: #4448c4;
+    --accent-soft: rgba(84, 87, 214, 0.1);
+    --violet: #7c4fe0;
+    --violet-soft: rgba(124, 79, 224, 0.12);
+    --cyan: #0a8aa3;
+    --cyan-soft: rgba(10, 138, 163, 0.12);
+    --blue: #2568d6;
+    --blue-soft: rgba(37, 104, 214, 0.12);
+    --success: #0f9d67;
+    --success-soft: rgba(15, 157, 103, 0.1);
+    --warning: #b06a05;
+    --warning-soft: rgba(176, 106, 5, 0.12);
+    --coral: #d43d56;
+    --coral-soft: rgba(212, 61, 86, 0.12);
+    --orange: #c05a0a;
+    --orange-soft: rgba(192, 90, 10, 0.12);
+    --danger: #dc2626;
     --danger-soft: rgba(220, 38, 38, 0.08);
+    --scrollbar-thumb-hover: #b9bfc9;
   }
 }
 
@@ -148,7 +197,7 @@ body {
   border: 2px solid var(--background);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a4356;
+  background: var(--scrollbar-thumb-hover);
 }
 
 .kbd {

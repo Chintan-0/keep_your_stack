@@ -3,7 +3,24 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
-import { Toaster } from "sonner";
+import { ThemedToaster } from "@/components/themed-toaster";
+
+// Runs synchronously before hydration/paint — reads the persisted theme
+// choice and sets data-theme immediately, so a light/system-light user
+// never sees a flash of the dark theme while React boots up. Kept as a
+// plain string (not a separate file) since Next inlines it verbatim via
+// dangerouslySetInnerHTML; matches how zustand's persist middleware names
+// and shapes its localStorage entry (src/lib/theme-store.ts).
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var raw = localStorage.getItem("keepyourstack-theme");
+    var theme = raw ? JSON.parse(raw).state.theme : "dark";
+    if (theme !== "light" && theme !== "system" && theme !== "dark") theme = "dark";
+    document.documentElement.setAttribute("data-theme", theme);
+  } catch (e) {}
+})();
+`;
 
 const inter = Inter({
   variable: "--font-inter",
@@ -25,25 +42,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jbmono.variable} dark h-full antialiased`}
+      className={`${inter.variable} ${jbmono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full bg-background">
         <ThemeProvider />
         <AnalyticsTracker />
         {children}
-        <Toaster
-          theme="dark"
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              background: "var(--surface-2)",
-              border: "1px solid var(--border-strong)",
-              color: "var(--text-primary)",
-              fontSize: "13px",
-            },
-          }}
-        />
+        <ThemedToaster />
       </body>
     </html>
   );
