@@ -46,8 +46,8 @@ export interface StudioLayout {
 export const NODE_WIDTH = 176;
 export const NODE_HEIGHT = 96;
 const NODE_GAP = 14;
-const REGION_PADDING = 20;
-const REGION_HEADER_HEIGHT = 44;
+export const REGION_PADDING = 20;
+export const REGION_HEADER_HEIGHT = 44;
 const REGION_GAP = 32;
 const MAX_ROW_WIDTH = 1760;
 const UNCATEGORIZED_KEY = "uncategorized";

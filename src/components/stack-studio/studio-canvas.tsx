@@ -16,11 +16,19 @@ import {
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { useNow } from "@/lib/use-now";
-import { computeStudioLayout, NODE_WIDTH, NODE_HEIGHT, type RegionLayout } from "@/lib/stack-studio-layout";
+import {
+  computeStudioLayout,
+  NODE_WIDTH,
+  NODE_HEIGHT,
+  REGION_PADDING,
+  REGION_HEADER_HEIGHT,
+  type RegionLayout,
+} from "@/lib/stack-studio-layout";
 import { categoryColor, tagColor, SEMANTIC_COLOR_CLASSES } from "@/lib/colors";
 import { tokenizeQuery } from "@/lib/search-highlight";
 import { cn } from "@/lib/utils";
 import { CanvasNode } from "./canvas-node";
+import { RegionDensityField } from "./region-density-field";
 import { AutoOrganizeModal } from "./auto-organize-modal";
 import { StudioMobileList } from "./studio-mobile-list";
 import { Button } from "@/components/ui/button";
@@ -112,6 +120,33 @@ export function StudioCanvas({
   // reuses the same array instead of reallocating+iterating all n nodes
   // every single mousemove/wheel tick.
   const nodeList = useMemo(() => Array.from(layout.nodes.values()), [layout]);
+
+  // Zoom-based level of detail (Phase 15.7 §6-8): below FAR_ZOOM_MAX a
+  // region renders ONLY its header + density field — no per-resource DOM
+  // at all, regardless of whether that region holds 5 resources or 15,000.
+  // Between FAR_ZOOM_MAX and MEDIUM_ZOOM_MAX, only a small representative
+  // sample per region renders (plus a "+N more" badge) rather than every
+  // node. At MEDIUM_ZOOM_MAX and above, all viewport-visible nodes render
+  // as before. This is a real performance fix as much as a visual one —
+  // the earlier "block" tier still rendered one DOM node per resource,
+  // which is the actual cost QA measured, not just a "wall of rectangles"
+  // look.
+  const FAR_ZOOM_MAX = 0.25;
+  const MEDIUM_ZOOM_MAX = 0.6;
+  const REPRESENTATIVE_SAMPLE_SIZE = 14;
+
+  const representativeIdsByRegion = useMemo(() => {
+    const byRegion = new Map<string, string[]>();
+    for (const node of nodeList) {
+      const list = byRegion.get(node.regionKey);
+      if (list) {
+        if (list.length < REPRESENTATIVE_SAMPLE_SIZE) list.push(node.resourceId);
+      } else {
+        byRegion.set(node.regionKey, [node.resourceId]);
+      }
+    }
+    return new Map(Array.from(byRegion.entries()).map(([key, ids]) => [key, new Set(ids)]));
+  }, [nodeList]);
 
   // ── Filter / search / highlight ─────────────────────────────────────
   const now = useNow();
@@ -587,6 +622,18 @@ export function StudioCanvas({
                   )}
                   style={{ left: region.x, top: region.y, width: region.width, height: region.height, opacity: region.categoryId ? 0.9 : 1 }}
                 >
+                  {zoom < FAR_ZOOM_MAX && region.count > 0 && (
+                    <RegionDensityField
+                      width={region.width - REGION_PADDING * 2}
+                      height={region.height - REGION_HEADER_HEIGHT - REGION_PADDING}
+                      left={REGION_PADDING}
+                      top={REGION_HEADER_HEIGHT}
+                      count={region.count}
+                      seedKey={region.key}
+                      colorVar={region.categoryId ? `--${categoryColor(region.name)}` : "--warning"}
+                      dense={!region.categoryId}
+                    />
+                  )}
                   <button
                     onClick={() =>
                       handleSetFilter(isActiveFilterRegion ? "all" : region.categoryId ? `category:${region.categoryId}` : "uncategorized")
@@ -601,19 +648,35 @@ export function StudioCanvas({
                     {region.name}
                     <span className="font-mono text-[10px] opacity-70">{region.count}</span>
                   </button>
+                  {zoom >= FAR_ZOOM_MAX && zoom < MEDIUM_ZOOM_MAX && region.count > REPRESENTATIVE_SAMPLE_SIZE && (
+                    <span
+                      className="absolute bottom-2 right-2.5 rounded-full bg-surface-2/90 px-2 py-0.5 font-mono text-[10px] text-text-muted shadow-sm"
+                      style={{ transform: `scale(${clamp(1 / zoom, 0.7, 1.6)})`, transformOrigin: "bottom right" }}
+                    >
+                      +{(region.count - REPRESENTATIVE_SAMPLE_SIZE).toLocaleString()} more
+                    </span>
+                  )}
                 </div>
               );
             })}
 
-            {nodeList.map((node) => {
-              if (
-                node.x + NODE_WIDTH < worldRect.left ||
-                node.x > worldRect.right ||
-                node.y + NODE_HEIGHT < worldRect.top ||
-                node.y > worldRect.bottom
-              ) {
-                return null;
-              }
+            {zoom >= FAR_ZOOM_MAX &&
+              nodeList.map((node) => {
+                if (
+                  node.x + NODE_WIDTH < worldRect.left ||
+                  node.x > worldRect.right ||
+                  node.y + NODE_HEIGHT < worldRect.top ||
+                  node.y > worldRect.bottom
+                ) {
+                  return null;
+                }
+                // Medium zoom only renders each region's representative
+                // sample (see representativeIdsByRegion) — the "+N more"
+                // badge on the region itself covers the rest, matching
+                // Phase 15.7 §11.
+                if (zoom < MEDIUM_ZOOM_MAX && !representativeIdsByRegion.get(node.regionKey)?.has(node.resourceId)) {
+                  return null;
+                }
               const resource = resourceById.get(node.resourceId);
               if (!resource) return null;
               if (filterValue !== "all" && !isVisibleByFilter(resource)) return null;

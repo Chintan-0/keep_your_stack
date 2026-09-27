@@ -81,7 +81,7 @@ export default function StackStudioPage() {
   const hydrate = useStore((s) => s.hydrate);
   const hasHydrated = useStore((s) => s.hasHydrated);
   const allResources = useStore((s) => s.resources);
-  const loadMoreResources = useStore((s) => s.loadMoreResources);
+  const loadAllResourcesForStudio = useStore((s) => s.loadAllResourcesForStudio);
   const libraryTotal = useStore((s) => s.stats?.total);
 
   const [stage, setStage] = useState<Stage>("entry");
@@ -103,9 +103,11 @@ export default function StackStudioPage() {
   // a spatial map of the ENTIRE library — a 300-resource map isn't a map of
   // anything. Rather than gate the canvas behind one giant fetch, keep
   // paging in the background the moment the canvas is reached: the shell
-  // and first 300 resources appear immediately (same store, same
+  // and first page of resources appear immediately (same store, same
   // hydrate()), and the map fills in progressively as more pages arrive —
-  // never a blank stare-at-nothing wait.
+  // never a blank stare-at-nothing wait. loadAllResourcesForStudio uses
+  // larger pages with a few in flight at once (Phase 15.7 — this used to
+  // be 57 sequential 300-row requests, ~54s at ~17k resources).
   const startedFullLoad = useRef(false);
   const [loadingFullLibrary, setLoadingFullLibrary] = useState(false);
   useEffect(() => {
@@ -113,13 +115,8 @@ export default function StackStudioPage() {
     if (!useStore.getState().resourcesHasMore) return;
     startedFullLoad.current = true;
     setLoadingFullLibrary(true);
-    void (async () => {
-      while (useStore.getState().resourcesHasMore) {
-        await loadMoreResources();
-      }
-      setLoadingFullLibrary(false);
-    })();
-  }, [stage, loadMoreResources]);
+    void loadAllResourcesForStudio().finally(() => setLoadingFullLibrary(false));
+  }, [stage, loadAllResourcesForStudio]);
 
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

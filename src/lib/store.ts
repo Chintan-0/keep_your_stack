@@ -12,6 +12,7 @@ export interface ResourceStats {
 
 const RESOURCES_PAGE_SIZE = 300;
 import { normalizeUrl, getDomain } from "./utils";
+import { runWithConcurrency } from "./concurrency";
 
 // Application-state layer, not the database: Supabase is the source of
 // truth (see src/lib/data + src/app/api). This store just caches what the
@@ -103,6 +104,15 @@ interface StoreState {
   hydrate: () => Promise<void>;
   /** Fetches the next page of resources and appends it — used by "Load more" on All Resources/Favorites/Archive once a filtered view runs out of already-loaded matches. */
   loadMoreResources: () => Promise<void>;
+  /**
+   * Pages in the REST of the library — used only by Stack Studio, which
+   * (unlike every other page) genuinely needs the whole account to render
+   * a spatial map. Larger pages + a few in flight at once, not the
+   * one-at-a-time RESOURCES_PAGE_SIZE loop the rest of the app uses (that
+   * was taking ~54s / 57 requests at ~17k resources — see Phase 15.7).
+   * Safe to call repeatedly; a no-op once resourcesHasMore is false.
+   */
+  loadAllResourcesForStudio: () => Promise<void>;
   /** Re-fetches just the 3 dashboard counts — call after anything that changes total/favorite/archived counts, cheaper than a full hydrate. */
   refreshStats: () => Promise<void>;
   /** Re-fetches just the tag list — call after a save that might have minted new tags. */
@@ -275,6 +285,43 @@ export const useStore = create<StoreState>()((set, get) => ({
       });
     } catch {
       toast.error("Couldn't load more resources. Try again.");
+    } finally {
+      set({ resourcesLoadingMore: false });
+    }
+  },
+
+  loadAllResourcesForStudio: async () => {
+    if (get().resourcesLoadingMore || !get().resourcesHasMore) return;
+    set({ resourcesLoadingMore: true });
+    const STUDIO_PAGE_SIZE = 1000; // MAX_RESOURCES_PAGE_SIZE — see src/lib/data/resources.ts
+    const CONCURRENCY = 4;
+    try {
+      // First page tells us `total`, so we know exactly which remaining
+      // offsets to request — everything after this is fetched with a few
+      // requests in flight at once (not the rest of the app's
+      // one-at-a-time loop), appending progressively so the canvas keeps
+      // filling in as pages land rather than waiting for all of them.
+      const firstOffset = get().resources.length;
+      const first = await api<{ resources: Resource[]; total: number; hasMore: boolean }>(
+        `/api/resources?limit=${STUDIO_PAGE_SIZE}&offset=${firstOffset}`
+      );
+      set({ resources: [...get().resources, ...first.resources], resourcesHasMore: first.hasMore });
+      if (!first.hasMore) return;
+
+      const offsets: number[] = [];
+      for (let offset = firstOffset + STUDIO_PAGE_SIZE; offset < first.total; offset += STUDIO_PAGE_SIZE) {
+        offsets.push(offset);
+      }
+
+      await runWithConcurrency(offsets, CONCURRENCY, async (offset) => {
+        const page = await api<{ resources: Resource[]; total: number; hasMore: boolean }>(
+          `/api/resources?limit=${STUDIO_PAGE_SIZE}&offset=${offset}`
+        );
+        set({ resources: [...get().resources, ...page.resources] });
+      });
+      set({ resourcesHasMore: false });
+    } catch {
+      toast.error("Couldn't load your full library. Try reopening Stack Studio.");
     } finally {
       set({ resourcesLoadingMore: false });
     }
