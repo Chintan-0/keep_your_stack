@@ -17,7 +17,7 @@ import {
   FolderTree,
   Wand2,
 } from "lucide-react";
-import { useUIStore } from "@/lib/ui-store";
+import { useUIStore, getElementBeforeCommandPalette } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
 import type { SearchMatch } from "@/lib/types";
 
@@ -55,6 +55,18 @@ export function CommandPalette() {
     if (!next) {
       setQuery("");
       setResults([]);
+      // Radix's Dialog primitive (which cmdk's Command.Dialog wraps)
+      // normally restores focus to whatever was focused before it opened
+      // — but it didn't here, leaving focus on <body> after close. Doing
+      // it explicitly, from the one element actually captured at the
+      // moment the palette was requested to open (see ui-store.ts).
+      const toRestore = getElementBeforeCommandPalette();
+      if (toRestore && document.body.contains(toRestore)) {
+        // After the dialog unmounts, not synchronously — the element
+        // this restores to may itself be behind an `inert`/aria-hidden
+        // subtree until Radix's own unmount cleanup runs first.
+        setTimeout(() => toRestore.focus(), 0);
+      }
     }
     setOpen(next);
   }

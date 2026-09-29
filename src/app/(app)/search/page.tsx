@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Search as SearchIcon, ArrowUpRight, Heart, X, Clock, Sparkles } from "lucide-react";
+import { Search as SearchIcon, ArrowUpRight, Heart, Info, X, Clock, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { SearchMatch } from "@/lib/types";
 import { Favicon } from "@/components/ui/favicon";
@@ -403,15 +403,28 @@ export default function SearchPage() {
               {filteredResults.map(({ resource, matchedOn }) => (
                 <div
                   key={resource.id}
-                  className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-2"
+                  className="group relative flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-2"
                 >
+                  {/* Primary click target — the whole result opens the
+                      resource's site, matching every other resource card
+                      in the app; a real anchor first in DOM order, siblings
+                      positioned `relative` above it stay independently
+                      clickable (see resource-card.tsx for the full
+                      reasoning behind this pattern). */}
+                  <a
+                    href={resource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={resource.title}
+                    className="absolute inset-0 z-0 rounded-[var(--radius-lg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  />
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
                       <Favicon seed={resource.title} size={32} />
                       <div className="min-w-0">
-                        <Link href={`/resources/${resource.id}`} className="text-[14px] font-semibold text-text-primary hover:text-accent">
+                        <p className="text-[14px] font-semibold text-text-primary group-hover:text-accent">
                           <Highlight text={resource.title} tokens={tokens} />
-                        </Link>
+                        </p>
                         <p className="text-[12.5px] text-text-secondary">
                           <Highlight text={resource.description} tokens={tokens} />
                         </p>
@@ -423,7 +436,7 @@ export default function SearchPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="relative z-[1] flex shrink-0 items-center gap-1">
                       <button
                         onClick={() => toggleFavorite(resource.id)}
                         className={cn(
@@ -433,11 +446,19 @@ export default function SearchPage() {
                       >
                         <Heart size={15} fill={resource.isFavorite ? "currentColor" : "none"} />
                       </button>
+                      <Link
+                        href={`/resources/${resource.id}`}
+                        className="rounded-[var(--radius-sm)] p-1.5 text-text-muted hover:text-text-primary cursor-pointer"
+                        aria-label="View resource details"
+                      >
+                        <Info size={15} />
+                      </Link>
                       <a
                         href={resource.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded-[var(--radius-sm)] p-1.5 text-text-muted hover:text-accent cursor-pointer"
+                        aria-label="Open resource"
                       >
                         <ArrowUpRight size={15} />
                       </a>
