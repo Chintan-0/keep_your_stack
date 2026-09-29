@@ -1,0 +1,56 @@
+name: CI
+
+# GitHub Actions is a quality gate only — Vercel continues to handle actual
+# deployment from GitHub pushes, and this workflow never talks to it. No
+# production Supabase project, no production secrets: the build-time env
+# vars below are obviously-fake placeholders (see the "Production build"
+# step), which local verification confirmed is enough for `next build` to
+# succeed — nothing in this repo's build path needs a real backend.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: this workflow only ever reads the repo and reports
+# check status — it never pushes, comments, or calls any other API.
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    name: Tests, lint, typecheck, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        # Obviously-fake, non-secret placeholders — never real Supabase
+        # credentials. Verified locally (both with these exact values and
+        # with a bare-non-JWT variant) that `next build` completes cleanly
+        # without a real backend: this app's build path never queries
+        # Supabase at build time, only at request time.
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+        run: npm run build

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build:extension": "node extension/scripts/generate-manifest.js && tsc -p extension/tsconfig.json && node extension/scripts/fix-content-scripts.js",
     "package:extension": "npm run build:extension && node extension/scripts/package.js",
