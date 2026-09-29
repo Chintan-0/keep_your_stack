@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, AuthField } from "@/components/auth/auth-card";
+import { AuthDivider, GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 
 export default function SignUpPage() {
@@ -86,13 +87,17 @@ export default function SignUpPage() {
         </>
       }
     >
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         {error && (
           <div className="flex items-start gap-2 rounded-[var(--radius-sm)] border border-danger/30 bg-danger-soft px-3 py-2.5 text-[13px] text-danger">
             <AlertCircle size={15} className="mt-0.5 shrink-0" />
             {error}
           </div>
         )}
+        <GoogleSignInButton next={null} onError={(message) => setError(message || null)} />
+        <AuthDivider />
+      </div>
+      <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4">
         <AuthField label="Name" type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
         <AuthField
           label="Email"

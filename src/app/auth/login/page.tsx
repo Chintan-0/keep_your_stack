@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AuthCard, AuthField } from "@/components/auth/auth-card";
+import { AuthDivider, GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { Button } from "@/components/ui/button";
 
 // Dev-only convenience: auto-signs in as a fixed local account so you don't
@@ -22,6 +23,15 @@ const DEV_USER =
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState(DEV_USER?.email ?? "");
+  // Read the same way `signIn` below does (window.location.search) rather
+  // than next/navigation's useSearchParams, which would force this page
+  // into a Suspense boundary just to read one query param. A lazy
+  // initializer (not an effect) since this only needs to run once, before
+  // the Google button's first paint — setting it from an effect would
+  // trigger an extra render for no reason.
+  const [nextParam] = useState<string | null>(() =>
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("next") : null
+  );
   const [password, setPassword] = useState(DEV_USER?.password ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -145,6 +155,10 @@ export default function LoginPage() {
           {loading ? "Signing in…" : "Sign In"}
         </Button>
       </form>
+      <div className="mt-4 flex flex-col gap-4">
+        <AuthDivider />
+        <GoogleSignInButton next={nextParam} onError={(message) => setError(message || null)} />
+      </div>
     </AuthCard>
   );
 }
