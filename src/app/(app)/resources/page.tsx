@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Search, Package, Plus, CheckSquare, X, Sparkles, Download } from "lucide-react";
+import { Package, Plus, CheckSquare, X, Sparkles, Download } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { ResourceCollection } from "@/components/resource-collection";
@@ -45,7 +45,6 @@ export default function AllResourcesPage() {
   const resourcesLoadingMore = useStore((s) => s.resourcesLoadingMore);
   const loadMoreResources = useStore((s) => s.loadMoreResources);
   const openAddResource = useUIStore((s) => s.openAddResource);
-  const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 
   // Justified use of an effect: reading window.location.search can only
@@ -82,19 +81,10 @@ export default function AllResourcesPage() {
     [linkChecks]
   );
 
-  const filtered = useMemo(() => {
-    const base = query.trim()
-      ? active.filter((r) => {
-          const q = query.toLowerCase();
-          return (
-            r.title.toLowerCase().includes(q) ||
-            r.description.toLowerCase().includes(q) ||
-            r.domain.toLowerCase().includes(q)
-          );
-        })
-      : active;
-    return applyFiltersAndSort(base, filters, categories, linkStatusById);
-  }, [active, query, filters, categories, linkStatusById]);
+  const filtered = useMemo(
+    () => applyFiltersAndSort(active, filters, categories, linkStatusById),
+    [active, filters, categories, linkStatusById]
+  );
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -169,7 +159,7 @@ export default function AllResourcesPage() {
         <p className="font-mono text-[12.5px] text-text-muted">{active.length} resources</p>
       </div>
 
-      {selecting ? (
+      {selecting && (
         <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-accent/30 bg-accent-soft px-4 py-3">
           <span className="text-[13px] font-medium text-text-primary">
             {selectedIds.size} selected
@@ -207,18 +197,13 @@ export default function AllResourcesPage() {
             <X size={14} /> Cancel
           </button>
         </div>
-      ) : (
-        <div className="relative">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter by name, domain, or description…"
-            className="h-9 w-full max-w-md rounded-[var(--radius-sm)] border border-border-strong bg-surface-2 pl-9 pr-3 text-[13px] text-text-primary placeholder-text-muted focus:border-accent focus:outline-none"
-          />
-        </div>
       )}
 
+      {/* Free-text search lives in the global search (⌘K / top bar) now —
+          see src/components/command-palette.tsx — rather than a second,
+          page-local search box with its own narrower matching. These
+          dropdown filters are a different, complementary feature
+          (category/stack/tag/pricing/needs-review/sort) and stay. */}
       <FilterBar filters={displayFilters} onChange={setFilters} view={view} onViewChange={setView} resultCount={filtered.length} />
 
       <ResourceCollection

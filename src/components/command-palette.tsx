@@ -16,6 +16,8 @@ import {
   FolderPlus,
   FolderTree,
   Wand2,
+  ArrowUpRight,
+  Eye,
 } from "lucide-react";
 import { useUIStore, getElementBeforeCommandPalette } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
@@ -32,6 +34,7 @@ export function CommandPalette() {
   const setOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const openAddResource = useUIStore((s) => s.openAddResource);
   const openCreateStack = useUIStore((s) => s.openCreateStack);
+  const openQuickView = useUIStore((s) => s.openQuickView);
   const router = useRouter();
 
   const [query, setQuery] = useState("");
@@ -96,6 +99,20 @@ export function CommandPalette() {
 
   function go(path: string) {
     router.push(path);
+    handleOpenChange(false);
+  }
+
+  function trackExternalOpen(resourceId: string) {
+    void fetch("/api/analytics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType: "resource_external_opened", metadata: { resourceId, label: "command-palette" } }),
+    }).catch(() => {});
+  }
+
+  function openExternal(resource: SearchMatch["resource"]) {
+    trackExternalOpen(resource.id);
+    window.open(resource.url, "_blank", "noopener,noreferrer");
     handleOpenChange(false);
   }
 
@@ -189,17 +206,51 @@ export function CommandPalette() {
 
         {query.trim() && results.length > 0 && (
           <Command.Group heading="Resources" className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-text-muted [&_[cmdk-group-heading]]:pb-1.5">
+            {/* Resource interaction model (same as every other resource
+                surface): the row's identity (favicon/title/domain) is the
+                "go to website" target, both for a direct click (a real
+                anchor) and for keyboard Enter on the highlighted item
+                (onSelect below does the same window.open). The separate
+                eye icon opens the quick-view modal instead, without
+                leaving the palette — stopPropagation so it doesn't also
+                fire the row's onSelect. */}
             {results.slice(0, 8).map(({ resource, matchedOn }) => (
               <Command.Item
                 key={resource.id}
                 value={resource.id}
-                onSelect={() => go(`/resources/${resource.id}`)}
-                className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-text-primary aria-selected:bg-surface-hover"
+                onSelect={() => openExternal(resource)}
+                className="group flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2 text-[13px] text-text-primary aria-selected:bg-surface-hover"
               >
-                <Favicon seed={resource.title} size={20} />
-                <span className="flex-1 truncate">{resource.title}</span>
-                {matchedOn[0] && <span className="shrink-0 text-[11px] text-text-muted">{matchedOn[0]}</span>}
-                <span className="truncate font-mono text-[11px] text-text-muted">{resource.domain}</span>
+                <a
+                  href={resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    trackExternalOpen(resource.id);
+                    handleOpenChange(false);
+                  }}
+                  aria-label={`${resource.title} — open ${resource.domain}`}
+                  className="flex min-w-0 flex-1 items-center gap-2.5"
+                >
+                  <Favicon seed={resource.title} size={20} />
+                  <span className="flex-1 truncate">{resource.title}</span>
+                  {matchedOn[0] && <span className="shrink-0 text-[11px] text-text-muted">{matchedOn[0]}</span>}
+                  <span className="truncate font-mono text-[11px] text-text-muted">{resource.domain}</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenChange(false);
+                    openQuickView(resource.id);
+                  }}
+                  aria-label={`Quick view ${resource.title}`}
+                  className="shrink-0 rounded p-1 text-text-muted hover:bg-surface-3 hover:text-text-primary cursor-pointer"
+                >
+                  <Eye size={14} />
+                </button>
+                <ArrowUpRight size={13} className="shrink-0 text-text-muted" aria-hidden="true" />
               </Command.Item>
             ))}
             <Command.Item
