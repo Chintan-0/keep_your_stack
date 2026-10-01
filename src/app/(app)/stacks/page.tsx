@@ -40,7 +40,12 @@ export default function StacksPage() {
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {stacks.map((s) => (
-            <StackCard key={s.id} stack={s} count={resources.filter((r) => r.stackIds.includes(s.id)).length} />
+            <StackCard
+              key={s.id}
+              stack={s}
+              count={resources.filter((r) => r.stackIds.includes(s.id)).length}
+              resources={resources}
+            />
           ))}
         </div>
       )}

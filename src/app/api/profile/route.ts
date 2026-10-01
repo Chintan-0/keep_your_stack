@@ -3,20 +3,24 @@ import { requireUser } from "@/lib/data/auth";
 import { validateUsername } from "@/lib/username-validation";
 
 // Read-only bits the client needs but the (app) layout's own server-side
-// fetch doesn't pass down (it only reads name/email for the top bar) — the
+// fetch doesn't pass down to page content (only to the top bar) — the
 // onboarding checklist (Phase 17) needs to know if this profile already
-// dismissed it, without a second full page fetch.
+// dismissed it, and the Home page's hero greeting needs the user's real
+// name, without either costing a second full page fetch.
 export async function GET() {
   const { supabase, user, unauthorized } = await requireUser();
   if (unauthorized) return unauthorized;
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("onboarding_dismissed_at")
+    .select("name, onboarding_dismissed_at")
     .eq("id", user.id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ onboardingDismissedAt: data?.onboarding_dismissed_at ?? null });
+  return NextResponse.json({
+    name: data?.name ?? user.email ?? null,
+    onboardingDismissedAt: data?.onboarding_dismissed_at ?? null,
+  });
 }
 
 export async function PATCH(request: NextRequest) {
