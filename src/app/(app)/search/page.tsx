@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { Search as SearchIcon, ArrowUpRight, Heart, Info, X, Clock, Sparkles } from "lucide-react";
+import { Search as SearchIcon, ArrowUpRight, Heart, X, Clock, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useUIStore } from "@/lib/ui-store";
 import type { SearchMatch } from "@/lib/types";
 import { Favicon } from "@/components/ui/favicon";
 import { Tag } from "@/components/ui/tag";
@@ -43,6 +43,14 @@ function writeRecentSearches(searches: string[]) {
   }
 }
 
+function trackExternalOpen(resourceId: string) {
+  void fetch("/api/analytics/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eventType: "resource_external_opened", metadata: { resourceId, label: "search" } }),
+  }).catch(() => {});
+}
+
 function Highlight({ text, tokens }: { text: string; tokens: string[] }) {
   if (!text) return null;
   const segments = highlightSegments(text, tokens);
@@ -70,6 +78,7 @@ export default function SearchPage() {
   // once, after mount, in the effect below instead.
   const [query, setQuery] = useState("");
   const toggleFavorite = useStore((s) => s.toggleFavorite);
+  const openQuickView = useUIStore((s) => s.openQuickView);
   const categories = useStore((s) => s.categories);
   const allResources = useStore((s) => s.resources);
   const hasHydrated = useStore((s) => s.hasHydrated);
@@ -403,60 +412,43 @@ export default function SearchPage() {
               {filteredResults.map(({ resource, matchedOn }) => (
                 <div
                   key={resource.id}
-                  className="group relative flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-2"
+                  className="group flex flex-col gap-2 rounded-[var(--radius-lg)] border border-border bg-surface p-4 transition-colors hover:border-border-strong hover:bg-surface-2"
                 >
-                  {/* Primary click target — the whole result opens the
-                      resource's site, matching every other resource card
-                      in the app; a real anchor first in DOM order, siblings
-                      positioned `relative` above it stay independently
-                      clickable (see resource-card.tsx for the full
-                      reasoning behind this pattern). */}
-                  <a
-                    href={resource.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={resource.title}
-                    className="absolute inset-0 z-0 rounded-[var(--radius-lg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                  />
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
+                    {/* Identity zone — favicon + title → external site
+                        (§2A/§11), matching every other resource card. */}
+                    <a
+                      href={resource.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => trackExternalOpen(resource.id)}
+                      aria-label={`${resource.title} — open ${resource.domain}`}
+                      className="flex min-w-0 items-start gap-3 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
                       <Favicon seed={resource.title} size={32} />
                       <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-text-primary group-hover:text-accent">
                           <Highlight text={resource.title} tokens={tokens} />
                         </p>
-                        <p className="text-[12.5px] text-text-secondary">
-                          <Highlight text={resource.description} tokens={tokens} />
-                        </p>
-                        {resource.useCases.length > 0 && (
-                          <p className="mt-0.5 text-[12px] text-text-secondary">
-                            <span className="text-text-muted">Useful for </span>
-                            <Highlight text={resource.useCases[0]} tokens={tokens} />
-                          </p>
-                        )}
+                        <p className="font-mono text-[11px] text-text-muted">{resource.domain}</p>
                       </div>
-                    </div>
-                    <div className="relative z-[1] flex shrink-0 items-center gap-1">
+                    </a>
+                    <div className="flex shrink-0 items-center gap-1">
                       <button
                         onClick={() => toggleFavorite(resource.id)}
                         className={cn(
                           "rounded-[var(--radius-sm)] p-1.5 cursor-pointer",
                           resource.isFavorite ? "text-warning" : "text-text-muted hover:text-warning"
                         )}
+                        aria-label="Toggle favorite"
                       >
                         <Heart size={15} fill={resource.isFavorite ? "currentColor" : "none"} />
                       </button>
-                      <Link
-                        href={`/resources/${resource.id}`}
-                        className="rounded-[var(--radius-sm)] p-1.5 text-text-muted hover:text-text-primary cursor-pointer"
-                        aria-label="View resource details"
-                      >
-                        <Info size={15} />
-                      </Link>
                       <a
                         href={resource.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => trackExternalOpen(resource.id)}
                         className="rounded-[var(--radius-sm)] p-1.5 text-text-muted hover:text-accent cursor-pointer"
                         aria-label="Open resource"
                       >
@@ -464,27 +456,46 @@ export default function SearchPage() {
                       </a>
                     </div>
                   </div>
-                  {resource.tagIds.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pl-11">
-                      {resource.tagIds.slice(0, 4).map((tid) => {
-                        const t = useStore.getState().tags.find((tag) => tag.id === tid);
-                        return t ? (
-                          <Tag key={tid} color={tagColor(t.name)}>
-                            <Highlight text={t.name} tokens={tokens} />
-                          </Tag>
-                        ) : null;
-                      })}
-                    </div>
-                  )}
-                  {matchedOn.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-1.5 pl-11">
-                      <span className="flex items-center gap-1 text-[11px] text-text-muted">
-                        <Sparkles size={11} /> Why it matched:
-                      </span>
-                      <span className="text-[11px] text-text-secondary">{matchedOn.join(" · ")}</span>
-                      <span className="text-[11px] text-text-muted">· {categoryName(resource.categoryId, categories)}</span>
-                    </div>
-                  )}
+
+                  {/* Body zone — description/Useful For/tags/match reason →
+                      quick-view modal (§2B/§11). */}
+                  <button
+                    type="button"
+                    onClick={() => openQuickView(resource.id)}
+                    aria-label={`Quick view ${resource.title}`}
+                    className="flex flex-col gap-1.5 rounded-[var(--radius-sm)] pl-11 pr-1 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <p className="text-[12.5px] text-text-secondary">
+                      <Highlight text={resource.description} tokens={tokens} />
+                    </p>
+                    {resource.useCases.length > 0 && (
+                      <p className="text-[12px] text-text-secondary">
+                        <span className="text-text-muted">Useful for </span>
+                        <Highlight text={resource.useCases[0]} tokens={tokens} />
+                      </p>
+                    )}
+                    {resource.tagIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {resource.tagIds.slice(0, 4).map((tid) => {
+                          const t = useStore.getState().tags.find((tag) => tag.id === tid);
+                          return t ? (
+                            <Tag key={tid} color={tagColor(t.name)}>
+                              <Highlight text={t.name} tokens={tokens} />
+                            </Tag>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                    {matchedOn.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="flex items-center gap-1 text-[11px] text-text-muted">
+                          <Sparkles size={11} /> Why it matched:
+                        </span>
+                        <span className="text-[11px] text-text-secondary">{matchedOn.join(" · ")}</span>
+                        <span className="text-[11px] text-text-muted">· {categoryName(resource.categoryId, categories)}</span>
+                      </div>
+                    )}
+                  </button>
                 </div>
               ))}
             </div>

@@ -23,6 +23,10 @@ const AddResourceModal = dynamic(() => import("@/components/add-resource-modal")
 const EditResourceModal = dynamic(() => import("@/components/edit-resource-modal").then((m) => m.EditResourceModal), { ssr: false });
 const CreateStackModal = dynamic(() => import("@/components/create-stack-modal").then((m) => m.CreateStackModal), { ssr: false });
 const FeedbackModal = dynamic(() => import("@/components/feedback-modal").then((m) => m.FeedbackModal), { ssr: false });
+const ResourceQuickViewModal = dynamic(
+  () => import("@/components/resource-quick-view-modal").then((m) => m.ResourceQuickViewModal),
+  { ssr: false }
+);
 
 export function AppShell({
   children,
@@ -47,6 +51,7 @@ export function AppShell({
       <EditResourceModal />
       <CreateStackModal />
       <FeedbackModal />
+      <ResourceQuickViewModal />
       <KeyboardShortcuts />
     </div>
   );

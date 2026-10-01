@@ -13,6 +13,15 @@ export function getElementBeforeCommandPalette(): HTMLElement | null {
   return elementBeforeCommandPalette;
 }
 
+// Same idea, for the resource quick-view modal — captured at the moment a
+// card's body is clicked/activated, so closing the modal (Escape, backdrop,
+// the X) can restore focus to that exact card rather than dropping it back
+// to the top of the document.
+let elementBeforeQuickView: HTMLElement | null = null;
+export function getElementBeforeQuickView(): HTMLElement | null {
+  return elementBeforeQuickView;
+}
+
 interface UIState {
   addResourceOpen: boolean;
   addResourcePrefillUrl: string;
@@ -25,6 +34,10 @@ interface UIState {
   editResourceId: string | null;
   openEditResource: (id: string) => void;
   closeEditResource: () => void;
+
+  quickViewResourceId: string | null;
+  openQuickView: (id: string) => void;
+  closeQuickView: () => void;
 
   mobileNavOpen: boolean;
   setMobileNavOpen: (v: boolean) => void;
@@ -55,6 +68,20 @@ export const useUIStore = create<UIState>((set, get) => ({
   editResourceId: null,
   openEditResource: (id) => set({ editResourceId: id }),
   closeEditResource: () => set({ editResourceId: null }),
+
+  quickViewResourceId: null,
+  openQuickView: (id) => {
+    if (typeof document !== "undefined") {
+      elementBeforeQuickView = document.activeElement as HTMLElement;
+      void fetch("/api/analytics/event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventType: "resource_quick_view_opened", metadata: { resourceId: id } }),
+      }).catch(() => {});
+    }
+    set({ quickViewResourceId: id });
+  },
+  closeQuickView: () => set({ quickViewResourceId: null }),
 
   mobileNavOpen: false,
   setMobileNavOpen: (v) => set({ mobileNavOpen: v }),

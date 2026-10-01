@@ -56,6 +56,8 @@ const ALLOWED: ReadonlySet<EventType> = new Set([
   "studio_filter_used",
   "studio_search_used",
   "studio_map_interaction",
+  "resource_quick_view_opened",
+  "resource_external_opened",
 ]);
 
 export async function POST(request: NextRequest) {

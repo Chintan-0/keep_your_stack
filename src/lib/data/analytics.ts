@@ -159,7 +159,10 @@ export type EventType =
   | "studio_auto_organize_completed"
   | "studio_filter_used"
   | "studio_search_used"
-  | "studio_map_interaction";
+  | "studio_map_interaction"
+  // Resource card quick-view (two-zone card interaction model)
+  | "resource_quick_view_opened"
+  | "resource_external_opened";
 
 export interface TrackEventInput {
   eventType: EventType;
