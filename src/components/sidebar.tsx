@@ -17,12 +17,22 @@ import {
   Shield,
   Wand2,
   MessageSquare,
+  FolderPlus,
+  FolderTree,
+  Flame,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { useNow } from "@/lib/use-now";
-import { cn, needsReview as isNeedsReview } from "@/lib/utils";
+import { Favicon } from "@/components/ui/favicon";
+import { cn, needsReview as isNeedsReview, formatRelativeDate } from "@/lib/utils";
 import { SEMANTIC_COLOR_CLASSES, tagColor } from "@/lib/colors";
+
+const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
+
+function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
 
 const COLOR_DOT: Record<string, string> = {
   accent: "bg-accent",
@@ -76,6 +86,7 @@ export function Sidebar() {
   const tags = useStore((s) => s.tags);
   const linkChecks = useStore((s) => s.linkChecks);
   const openAddResource = useUIStore((s) => s.openAddResource);
+  const openCreateStack = useUIStore((s) => s.openCreateStack);
   const openFeedback = useUIStore((s) => s.openFeedback);
   const now = useNow();
 
@@ -109,6 +120,32 @@ export function Sidebar() {
     .slice(0, 8)
     .map(([id]) => tags.find((t) => t.id === id))
     .filter(Boolean) as { id: string; name: string }[];
+
+  // Real data only — there's no favoritedAt/archivedAt on a resource, so
+  // "Added X" (its own real createdAt) is the one activity this can state
+  // honestly. Same reasoning for the streak below: consecutive real
+  // calendar days (local time) with at least one resource actually
+  // created, never simulated.
+  const recentActivity = [...active]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3);
+
+  const activeDays = new Set(active.map((r) => localDayKey(new Date(r.createdAt))));
+  let streak = 0;
+  const cursor = new Date();
+  while (activeDays.has(localDayKey(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  const today = new Date();
+  const isoWeekday = (today.getDay() + 6) % 7; // 0 = Monday
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - isoWeekday);
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return { label: DAY_LABELS[i], active: activeDays.has(localDayKey(d)) };
+  });
 
   const mobileNavOpen = useUIStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
@@ -156,9 +193,19 @@ export function Sidebar() {
       <div className="flex flex-col gap-0.5">
         <div className="flex items-center justify-between px-2.5 pb-1">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Stacks</p>
-          <Link href="/stacks" className="text-[11px] text-text-muted hover:text-text-primary">
-            View all
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openCreateStack}
+              aria-label="Create Stack"
+              title="Create Stack"
+              className="text-text-muted hover:text-text-primary cursor-pointer"
+            >
+              <FolderPlus size={13} />
+            </button>
+            <Link href="/stacks" className="text-[11px] text-text-muted hover:text-text-primary">
+              View all
+            </Link>
+          </div>
         </div>
         {stacks.slice(0, 6).map((s) => {
           const count = active.filter((r) => r.stackIds.includes(s.id)).length;
@@ -206,11 +253,57 @@ export function Sidebar() {
         </div>
       )}
 
+      {recentActivity.length > 0 && (
+        <div className="flex flex-col gap-0.5">
+          <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Recent activity</p>
+          {recentActivity.map((r) => (
+            <a
+              key={r.id}
+              href={r.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 transition-colors hover:bg-surface-3"
+            >
+              <Favicon seed={r.title} size={18} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12px] text-text-secondary">
+                  Added <span className="text-text-primary">{r.title}</span>
+                </p>
+              </div>
+              <span className="shrink-0 text-[10px] text-text-muted">{formatRelativeDate(r.createdAt)}</span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      {streak > 0 && (
+        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border bg-gradient-to-br from-orange-soft to-transparent px-2.5 py-2">
+          <div className="flex items-center gap-1.5">
+            <Flame size={14} className="text-orange" />
+            <p className="text-[12.5px] font-medium text-text-primary">{streak} day{streak === 1 ? "" : "s"} streak</p>
+          </div>
+          <div className="flex items-center justify-between px-0.5">
+            {week.map((d, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold",
+                  d.active ? "bg-orange text-white" : "bg-surface-3 text-text-muted"
+                )}
+              >
+                {d.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-auto flex flex-col gap-4 border-t border-border pt-3">
         <div className="flex flex-col gap-0.5">
           <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Organize</p>
           <NavLink href="/stack-studio" icon={Wand2} label="Stack Studio" iconClassName="text-violet" />
           <NavLink href="/import" icon={Upload} label="Import Bookmarks" iconClassName="text-orange" />
+          <NavLink href="/settings/categories" icon={FolderTree} label="Manage Categories" iconClassName="text-warning" />
         </div>
         <div className="flex flex-col gap-0.5">
           <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Connect</p>
