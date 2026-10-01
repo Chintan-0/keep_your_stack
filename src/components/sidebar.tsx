@@ -276,27 +276,33 @@ export function Sidebar() {
         </div>
       )}
 
-      {streak > 0 && (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border bg-gradient-to-br from-orange-soft to-transparent px-2.5 py-2">
-          <div className="flex items-center gap-1.5">
-            <Flame size={14} className="text-orange" />
-            <p className="text-[12.5px] font-medium text-text-primary">{streak} day{streak === 1 ? "" : "s"} streak</p>
-          </div>
-          <div className="flex items-center justify-between px-0.5">
-            {week.map((d, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold",
-                  d.active ? "bg-orange text-white" : "bg-surface-3 text-text-muted"
-                )}
-              >
-                {d.label}
-              </span>
-            ))}
-          </div>
+      {/* Always shown, not just when streak > 0 — otherwise the whole
+          widget is invisible until the user happens to add something
+          today, which reads as "missing" rather than "zero" (confirmed:
+          that's exactly what hid it before). The 0-day message is just as
+          real as the counted one, never fabricated either way. */}
+      <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border bg-gradient-to-br from-orange-soft to-transparent px-2.5 py-2">
+        <div className="flex items-center gap-1.5">
+          <Flame size={14} className="text-orange" />
+          <p className="text-[12.5px] font-medium text-text-primary">
+            {streak > 0 ? `${streak} day${streak === 1 ? "" : "s"} streak` : "No streak yet"}
+          </p>
         </div>
-      )}
+        {streak === 0 && <p className="px-0.5 text-[11px] text-text-muted">Add something today to start one.</p>}
+        <div className="flex items-center justify-between px-0.5">
+          {week.map((d, i) => (
+            <span
+              key={i}
+              className={cn(
+                "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold",
+                d.active ? "bg-orange text-white" : "bg-surface-3 text-text-muted"
+              )}
+            >
+              {d.label}
+            </span>
+          ))}
+        </div>
+      </div>
 
       <div className="mt-auto flex flex-col gap-4 border-t border-border pt-3">
         <div className="flex flex-col gap-0.5">
