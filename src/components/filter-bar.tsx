@@ -1,10 +1,42 @@
 "use client";
 
-import { LayoutGrid, List, HelpCircle } from "lucide-react";
+import { LayoutGrid, List, HelpCircle, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { topLevelCategories, childCategories, needsReview as isNeedsReview, cn } from "@/lib/utils";
 import type { Category, Pricing } from "@/lib/types";
 import { Dropdown, type DropdownOption } from "@/components/ui/dropdown";
+import { categoryColor, tagColor, SEMANTIC_COLOR_CLASSES, type SemanticColor } from "@/lib/colors";
+
+const STACK_COLOR_TOKEN: Record<string, SemanticColor> = {
+  accent: "accent",
+  violet: "violet",
+  cyan: "cyan",
+  success: "success",
+  warning: "warning",
+};
+
+/** One removable pill for an active filter — colored by the same deterministic palette the rest of the app already uses for that kind of thing (category/tag hash, stack's own token), never a new ad-hoc color. */
+function FilterPill({ color, label, onRemove }: { color: SemanticColor; label: string; onRemove: () => void }) {
+  const palette = SEMANTIC_COLOR_CLASSES[color];
+  return (
+    <span
+      className={cn(
+        "animate-fade-in flex items-center gap-1.5 rounded-full border border-transparent py-1 pl-3 pr-1.5 text-[12px] font-medium",
+        palette.soft,
+        palette.text
+      )}
+    >
+      {label}
+      <button
+        onClick={onRemove}
+        aria-label={`Remove ${label} filter`}
+        className="flex h-4 w-4 items-center justify-center rounded-full transition-colors hover:bg-black/15 cursor-pointer"
+      >
+        <X size={11} />
+      </button>
+    </span>
+  );
+}
 
 function categoryMatches(categoryId: string | null, filterId: string, categories: Category[]): boolean {
   if (!categoryId) return false;
@@ -103,8 +135,65 @@ export function FilterBar({
   const hasActiveFilters =
     filters.categoryId || filters.stackId || filters.tagId || filters.pricing || filters.needsReview;
 
+  // One pill per active filter, each independently removable — built from
+  // the exact same `filters` state the dropdowns above already read/write,
+  // never a parallel copy of it.
+  const pills: { key: string; color: SemanticColor; label: string; onRemove: () => void }[] = [];
+  if (filters.categoryId) {
+    const cat = categories.find((c) => c.id === filters.categoryId);
+    if (cat) {
+      pills.push({
+        key: "category",
+        color: categoryColor(cat.name),
+        label: cat.name,
+        onRemove: () => onChange({ ...filters, categoryId: "", subcategoryId: "" }),
+      });
+    }
+  }
+  if (filters.subcategoryId) {
+    const sub = categories.find((c) => c.id === filters.subcategoryId);
+    if (sub) {
+      pills.push({
+        key: "subcategory",
+        color: categoryColor(sub.name),
+        label: sub.name,
+        onRemove: () => set("subcategoryId", ""),
+      });
+    }
+  }
+  if (filters.stackId) {
+    const s = stacks.find((st) => st.id === filters.stackId);
+    if (s) {
+      pills.push({
+        key: "stack",
+        color: STACK_COLOR_TOKEN[s.color] ?? "accent",
+        label: `${s.icon} ${s.name}`,
+        onRemove: () => set("stackId", ""),
+      });
+    }
+  }
+  if (filters.tagId) {
+    const t = tags.find((tag) => tag.id === filters.tagId);
+    if (t) {
+      pills.push({ key: "tag", color: tagColor(t.name), label: `#${t.name}`, onRemove: () => set("tagId", "") });
+    }
+  }
+  if (filters.pricing) {
+    const p = PRICING_OPTIONS.find((o) => o.value === filters.pricing);
+    if (p) pills.push({ key: "pricing", color: "blue", label: p.label, onRemove: () => set("pricing", "") });
+  }
+  if (filters.needsReview) {
+    pills.push({
+      key: "needsReview",
+      color: "warning",
+      label: "Needs Review",
+      onRemove: () => set("needsReview", false),
+    });
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border pb-4">
+    <div className="flex flex-col gap-2.5 border-b border-border pb-4">
+    <div className="flex flex-wrap items-center gap-2">
       <FilterSelect
         value={filters.categoryId}
         onChange={(v) => onChange({ ...filters, categoryId: v, subcategoryId: "" })}
@@ -204,6 +293,15 @@ export function FilterBar({
           </button>
         </div>
       </div>
+    </div>
+
+    {pills.length > 0 && (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {pills.map((p) => (
+          <FilterPill key={p.key} color={p.color} label={p.label} onRemove={p.onRemove} />
+        ))}
+      </div>
+    )}
     </div>
   );
 }

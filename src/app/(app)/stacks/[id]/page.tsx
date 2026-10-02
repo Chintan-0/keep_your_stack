@@ -13,6 +13,14 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Tag } from "@/components/ui/tag";
 
+const STACK_COLOR_VAR: Record<string, string> = {
+  accent: "--accent",
+  violet: "--violet",
+  cyan: "--cyan",
+  success: "--success",
+  warning: "--warning",
+};
+
 export default function StackDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -81,48 +89,94 @@ export default function StackDetailPage({ params }: { params: Promise<{ id: stri
         <ChevronLeft size={14} /> Stacks
       </button>
 
-      <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-border bg-surface p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-surface-3 text-2xl">
-              {stack.icon}
-            </span>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight text-text-primary">{stack.name}</h1>
-              <p className="font-mono text-[12.5px] text-text-muted">{stackResources.length} resources</p>
+      {(() => {
+        const colorVar = STACK_COLOR_VAR[stack.color] ?? STACK_COLOR_VAR.accent;
+        return (
+          <div className="relative overflow-hidden rounded-[var(--radius-xl)] border border-border-strong">
+            {/* Same atmospheric-gradient language as the Home hero, just
+                themed by this stack's own color instead of a fixed
+                accent/violet/cyan trio — two soft clouds of the same hue
+                at different positions/opacities read as "designed," not
+                one flat tint. */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 -z-10"
+              style={{
+                background: `radial-gradient(640px 320px at 10% 0%, color-mix(in srgb, var(${colorVar}) 30%, transparent), transparent 65%), radial-gradient(520px 360px at 95% 30%, color-mix(in srgb, var(${colorVar}) 18%, transparent), transparent 70%), var(--surface-2)`,
+              }}
+            />
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 -z-10 opacity-[0.06]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(var(--text-primary) 1px, transparent 1px), linear-gradient(90deg, var(--text-primary) 1px, transparent 1px)",
+                backgroundSize: "26px 26px",
+              }}
+            />
+
+            <div className="flex flex-col gap-3 p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3.5">
+                  <span
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[var(--radius-lg)] text-3xl shadow-sm"
+                    style={{
+                      background: `linear-gradient(135deg, color-mix(in srgb, var(${colorVar}) 32%, transparent), color-mix(in srgb, var(${colorVar}) 12%, transparent))`,
+                      border: `1px solid color-mix(in srgb, var(${colorVar}) 35%, transparent)`,
+                    }}
+                  >
+                    {stack.icon}
+                  </span>
+                  <div>
+                    <h1 className="text-xl font-semibold tracking-tight text-text-primary">{stack.name}</h1>
+                    <p className="font-mono text-[12.5px] text-text-muted">{stackResources.length} resources</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ShareStackButton stack={stack} />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setManageOpen(true)}
+                    className="backdrop-blur-sm"
+                  >
+                    <Settings2 size={13} /> Manage Resources
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setConfirmDelete(true)} aria-label="Delete stack">
+                    <Trash2 size={15} className="text-danger" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[13.5px] text-text-secondary">{stack.description || "No description yet."}</p>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <span className="flex items-center gap-1.5 rounded-full border border-warning/25 bg-warning/10 px-2.5 py-1 text-[12px] text-warning">
+                  <Star size={12} /> {favorites.length} favorite{favorites.length === 1 ? "" : "s"}
+                </span>
+                {mostUsed && (
+                  <span
+                    className="flex items-center gap-1.5 truncate rounded-full px-2.5 py-1 text-[12px]"
+                    style={{
+                      background: `color-mix(in srgb, var(${colorVar}) 14%, transparent)`,
+                      color: `var(${colorVar})`,
+                    }}
+                  >
+                    <TrendingUp size={12} className="shrink-0" /> Most used: {mostUsed.title}
+                  </span>
+                )}
+              </div>
+
+              {stackTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {stackTags.map((t) => (
+                    <Tag key={t.id}>{t.name}</Tag>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <ShareStackButton stack={stack} />
-            <Button variant="secondary" size="sm" onClick={() => setManageOpen(true)}>
-              <Settings2 size={13} /> Manage Resources
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => setConfirmDelete(true)} aria-label="Delete stack">
-              <Trash2 size={15} className="text-danger" />
-            </Button>
-          </div>
-        </div>
-        <p className="text-[13.5px] text-text-secondary">{stack.description || "No description yet."}</p>
-
-        <div className="flex flex-wrap gap-3 pt-1 text-[12px] text-text-secondary">
-          <span className="flex items-center gap-1.5">
-            <Star size={13} className="text-warning" /> {favorites.length} favorites
-          </span>
-          {mostUsed && (
-            <span className="flex items-center gap-1.5">
-              <TrendingUp size={13} className="text-accent" /> Most used: {mostUsed.title}
-            </span>
-          )}
-        </div>
-
-        {stackTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {stackTags.map((t) => (
-              <Tag key={t.id}>{t.name}</Tag>
-            ))}
-          </div>
-        )}
-      </div>
+        );
+      })()}
 
       <div className="relative">
         <input

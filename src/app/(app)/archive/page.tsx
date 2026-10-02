@@ -8,7 +8,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ResourceCardSkeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { categoryName, formatAbsoluteDate } from "@/lib/utils";
+import { categoryName, formatAbsoluteDate, cn } from "@/lib/utils";
+import { categoryColor, SEMANTIC_COLOR_CLASSES } from "@/lib/colors";
 import { toast } from "sonner";
 
 const RENDER_BATCH_SIZE = 60;
@@ -59,35 +60,51 @@ export default function ArchivePage() {
         />
       ) : (
         <div className="flex flex-col gap-2">
-          {visible.map((r) => (
-            <div
-              key={r.id}
-              className="flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3"
-            >
-              <Favicon seed={r.title} size={32} />
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate text-[13.5px] font-medium text-text-primary">{r.title}</h3>
-                <p className="truncate text-[12px] text-text-secondary">
-                  {categoryName(r.categoryId, categories)} · archived {formatAbsoluteDate(r.updatedAt)}
-                </p>
+          {visible.map((r) => {
+            const category = categories.find((c) => c.id === r.categoryId);
+            const accentKey = categoryColor(category?.name || r.domain);
+            const accent = SEMANTIC_COLOR_CLASSES[accentKey];
+            return (
+              <div
+                key={r.id}
+                className="group relative flex items-center gap-4 overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 transition-colors hover:border-border-strong"
+              >
+                {/* A dimmed version of the same category-accent language
+                    every other card uses — colorful enough to still feel
+                    alive, muted enough to read as "put away," not active. */}
+                <span aria-hidden="true" className={cn("absolute inset-y-0 left-0 w-[3px] opacity-40", accent.dot)} />
+                <span className="opacity-60 grayscale-[35%] transition-all duration-150 group-hover:opacity-100 group-hover:grayscale-0">
+                  <Favicon seed={r.title} size={32} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-[13.5px] font-medium text-text-primary">{r.title}</h3>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className={cn("rounded-full px-2 py-0.5 text-[10.5px]", accent.soft, accent.text)}>
+                      {categoryName(r.categoryId, categories)}
+                    </span>
+                    <span className="text-[11.5px] text-text-muted">
+                      archived {formatAbsoluteDate(r.updatedAt)}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    restoreResource(r.id);
+                    toast.success(`Restored ${r.title}`);
+                  }}
+                  className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-border-strong px-2.5 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-success/40 hover:bg-success-soft hover:text-success cursor-pointer"
+                >
+                  <RotateCcw size={13} /> Restore
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteId(r.id)}
+                  className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-danger/30 px-2.5 py-1.5 text-[12px] text-danger transition-colors hover:bg-danger-soft cursor-pointer"
+                >
+                  <Trash2 size={13} /> Delete
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  restoreResource(r.id);
-                  toast.success(`Restored ${r.title}`);
-                }}
-                className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-border-strong px-2.5 py-1.5 text-[12px] text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary cursor-pointer"
-              >
-                <RotateCcw size={13} /> Restore
-              </button>
-              <button
-                onClick={() => setConfirmDeleteId(r.id)}
-                className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-danger/30 px-2.5 py-1.5 text-[12px] text-danger transition-colors hover:bg-danger-soft cursor-pointer"
-              >
-                <Trash2 size={13} /> Delete
-              </button>
-            </div>
-          ))}
+            );
+          })}
           {visibleCount < resources.length && (
             <div className="flex justify-center pt-2">
               <Button variant="secondary" size="sm" onClick={() => setVisibleCount((c) => c + RENDER_BATCH_SIZE)}>
