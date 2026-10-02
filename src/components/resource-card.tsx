@@ -6,8 +6,30 @@ import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
 import { Tag } from "@/components/ui/tag";
-import { categoryName, cn } from "@/lib/utils";
+import { categoryName, cn, PRICING_LABELS, PLATFORM_LABELS } from "@/lib/utils";
 import { categoryColor, tagColor, SEMANTIC_COLOR_CLASSES } from "@/lib/colors";
+
+/**
+ * A small corner dot on the favicon reporting real link health (the same
+ * data Library Health already computes from — see src/lib/store.ts's
+ * linkChecks), only ever shown for an actual problem. Silent for
+ * "healthy"/"unknown"/never-checked — a green dot on every single card
+ * would be pure noise, not information.
+ */
+function LinkHealthDot({ status }: { status?: "healthy" | "redirected" | "unavailable" | "timeout" | "blocked" | "unknown" }) {
+  if (status !== "unavailable" && status !== "blocked" && status !== "redirected" && status !== "timeout") return null;
+  const isDown = status === "unavailable" || status === "blocked";
+  return (
+    <span
+      aria-hidden="true"
+      title={isDown ? "Link may be down" : "Link redirects elsewhere"}
+      className={cn(
+        "absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-surface",
+        isDown ? "bg-danger" : "bg-warning"
+      )}
+    />
+  );
+}
 
 function trackExternalOpen(resourceId: string) {
   void fetch("/api/analytics/event", {
@@ -38,6 +60,7 @@ export function ResourceCard({
   const openQuickView = useUIStore((s) => s.openQuickView);
   const tags = useStore((s) => s.tags);
   const categories = useStore((s) => s.categories);
+  const linkStatus = useStore((s) => s.linkChecks[resource.id]?.status);
   const resourceTags = resource.tagIds
     .map((id) => tags.find((t) => t.id === id))
     .filter(Boolean)
@@ -109,7 +132,10 @@ export function ResourceCard({
           aria-label={`${resource.title} — open ${resource.domain}`}
           className="flex w-[180px] shrink-0 items-center gap-2.5 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent sm:w-[220px]"
         >
-          <Favicon seed={resource.title} size={32} />
+          <span className="relative shrink-0">
+            <Favicon seed={resource.title} size={32} />
+            <LinkHealthDot status={linkStatus} />
+          </span>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <h3 className="truncate text-[13.5px] font-medium text-text-primary group-hover:text-accent">
@@ -135,6 +161,11 @@ export function ResourceCard({
           <span className="hidden shrink-0 text-[11px] text-text-muted md:block">
             {categoryName(resource.categoryId, categories)}
           </span>
+          {resource.pricing && (
+            <span className="hidden shrink-0 rounded-full border border-border-strong px-1.5 py-0.5 text-[10px] text-text-secondary lg:block">
+              {PRICING_LABELS[resource.pricing]}
+            </span>
+          )}
           <div className="hidden shrink-0 gap-1 md:flex">
             {resourceTags.map((t) => (
               <Tag key={t.id} color={tagColor(t.name)}>
@@ -200,6 +231,14 @@ export function ResourceCard({
       {/* A thin category-colored accent line — the card's one deliberate
           spot of color, not a full colored background. */}
       <span aria-hidden="true" className={cn("absolute inset-x-0 top-0 h-[3px]", accent.dot)} />
+      {/* A soft corner glow in the same category color, same restrained
+          "one accent, not a colored card" language as StackCard — stronger
+          on hover so the grid feels responsive, not static. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.08] blur-2xl transition-opacity duration-200 group-hover:opacity-[0.16]"
+        style={{ background: `var(--${accentColorKey})` }}
+      />
 
       <div className="flex items-start justify-between gap-2">
         {/* Identity zone — favicon + title + domain → external site (§2A). */}
@@ -216,6 +255,7 @@ export function ResourceCard({
             style={{ boxShadow: `0 0 16px -2px var(--${accentColorKey})` }}
           >
             <Favicon seed={resource.title} size={32} />
+            <LinkHealthDot status={linkStatus} />
           </span>
           <div className="min-w-0">
             <h3 className="truncate text-[14px] font-semibold text-text-primary group-hover:text-accent">
@@ -270,12 +310,22 @@ export function ResourceCard({
           </p>
         )}
 
-        {resourceTags.length > 0 && (
+        {(resourceTags.length > 0 || resource.pricing || (resource.platform && resource.platform.length > 0)) && (
           <div className="flex flex-wrap gap-1.5">
             {resourceTags.map((t) => (
               <Tag key={t.id} color={tagColor(t.name)}>
                 {t.name}
               </Tag>
+            ))}
+            {resource.pricing && (
+              <span className="rounded-full border border-border-strong px-2 py-0.5 text-[10.5px] text-text-secondary">
+                {PRICING_LABELS[resource.pricing]}
+              </span>
+            )}
+            {resource.platform?.slice(0, 1).map((p) => (
+              <span key={p} className="rounded-full border border-border-strong px-2 py-0.5 text-[10.5px] text-text-secondary">
+                {PLATFORM_LABELS[p]}
+              </span>
             ))}
           </div>
         )}
