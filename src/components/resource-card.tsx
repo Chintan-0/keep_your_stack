@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
 import { Tag } from "@/components/ui/tag";
-import { categoryName, cn, PRICING_LABELS, PLATFORM_LABELS } from "@/lib/utils";
+import { categoryName, cn, decodeHtmlEntities, PRICING_LABELS, PLATFORM_LABELS } from "@/lib/utils";
 import { categoryColor, tagColor, SEMANTIC_COLOR_CLASSES } from "@/lib/colors";
 
 /**
@@ -112,8 +112,8 @@ export function ResourceCard({
           {Checkbox}
           <Favicon seed={resource.title} size={32} />
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[13.5px] font-medium text-text-primary">{resource.title}</h3>
-            <p className="truncate text-[12px] text-text-secondary">{resource.description || resource.domain}</p>
+            <h3 className="truncate text-[13.5px] font-medium text-text-primary">{decodeHtmlEntities(resource.title)}</h3>
+            <p className="truncate text-[12px] text-text-secondary">{decodeHtmlEntities(resource.description) || resource.domain}</p>
           </div>
         </div>
       );
@@ -139,7 +139,7 @@ export function ResourceCard({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <h3 className="truncate text-[13.5px] font-medium text-text-primary group-hover:text-accent">
-                {resource.title}
+                {decodeHtmlEntities(resource.title)}
               </h3>
               {stack && <span className="text-xs">{stack.icon}</span>}
             </div>
@@ -156,7 +156,7 @@ export function ResourceCard({
           className="flex min-w-0 flex-1 items-center gap-3 rounded-[var(--radius-sm)] py-1 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <p className="min-w-0 flex-1 truncate text-[12.5px] text-text-secondary">
-            {resource.description || "No description yet."}
+            {decodeHtmlEntities(resource.description) || "No description yet."}
           </p>
           <span className="hidden shrink-0 text-[11px] text-text-muted md:block">
             {categoryName(resource.categoryId, categories)}
@@ -215,29 +215,36 @@ export function ResourceCard({
           {Checkbox}
           <Favicon seed={resource.title} size={32} />
           <div className="min-w-0">
-            <h3 className="truncate text-[14px] font-semibold text-text-primary">{resource.title}</h3>
+            <h3 className="truncate text-[14px] font-semibold text-text-primary">{decodeHtmlEntities(resource.title)}</h3>
             <p className="truncate font-mono text-[11px] text-text-muted">{resource.domain}</p>
           </div>
         </div>
         <p className="line-clamp-2 text-[13px] leading-5 text-text-secondary">
-          {resource.description || "No description yet."}
+          {decodeHtmlEntities(resource.description) || "No description yet."}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface p-4 pt-[14px] transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:bg-surface-2 hover:shadow-lg hover:shadow-black/20 motion-reduce:transition-colors motion-reduce:hover:translate-y-0">
-      {/* A thin category-colored accent line — the card's one deliberate
-          spot of color, not a full colored background. */}
+    <div
+      className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-border p-4 pt-[14px] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md hover:shadow-black/15 motion-reduce:transition-colors motion-reduce:hover:translate-y-0"
+      style={{
+        // A category-tinted wash fading into the surface — a plain CSS
+        // gradient (no filter, no blur), so the card gets its own identity
+        // for almost no rendering cost.
+        background: `linear-gradient(165deg, color-mix(in srgb, var(--${accentColorKey}) 13%, var(--surface)) 0%, var(--surface) 62%)`,
+      }}
+    >
+      {/* Category accent: a solid top edge plus a soft radial highlight in
+          the corner. Both are gradients/solids — no blur filter. */}
       <span aria-hidden="true" className={cn("absolute inset-x-0 top-0 h-[3px]", accent.dot)} />
-      {/* A soft corner glow in the same category color, same restrained
-          "one accent, not a colored card" language as StackCard — stronger
-          on hover so the grid feels responsive, not static. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.08] blur-2xl transition-opacity duration-200 group-hover:opacity-[0.16]"
-        style={{ background: `var(--${accentColorKey})` }}
+        className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full"
+        style={{
+          background: `radial-gradient(circle, color-mix(in srgb, var(--${accentColorKey}) 28%, transparent) 0%, transparent 70%)`,
+        }}
       />
 
       <div className="flex items-start justify-between gap-2">
@@ -248,18 +255,21 @@ export function ResourceCard({
           rel="noopener noreferrer"
           onClick={() => trackExternalOpen(resource.id)}
           aria-label={`${resource.title} — open ${resource.domain}`}
-          className="flex min-w-0 items-center gap-2.5 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="flex min-w-0 items-center gap-3 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <span
-            className="relative flex shrink-0 items-center justify-center rounded-[var(--radius-md)]"
-            style={{ boxShadow: `0 0 16px -2px var(--${accentColorKey})` }}
+            className="relative flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border"
+            style={{
+              background: `color-mix(in srgb, var(--${accentColorKey}) 18%, var(--surface))`,
+              borderColor: `color-mix(in srgb, var(--${accentColorKey}) 40%, transparent)`,
+            }}
           >
-            <Favicon seed={resource.title} size={32} />
+            <Favicon seed={resource.title} size={30} />
             <LinkHealthDot status={linkStatus} />
           </span>
           <div className="min-w-0">
             <h3 className="truncate text-[14px] font-semibold text-text-primary group-hover:text-accent">
-              {resource.title}
+              {decodeHtmlEntities(resource.title)}
             </h3>
             <p className="truncate font-mono text-[11px] text-text-muted">{resource.domain}</p>
           </div>
@@ -300,7 +310,7 @@ export function ResourceCard({
         className="-mx-1 flex flex-1 flex-col gap-3 rounded-[var(--radius-sm)] px-1 py-0.5 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <p className="line-clamp-2 text-[13px] leading-5 text-text-secondary">
-          {resource.description || "No description yet."}
+          {decodeHtmlEntities(resource.description) || "No description yet."}
         </p>
 
         {resource.useCases.length > 0 && (

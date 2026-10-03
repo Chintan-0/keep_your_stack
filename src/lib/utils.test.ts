@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeUrl, getDomain, categoryPath, categoryName, topLevelCategories, childCategories, needsReview } from "./utils";
+import { normalizeUrl, getDomain, categoryPath, categoryName, topLevelCategories, childCategories, needsReview, decodeHtmlEntities } from "./utils";
 import type { Category } from "./types";
 
 describe("normalizeUrl", () => {
@@ -123,5 +123,22 @@ describe("needsReview", () => {
     expect(
       needsReview({ categoryId: "development", useCases: ["Test APIs"], needsReviewDismissed: false }, "timeout")
     ).toBe(false);
+  });
+});
+
+describe("decodeHtmlEntities", () => {
+  it("decodes hex and decimal numeric entities", () => {
+    expect(decodeHtmlEntities("world&#x27;s best")).toBe("world's best");
+    expect(decodeHtmlEntities("a &#39; b")).toBe("a ' b");
+  });
+  it("decodes common named entities", () => {
+    expect(decodeHtmlEntities("Tom &amp; Jerry &quot;hi&quot;")).toBe("Tom & Jerry \"hi\"");
+  });
+  it("leaves plain text and unknown entities untouched", () => {
+    expect(decodeHtmlEntities("plain text")).toBe("plain text");
+    expect(decodeHtmlEntities("&notareal;")).toBe("&notareal;");
+  });
+  it("never throws on out-of-range code points", () => {
+    expect(decodeHtmlEntities("&#x110000;")).toBe("&#x110000;");
   });
 });
