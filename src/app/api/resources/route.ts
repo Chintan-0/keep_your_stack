@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
-import { listResources, listResourcesPage, createResource, findResourceByUrl } from "@/lib/data/resources";
+import { listResources, listArchivedResources, listResourcesPage, createResource, findResourceByUrl } from "@/lib/data/resources";
 import { normalizeUrl } from "@/lib/utils";
 import { corsPreflight, withCors } from "@/lib/cors";
 import { trackEvent, trackIfFirst, logServerError } from "@/lib/data/analytics";
@@ -23,6 +23,21 @@ export async function GET(request: NextRequest) {
       return withCors(
         request,
         NextResponse.json({ error: e instanceof Error ? e.message : "Lookup failed" }, { status: 500 })
+      );
+    }
+  }
+
+  // ?archived=1 returns the full archived set on its own — the Archive page
+  // needs every archived row, which the active-first paginated load never
+  // guarantees to include.
+  if (request.nextUrl.searchParams.get("archived") === "1") {
+    try {
+      const resources = await listArchivedResources(supabase, user.id);
+      return withCors(request, NextResponse.json({ resources }));
+    } catch (e) {
+      return withCors(
+        request,
+        NextResponse.json({ error: e instanceof Error ? e.message : "Failed to load archived resources" }, { status: 500 })
       );
     }
   }

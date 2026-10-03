@@ -103,7 +103,7 @@ export function Sidebar() {
   }, []);
 
   const active = resources.filter((r) => !r.isArchived);
-  const archivedCount = resources.filter((r) => r.isArchived).length;
+  const archivedCount = useStore((s) => s.stats?.archived) ?? resources.filter((r) => r.isArchived).length;
   const favoriteCount = active.filter((r) => r.isFavorite).length;
   const recentCount = active.filter((r) => {
     const d = (now - new Date(r.createdAt).getTime()) / 86400000;

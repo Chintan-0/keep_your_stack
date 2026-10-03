@@ -77,6 +77,19 @@ function defaultSource(hasValue: boolean): "user" | null {
 // controls local dev.
 const MAX_RESOURCES_PER_LIST = 20000;
 
+/** Every archived resource, newest-archived first — the Archive page needs the real set, not whatever happens to be in the active page. */
+export async function listArchivedResources(client: Client, userId: string): Promise<Resource[]> {
+  const { data, error } = await client
+    .from("resources")
+    .select(RESOURCE_SELECT)
+    .eq("user_id", userId)
+    .eq("is_archived", true)
+    .order("updated_at", { ascending: false })
+    .limit(MAX_RESOURCES_PER_LIST);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(mapResourceRow);
+}
+
 export async function listResources(client: Client, userId: string): Promise<Resource[]> {
   const { data, error } = await client
     .from("resources")
@@ -170,7 +183,7 @@ export interface ResourceStats {
  */
 export async function getResourceStats(client: Client, userId: string): Promise<ResourceStats> {
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-  const [totalRes, favRes, recentRes] = await Promise.all([
+  const [totalRes, favRes, recentRes, archivedRes] = await Promise.all([
     client.from("resources").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_archived", false),
     client
       .from("resources")
@@ -184,10 +197,12 @@ export async function getResourceStats(client: Client, userId: string): Promise<
       .eq("user_id", userId)
       .eq("is_archived", false)
       .gte("created_at", fourteenDaysAgo),
+    client.from("resources").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_archived", true),
   ]);
   if (totalRes.error) throw new Error(totalRes.error.message);
   if (favRes.error) throw new Error(favRes.error.message);
   if (recentRes.error) throw new Error(recentRes.error.message);
+  if (archivedRes.error) throw new Error(archivedRes.error.message);
   return {
     total: totalRes.count ?? 0,
     favorites: favRes.count ?? 0,

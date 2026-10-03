@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Heart, Pencil, Check } from "lucide-react";
 import type { Resource } from "@/lib/types";
 import { useStore } from "@/lib/store";
@@ -61,6 +62,8 @@ export function ResourceCard({
   const tags = useStore((s) => s.tags);
   const categories = useStore((s) => s.categories);
   const linkStatus = useStore((s) => s.linkChecks[resource.id]?.status);
+  // Bumped on every favorite toggle so the heart re-mounts and replays its pop.
+  const [heartPop, setHeartPop] = useState(0);
   const resourceTags = resource.tagIds
     .map((id) => tags.find((t) => t.id === id))
     .filter(Boolean)
@@ -251,6 +254,12 @@ export function ResourceCard({
         }}
       />
 
+      <span
+        aria-hidden="true"
+        className="card-dot-grid pointer-events-none absolute right-3 top-3 h-12 w-20 opacity-[0.07]"
+        style={{ maskImage: "linear-gradient(to bottom left, black, transparent 70%)" }}
+      />
+
       <div className="flex items-start justify-between gap-2">
         {/* Identity zone — favicon + title + domain → external site (§2A). */}
         <a
@@ -281,7 +290,10 @@ export function ResourceCard({
 
         <div className="flex shrink-0 items-center gap-0.5">
           <button
-            onClick={() => toggleFavorite(resource.id)}
+            onClick={() => {
+              toggleFavorite(resource.id);
+              setHeartPop((n) => n + 1);
+            }}
             className={cn(
               "rounded-[var(--radius-sm)] p-1 transition-all duration-150 cursor-pointer motion-reduce:transition-none",
               resource.isFavorite
@@ -290,7 +302,15 @@ export function ResourceCard({
             )}
             aria-label={resource.isFavorite ? "Remove from favorites" : "Add to favorites"}
           >
-            <Heart size={16} fill={resource.isFavorite ? "currentColor" : "none"} className="transition-transform duration-150 active:scale-90 motion-reduce:transition-none" />
+            <Heart
+              key={heartPop}
+              size={16}
+              fill={resource.isFavorite ? "currentColor" : "none"}
+              className={cn(
+                "transition-transform duration-150 active:scale-90 motion-reduce:transition-none",
+                heartPop > 0 && "animate-pop"
+              )}
+            />
           </button>
           {showEdit && (
             <button

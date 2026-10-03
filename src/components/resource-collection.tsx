@@ -89,16 +89,23 @@ export function ResourceCollection({
             : "flex flex-col gap-2"
         }
       >
-        {visible.map((r) => (
-          <ResourceCard
+        {visible.map((r, i) => (
+          // Only the first screenful staggers in; later rows appear at once
+          // so scrolling a long library never waits on an animation.
+          <div
             key={r.id}
-            resource={r}
-            view={view}
-            showEdit={showEdit}
-            selectable={selectable}
-            selected={selectedIds?.has(r.id)}
-            onToggleSelect={() => onToggleSelect?.(r.id)}
-          />
+            className="animate-card-in"
+            style={{ animationDelay: `${Math.min(i, 11) * 28}ms` }}
+          >
+            <ResourceCard
+              resource={r}
+              view={view}
+              showEdit={showEdit}
+              selectable={selectable}
+              selected={selectedIds?.has(r.id)}
+              onToggleSelect={() => onToggleSelect?.(r.id)}
+            />
+          </div>
         ))}
       </div>
       {visibleCount < resources.length && (

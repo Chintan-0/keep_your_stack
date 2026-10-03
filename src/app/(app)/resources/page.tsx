@@ -210,8 +210,16 @@ export default function AllResourcesPage() {
         resources={filtered}
         view={view}
         emptyIcon={Package}
-        emptyTitle="Your toolbox is empty."
-        emptyDescription="Save your first useful resource."
+        emptyTitle={
+          filters.categoryId || filters.subcategoryId || filters.stackId || filters.tagId || filters.pricing || filters.needsReview
+            ? "Nothing matches these filters."
+            : "Your toolbox is empty."
+        }
+        emptyDescription={
+          filters.categoryId || filters.subcategoryId || filters.stackId || filters.tagId || filters.pricing || filters.needsReview
+            ? "Try clearing one of the filter pills above."
+            : "Save your first useful resource."
+        }
         emptyAction={
           <Button onClick={() => openAddResource()} size="sm">
             <Plus size={14} /> Add Resource

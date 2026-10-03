@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Archive as ArchiveIcon, RotateCcw, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Favicon } from "@/components/ui/favicon";
@@ -11,21 +11,47 @@ import { Button } from "@/components/ui/button";
 import { categoryName, formatAbsoluteDate, cn } from "@/lib/utils";
 import { categoryColor, SEMANTIC_COLOR_CLASSES } from "@/lib/colors";
 import { toast } from "sonner";
+import type { Resource } from "@/lib/types";
 
 const RENDER_BATCH_SIZE = 60;
 
 export default function ArchivePage() {
-  const allResources = useStore((s) => s.resources);
-  const resources = useMemo(() => allResources.filter((r) => r.isArchived), [allResources]);
+  const storeResources = useStore((s) => s.resources);
+  const stats = useStore((s) => s.stats);
   const hasHydrated = useStore((s) => s.hasHydrated);
   const restoreResource = useStore((s) => s.restoreResource);
   const deleteResourcePermanently = useStore((s) => s.deleteResourcePermanently);
   const categories = useStore((s) => s.categories);
-  const resourcesHasMore = useStore((s) => s.resourcesHasMore);
-  const resourcesLoadingMore = useStore((s) => s.resourcesLoadingMore);
-  const loadMoreResources = useStore((s) => s.loadMoreResources);
+  const [fetched, setFetched] = useState<Resource[] | null>(null);
+  const [fetchError, setFetchError] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(RENDER_BATCH_SIZE);
+
+  // The active-first paginated load can miss archived rows entirely, so the
+  // Archive page asks for the whole archived set itself once mounted.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/resources?archived=1")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { resources: Resource[] }) => {
+        if (!cancelled) setFetched(d.resources);
+      })
+      .catch(() => {
+        if (!cancelled) setFetchError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Prefer the store's copy when it has one (so an edit/restore elsewhere
+  // shows up here), and drop anything the store no longer considers archived.
+  const resources = useMemo(() => {
+    const live = new Map(storeResources.map((r) => [r.id, r]));
+    const source = fetched ?? storeResources.filter((r) => r.isArchived);
+    return source.map((r) => live.get(r.id) ?? r).filter((r) => r.isArchived);
+  }, [fetched, storeResources]);
+
   // Reset the render window when the archived list itself changes —
   // adjusted during render (React's documented pattern), not in an effect.
   const [prevResources, setPrevResources] = useState(resources);
@@ -34,6 +60,7 @@ export default function ArchivePage() {
     setVisibleCount(RENDER_BATCH_SIZE);
   }
   const visible = resources.slice(0, visibleCount);
+  const archivedTotal = stats?.archived ?? resources.length;
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,11 +69,11 @@ export default function ArchivePage() {
           <ArchiveIcon size={19} /> Archive
         </h1>
         <p className="font-mono text-[12.5px] text-text-muted">
-          {resources.length} archived · hidden from your library but recoverable
+          {archivedTotal} archived · hidden from your library but recoverable
         </p>
       </div>
 
-      {!hasHydrated ? (
+      {!hasHydrated || (fetched === null && !fetchError) ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 3 }).map((_, i) => (
             <ResourceCardSkeleton key={i} />
@@ -90,6 +117,7 @@ export default function ArchivePage() {
                 <button
                   onClick={() => {
                     restoreResource(r.id);
+                    setFetched((prev) => prev?.filter((x) => x.id !== r.id) ?? null);
                     toast.success(`Restored ${r.title}`);
                   }}
                   className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-border-strong px-2.5 py-1.5 text-[12px] text-text-secondary transition-colors hover:border-success/40 hover:bg-success-soft hover:text-success cursor-pointer"
@@ -115,15 +143,8 @@ export default function ArchivePage() {
         </div>
       )}
 
-      {resourcesHasMore && (
-        <div className="flex flex-col items-center gap-1.5 border-t border-border pt-4">
-          <p className="text-[12px] text-text-muted">
-            Only your most recent resources are loaded so far — load more of your library to find older archived items.
-          </p>
-          <Button variant="secondary" size="sm" onClick={() => void loadMoreResources()} disabled={resourcesLoadingMore}>
-            {resourcesLoadingMore ? "Loading…" : "Load more from your library"}
-          </Button>
-        </div>
+      {fetchError && (
+        <p className="text-center text-[12.5px] text-danger">Couldn&apos;t load your archive. Refresh to try again.</p>
       )}
 
       <ConfirmDialog
@@ -132,6 +153,7 @@ export default function ArchivePage() {
         onConfirm={() => {
           if (confirmDeleteId) {
             deleteResourcePermanently(confirmDeleteId);
+            setFetched((prev) => prev?.filter((r) => r.id !== confirmDeleteId) ?? null);
             toast.success("Resource permanently deleted");
           }
         }}

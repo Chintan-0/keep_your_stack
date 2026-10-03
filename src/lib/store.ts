@@ -8,6 +8,7 @@ export interface ResourceStats {
   total: number;
   favorites: number;
   addedRecently: number;
+  archived: number;
 }
 
 const RESOURCES_PAGE_SIZE = 300;
@@ -522,7 +523,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       stacks: [],
       tags: [],
       categories: [],
-      stats: { total: 0, favorites: 0, addedRecently: 0 },
+      stats: { total: 0, favorites: 0, addedRecently: 0, archived: 0 },
       resourcesHasMore: false,
     });
   },
