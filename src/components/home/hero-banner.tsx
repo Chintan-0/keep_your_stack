@@ -79,6 +79,16 @@ export function HeroBanner({
       />
       <div
         aria-hidden="true"
+        className="hero-orb-a pointer-events-none absolute -right-16 -top-24 -z-10 h-72 w-72 rounded-full opacity-60"
+        style={{ background: "radial-gradient(circle, color-mix(in srgb, var(--accent) 45%, transparent), transparent 70%)" }}
+      />
+      <div
+        aria-hidden="true"
+        className="hero-orb-b pointer-events-none absolute -bottom-28 left-1/4 -z-10 h-72 w-72 rounded-full opacity-50"
+        style={{ background: "radial-gradient(circle, color-mix(in srgb, var(--cyan) 35%, transparent), transparent 70%)" }}
+      />
+      <div
+        aria-hidden="true"
         className="absolute inset-0 -z-10 opacity-[0.07]"
         style={{
           backgroundImage:

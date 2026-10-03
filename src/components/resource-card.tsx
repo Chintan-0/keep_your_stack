@@ -174,7 +174,7 @@ export function ResourceCard({
           )}
           <div className="hidden shrink-0 gap-1 md:flex">
             {resourceTags.map((t) => (
-              <Tag key={t.id} color={tagColor(t.name)}>
+              <Tag key={t.id} color={tagColor(t.name)} className="transition-transform duration-150 hover:-translate-y-px">
                 {t.name}
               </Tag>
             ))}
@@ -234,7 +234,7 @@ export function ResourceCard({
 
   return (
     <div
-      className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-border p-4 pt-[14px] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md hover:shadow-black/15 motion-reduce:transition-colors motion-reduce:hover:translate-y-0"
+      className="group relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius-lg)] border border-border p-4 pt-[14px] transition-[border-color,transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md hover:shadow-black/15 active:translate-y-0 active:scale-[0.99] motion-reduce:transition-colors motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100"
       style={{
         // A category-tinted wash fading into the surface — a plain CSS
         // gradient (no filter, no blur), so the card gets its own identity
@@ -256,7 +256,7 @@ export function ResourceCard({
 
       <span
         aria-hidden="true"
-        className="card-dot-grid pointer-events-none absolute right-3 top-3 h-12 w-20 opacity-[0.07]"
+        className="card-dot-grid pointer-events-none absolute right-3 top-3 h-12 w-20 opacity-[0.07] group-hover:[background-position:4px_4px] motion-reduce:group-hover:[background-position:0_0]"
         style={{ maskImage: "linear-gradient(to bottom left, black, transparent 70%)" }}
       />
 
@@ -271,7 +271,7 @@ export function ResourceCard({
           className="flex min-w-0 items-center gap-3 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <span
-            className="relative flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border"
+            className="relative flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border transition-[transform,box-shadow] duration-200 group-hover:scale-105 group-hover:shadow-md motion-reduce:transition-none motion-reduce:group-hover:scale-100"
             style={{
               background: `color-mix(in srgb, var(--${accentColorKey}) 18%, var(--surface))`,
               borderColor: `color-mix(in srgb, var(--${accentColorKey}) 40%, transparent)`,
@@ -347,7 +347,7 @@ export function ResourceCard({
         {resourceTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {resourceTags.map((t) => (
-              <Tag key={t.id} color={tagColor(t.name)}>
+              <Tag key={t.id} color={tagColor(t.name)} className="transition-transform duration-150 hover:-translate-y-px">
                 {t.name}
               </Tag>
             ))}

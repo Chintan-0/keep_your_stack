@@ -46,7 +46,7 @@ export function Modal({
         aria-modal="true"
         aria-labelledby={labelledBy}
         className={cn(
-          "relative z-10 w-full max-w-lg rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 shadow-2xl animate-fade-in",
+          "relative z-10 w-full max-w-lg rounded-[var(--radius-lg)] border border-border-strong bg-surface-2 shadow-2xl animate-scale-in",
           className
         )}
       >

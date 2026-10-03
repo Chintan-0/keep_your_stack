@@ -312,11 +312,69 @@ body {
 .card-dot-grid {
   background-image: radial-gradient(circle, var(--text-primary) 1px, transparent 1.2px);
   background-size: 9px 9px;
+  transition: background-position 600ms ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-card-in,
   .animate-pop {
+    animation: none;
+  }
+}
+
+/* Motion language: transform/opacity only, short durations, and every
+   continuous effect switched off under reduced motion. */
+@keyframes kys-scale-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-scale-in {
+  animation: kys-scale-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes kys-nav-in {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.animate-nav-in {
+  animation: kys-nav-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Hero ambience: two soft gradient fields drifting very slowly. They move
+   by transform only and sit behind content, so the cost is one composited
+   layer each. */
+@keyframes kys-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(4%, 6%, 0); }
+}
+@keyframes kys-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-5%, -4%, 0); }
+}
+.hero-orb-a {
+  animation: kys-drift-a 26s ease-in-out infinite;
+  will-change: transform;
+}
+.hero-orb-b {
+  animation: kys-drift-b 32s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scale-in,
+  .animate-nav-in,
+  .hero-orb-a,
+  .hero-orb-b {
     animation: none;
   }
 }

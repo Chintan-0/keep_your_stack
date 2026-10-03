@@ -63,14 +63,23 @@ function NavLink({
       href={href}
       onClick={() => setMobileNavOpen(false)}
       className={cn(
-        "flex items-center justify-between rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] transition-colors",
+        "group relative flex items-center justify-between rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] transition-colors",
         active
           ? "bg-accent-soft font-medium text-accent"
           : "text-text-secondary hover:bg-surface-3 hover:text-text-primary"
       )}
     >
+      {active && (
+        <span aria-hidden="true" className="animate-nav-in absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-accent" />
+      )}
       <span className="flex items-center gap-2.5">
-        <Icon size={16} className={iconClassName ?? (active ? "text-accent" : "text-text-muted")} />
+        <Icon
+          size={16}
+          className={cn(
+            "transition-transform duration-200 group-hover:scale-110 motion-reduce:transition-none motion-reduce:group-hover:scale-100",
+            iconClassName ?? (active ? "text-accent" : "text-text-muted")
+          )}
+        />
         {label}
       </span>
       {typeof count === "number" && (
