@@ -76,7 +76,10 @@ export function ResourceCard({
   // color, every time) but keeps a library that's mostly uncategorized
   // (e.g. a fresh bulk import, before anyone's sorted it) from rendering
   // as a wall of identical accents.
-  const accentColorKey = categoryColor(category?.name || resource.domain);
+  // Red and coral are reserved for link-health and danger states on cards;
+  // a hashed category that lands there gets a neutral blue instead.
+  const hashedAccentKey = categoryColor(category?.name || resource.domain);
+  const accentColorKey = hashedAccentKey === "danger" || hashedAccentKey === "coral" ? "blue" : hashedAccentKey;
   const accent = SEMANTIC_COLOR_CLASSES[accentColorKey];
 
   const Checkbox = selectable ? (
@@ -236,14 +239,15 @@ export function ResourceCard({
         background: `linear-gradient(165deg, color-mix(in srgb, var(--${accentColorKey}) 13%, var(--surface)) 0%, var(--surface) 62%)`,
       }}
     >
-      {/* Category accent: a solid top edge plus a soft radial highlight in
-          the corner. Both are gradients/solids — no blur filter. */}
+      {/* Category accent: a solid top edge plus a diagonal edge wash from
+          the top-left. A linear gradient, not a radial blob, so the tint
+          stays crisp on dark surfaces instead of smudging into the card. */}
       <span aria-hidden="true" className={cn("absolute inset-x-0 top-0 h-[3px]", accent.dot)} />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full"
+        className="pointer-events-none absolute inset-0"
         style={{
-          background: `radial-gradient(circle, color-mix(in srgb, var(--${accentColorKey}) 28%, transparent) 0%, transparent 70%)`,
+          background: `linear-gradient(135deg, color-mix(in srgb, var(--${accentColorKey}) 16%, transparent) 0%, transparent 42%)`,
         }}
       />
 
@@ -314,41 +318,42 @@ export function ResourceCard({
         </p>
 
         {resource.useCases.length > 0 && (
-          <p className="line-clamp-1 text-[12px] text-text-secondary">
-            <span className="text-text-muted">Useful for </span>
+          <p className="line-clamp-1 text-[12px] text-text-muted">
+            <span className="italic">Useful for </span>
             {resource.useCases[0]}
           </p>
         )}
 
-        {(resourceTags.length > 0 || resource.pricing || (resource.platform && resource.platform.length > 0)) && (
+        {resourceTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {resourceTags.map((t) => (
               <Tag key={t.id} color={tagColor(t.name)}>
                 {t.name}
               </Tag>
             ))}
-            {resource.pricing && (
-              <span className="rounded-full border border-border-strong px-2 py-0.5 text-[10.5px] text-text-secondary">
-                {PRICING_LABELS[resource.pricing]}
-              </span>
-            )}
-            {resource.platform?.slice(0, 1).map((p) => (
-              <span key={p} className="rounded-full border border-border-strong px-2 py-0.5 text-[10.5px] text-text-secondary">
-                {PLATFORM_LABELS[p]}
-              </span>
-            ))}
           </div>
         )}
 
-        <span className={cn("mt-auto truncate text-[11px]", stack ? "text-text-muted" : accent.text)}>
+        <div className="mt-auto flex items-center gap-1.5 truncate text-[11px] text-text-muted">
           {stack ? (
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 truncate">
               {stack.icon} {stack.name}
             </span>
+          ) : category ? (
+            <span className={cn("truncate", accent.text)}>{categoryName(resource.categoryId, categories)}</span>
           ) : (
-            categoryName(resource.categoryId, categories)
+            <span className="rounded-full border border-dashed border-border-strong px-2 py-px text-[10.5px]">
+              Uncategorized
+            </span>
           )}
-        </span>
+          {(resource.pricing || (resource.platform?.length ?? 0) > 0) && (
+            <span className="truncate">
+              · {[resource.pricing && PRICING_LABELS[resource.pricing], resource.platform?.[0] && PLATFORM_LABELS[resource.platform[0]]]
+                .filter(Boolean)
+                .join(" · ")}
+            </span>
+          )}
+        </div>
       </button>
     </div>
   );
