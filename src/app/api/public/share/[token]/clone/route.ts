@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { getStackByShareToken } from "@/lib/data/public-stacks";
-import { cloneResourcesToUser } from "@/lib/data/stack-clone";
+import { cloneResourcesToUser, cloneStackToUser } from "@/lib/data/stack-clone";
 import { trackEvent } from "@/lib/data/analytics";
 
 // Same trusted-lookup pattern as the public-stack clone route — resource
@@ -22,7 +22,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const candidates = requestedIds ? stack.resources.filter((r) => requestedIds.includes(r.id)) : stack.resources;
     void trackEvent({ eventType: "stack_clone_started", userId: user.id, metadata: { stackId: stack.id, count: candidates.length } });
 
-    const result = await cloneResourcesToUser(supabase, user.id, candidates);
+    const result = requestedIds
+      ? await cloneResourcesToUser(supabase, user.id, candidates)
+      : await cloneStackToUser(
+          supabase,
+          user.id,
+          { name: stack.name, description: stack.description, icon: stack.icon, color: stack.color },
+          candidates
+        );
     void trackEvent({
       eventType: result.failed > 0 && result.added === 0 ? "stack_clone_failed" : "stack_clone_completed",
       userId: user.id,

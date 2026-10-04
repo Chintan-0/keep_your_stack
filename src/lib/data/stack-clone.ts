@@ -1,7 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
-import { createResource } from "./resources";
+import { createResource, bulkAddToStack } from "./resources";
+import { createStack } from "./stacks";
 import type { Pricing, Platform } from "@/lib/types";
 
 type Client = SupabaseClient<Database>;
@@ -19,6 +20,18 @@ export interface CloneResult {
   added: number;
   alreadyInLibrary: number;
   failed: number;
+}
+
+export interface CloneSource {
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+export interface StackCloneResult extends CloneResult {
+  stackId: string;
+  stackName: string;
 }
 
 /**
@@ -39,14 +52,15 @@ export async function cloneResourcesToUser(
   destinationClient: Client,
   destinationUserId: string,
   resources: CloneableResource[]
-): Promise<CloneResult> {
+): Promise<CloneResult & { resourceIds: string[] }> {
   let added = 0;
   let alreadyInLibrary = 0;
   let failed = 0;
+  const resourceIds: string[] = [];
 
   for (const r of resources) {
     try {
-      const { duplicate } = await createResource(destinationClient, destinationUserId, {
+      const { resource, duplicate } = await createResource(destinationClient, destinationUserId, {
         url: r.url,
         title: r.title,
         description: r.description,
@@ -62,10 +76,40 @@ export async function cloneResourcesToUser(
       });
       if (duplicate) alreadyInLibrary++;
       else added++;
+      resourceIds.push(resource.id);
     } catch {
       failed++;
     }
   }
 
-  return { added, alreadyInLibrary, failed };
+  return { added, alreadyInLibrary, failed, resourceIds };
+}
+
+/**
+ * Whole-stack clone: copies the resources into the library (existing ones are reused, never duplicated) and creates a
+ * private stack holding them. A repeat clone gets a new stack name with a numeric suffix, so the earlier copy is never overwritten.
+ */
+export async function cloneStackToUser(
+  client: Client,
+  userId: string,
+  source: CloneSource,
+  resources: CloneableResource[]
+): Promise<StackCloneResult> {
+  const result = await cloneResourcesToUser(client, userId, resources);
+
+  const { data: existing, error } = await client.from("stacks").select("name").eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  const taken = new Set((existing ?? []).map((s) => s.name));
+  let name = source.name.slice(0, 80) || "Cloned stack";
+  for (let n = 2; taken.has(name); n++) name = `${source.name.slice(0, 70)} (${n})`;
+
+  const stack = await createStack(client, userId, {
+    name,
+    description: source.description,
+    icon: source.icon,
+    color: source.color,
+  });
+  await bulkAddToStack(client, userId, result.resourceIds, stack.id);
+
+  return { added: result.added, alreadyInLibrary: result.alreadyInLibrary, failed: result.failed, stackId: stack.id, stackName: stack.name };
 }
