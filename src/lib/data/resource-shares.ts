@@ -7,6 +7,7 @@ import type { ShareVisibility } from "@/lib/resource-share-validation";
 import { getServiceRoleClient } from "./service-role";
 import { getResource, createResource } from "./resources";
 import { listTags } from "./tags";
+import { listCategories } from "./categories";
 import { NotFoundError } from "./errors";
 
 type Client = SupabaseClient<Database>;
@@ -21,6 +22,7 @@ export interface ResourceShare {
 }
 
 export interface SharedResource {
+  shareId: string;
   title: string;
   url: string;
   domain: string;
@@ -64,6 +66,8 @@ export async function createResourceShare(
   const tagNames = resource.tagIds
     .map((id) => tags.find((t) => t.id === id)?.name)
     .filter((name): name is string => !!name);
+  const categories = resource.categoryId ? await listCategories(client, userId) : [];
+  const categoryName = categories.find((c) => c.id === resource.categoryId)?.name ?? null;
 
   const { data, error } = await client
     .from("resource_shares")
@@ -80,6 +84,7 @@ export async function createResourceShare(
       tag_names: tagNames,
       pricing: resource.pricing,
       platform: resource.platform ?? [],
+      category_name: categoryName,
     })
     .select("*")
     .single();
@@ -121,13 +126,15 @@ export async function getSharedResourceByToken(token: string): Promise<SharedRes
   if (!token || token.length < TOKEN_MIN_LENGTH) return null;
   const { data, error } = await getServiceRoleClient()
     .from("resource_shares")
-    .select("title, url, domain, description, tag_names, pricing, platform, message, visibility, created_at")
+    .select("id, title, url, domain, description, tag_names, pricing, platform, message, visibility, created_at")
     .eq("token", token)
     .is("revoked_at", null)
+    .is("hidden_at", null)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
   return {
+    shareId: data.id,
     title: data.title,
     url: data.url,
     domain: data.domain,
@@ -141,11 +148,11 @@ export async function getSharedResourceByToken(token: string): Promise<SharedRes
   };
 }
 
-/** Copies a shared resource into the viewer's own library. Categories and notes aren't carried over: categories belong to the owner, and notes are private. */
+/** Copies a shared resource into the viewer's own library and records the save for Discover counts. Categories and notes aren't carried over: categories belong to the owner, and notes are private. */
 export async function saveSharedResource(client: Client, userId: string, token: string) {
   const shared = await getSharedResourceByToken(token);
   if (!shared) return null;
-  return createResource(client, userId, {
+  const result = await createResource(client, userId, {
     url: shared.url,
     title: shared.title,
     description: shared.description,
@@ -153,4 +160,9 @@ export async function saveSharedResource(client: Client, userId: string, token: 
     pricing: shared.pricing,
     platform: shared.platform,
   });
+  const { error } = await getServiceRoleClient()
+    .from("share_saves")
+    .upsert({ share_id: shared.shareId, user_id: userId }, { onConflict: "share_id,user_id", ignoreDuplicates: true });
+  if (error) throw new Error(error.message);
+  return result;
 }

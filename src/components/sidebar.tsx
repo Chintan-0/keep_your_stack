@@ -10,6 +10,7 @@ import {
   Clock,
   Archive,
   Inbox,
+  Compass,
   Upload,
   Puzzle,
   SlidersHorizontal,
@@ -100,7 +101,7 @@ export function Sidebar() {
   const openFeedback = useUIStore((s) => s.openFeedback);
   const now = useNow();
 
-  // Purely a UX nicety — hiding/showing this link is NOT the security
+  // Purely a UX nicety â€” hiding/showing this link is NOT the security
   // boundary. /admin and every /api/admin/* route independently re-check
   // admin access server-side regardless of what this returns (see
   // src/app/api/admin/check/route.ts's own comment).
@@ -131,7 +132,7 @@ export function Sidebar() {
     .map(([id]) => tags.find((t) => t.id === id))
     .filter(Boolean) as { id: string; name: string }[];
 
-  // Real data only — there's no favoritedAt/archivedAt on a resource, so
+  // Real data only â€” there's no favoritedAt/archivedAt on a resource, so
   // "Added X" (its own real createdAt) is the one activity this can state
   // honestly. Same reasoning for the streak below: consecutive real
   // calendar days (local time) with at least one resource actually
@@ -192,6 +193,7 @@ export function Sidebar() {
         <NavLink href="/recent" icon={Clock} label="Recently Added" count={recentCount} iconClassName="text-cyan" />
         <NavLink href="/archive" icon={Archive} label="Archived" count={archivedCount} />
         <NavLink href="/drops" icon={Inbox} label="Drops" iconClassName="text-accent" />
+        <NavLink href="/discover" icon={Compass} label="Discover" iconClassName="text-violet" />
         <NavLink
           href="/library"
           icon={Activity}
@@ -287,7 +289,7 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Always shown, not just when streak > 0 — otherwise the whole
+      {/* Always shown, not just when streak > 0 â€” otherwise the whole
           widget is invisible until the user happens to add something
           today, which reads as "missing" rather than "zero" (confirmed:
           that's exactly what hid it before). The 0-day message is just as

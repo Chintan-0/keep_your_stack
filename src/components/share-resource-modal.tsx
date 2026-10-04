@@ -19,7 +19,7 @@ interface ShareRow {
 
 const OPTIONS: { value: ShareVisibility; label: string; hint: string }[] = [
   { value: "unlisted", label: "Unlisted", hint: "Anyone with the link can view it. It stays out of search engines." },
-  { value: "public", label: "Public", hint: "Anyone can view it, and search engines may index the page." },
+  { value: "public", label: "Public", hint: "Anyone can view it, it appears in Discover, and search engines may index the page." },
 ];
 
 function shareUrl(token: string) {
@@ -175,7 +175,7 @@ export function ShareResourceModal() {
         </div>
 
         <Button onClick={create} disabled={creating || !resource} className="w-full">
-          <Link2 size={14} /> {creating ? "Creating…" : "Create share link"}
+          <Link2 size={14} /> {creating ? "Creatingâ€¦" : "Create share link"}
         </Button>
 
         {created && (
@@ -202,7 +202,7 @@ export function ShareResourceModal() {
               className="h-9 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary focus:border-accent focus:outline-none"
             />
             <Button variant="secondary" onClick={sendDrop} disabled={dropping || !resource || !dropEmail.trim()}>
-              <Send size={13} /> {dropping ? "Sending…" : "Drop"}
+              <Send size={13} /> {dropping ? "Sendingâ€¦" : "Drop"}
             </Button>
           </div>
         </div>
@@ -215,7 +215,7 @@ export function ShareResourceModal() {
                 <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] text-text-secondary">
                   {s.visibility === "public" ? "Public" : "Unlisted"}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-text-muted">/r/{s.token.slice(0, 8)}…</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-text-muted">/r/{s.token.slice(0, 8)}â€¦</span>
                 <button
                   type="button"
                   onClick={() => copy(s.token)}

@@ -82,6 +82,26 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["stack_share_links"]["Row"]>;
         Relationships: [];
       };
+      share_saves: {
+        Row: { id: string; share_id: string; user_id: string; created_at: string };
+        Insert: { share_id: string; user_id: string };
+        Update: Partial<{ share_id: string; user_id: string }>;
+        Relationships: [];
+      };
+      share_reports: {
+        Row: {
+          id: string;
+          share_id: string;
+          reporter_id: string;
+          reason: string;
+          status: "open" | "actioned" | "dismissed";
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: { share_id: string; reporter_id: string; reason: string };
+        Update: Partial<Pick<{ status: "open" | "actioned" | "dismissed"; resolved_at: string | null }, "status" | "resolved_at">>;
+        Relationships: [];
+      };
       resource_shares: {
         Row: {
           id: string;
@@ -99,6 +119,9 @@ export interface Database {
           platform: string[];
           created_at: string;
           revoked_at: string | null;
+          category_name: string | null;
+          hidden_at: string | null;
+          hidden_reason: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["resource_shares"]["Row"]> & {
           user_id: string;
@@ -368,6 +391,24 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      discover_shares: {
+        Args: { p_sort: string; p_category: string | null; p_limit: number };
+        Returns: {
+          share_id: string;
+          title: string;
+          url: string;
+          domain: string;
+          description: string;
+          tag_names: string[];
+          pricing: string | null;
+          platform: string[];
+          message: string;
+          category_name: string | null;
+          created_at: string;
+          save_count: number;
+          recent_saves: number;
+        }[];
+      };
       admin_daily_timeseries: {
         Args: { p_from: string; p_to: string };
         Returns: {
