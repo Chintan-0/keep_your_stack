@@ -13,13 +13,14 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("name, onboarding_dismissed_at")
+    .select("name, onboarding_dismissed_at, ai_categorization_enabled")
     .eq("id", user.id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({
     name: data?.name ?? user.email ?? null,
     onboardingDismissedAt: data?.onboarding_dismissed_at ?? null,
+    aiCategorizationEnabled: data?.ai_categorization_enabled === true,
   });
 }
 
@@ -33,7 +34,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Name can't be empty." }, { status: 400 });
   }
 
-  const patch: { name?: string; username?: string; onboarding_dismissed_at?: string } = {};
+  const patch: { name?: string; username?: string; onboarding_dismissed_at?: string; ai_categorization_enabled?: boolean } = {};
+  if (typeof body?.aiCategorizationEnabled === "boolean") patch.ai_categorization_enabled = body.aiCategorizationEnabled;
   if (name !== undefined) patch.name = name;
   // Only ever set to "now" — there's no product need to un-dismiss it, and
   // allowing an arbitrary client-supplied timestamp here would be pointless

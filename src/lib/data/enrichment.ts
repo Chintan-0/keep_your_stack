@@ -6,6 +6,41 @@ import { fetchMetadata } from "./metadata";
 import { getResource, updateResource } from "./resources";
 import { listCategories } from "./categories";
 import { listTags } from "./tags";
+import { trainClassifier, predictCategory, shouldApplyPrediction, type ClassifierPrediction } from "@/lib/ai-classifier";
+
+async function isAiCategorizationEnabled(client: Client, userId: string): Promise<boolean> {
+  const { data, error } = await client
+    .from("profiles")
+    .select("ai_categorization_enabled")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) return false;
+  return data?.ai_categorization_enabled === true;
+}
+
+/** Trains on the user's own categorized resources (their titles, domains, and descriptions) and predicts a category for this one. Nothing leaves the server. */
+async function predictCategoryFromLibrary(
+  client: Client,
+  userId: string,
+  input: { title: string; domain: string; description: string }
+): Promise<ClassifierPrediction | null> {
+  const { data, error } = await client
+    .from("resources")
+    .select("title, domain, description, category_id")
+    .eq("user_id", userId)
+    .eq("is_archived", false)
+    .not("category_id", "is", null)
+    .limit(5000);
+  if (error || !data) return null;
+  const model = trainClassifier(
+    data.map((r) => ({
+      text: `${r.title} ${r.domain} ${r.description}`,
+      label: r.category_id as string,
+    }))
+  );
+  if (!model) return null;
+  return predictCategory(model, `${input.title} ${input.domain} ${input.description}`);
+}
 import {
   cleanDescription,
   suggestTags,
@@ -66,6 +101,15 @@ export async function enrichResource(client: Client, userId: string, resourceId:
   }
   const finalDescription = patch.description ?? resource.description;
 
+  const libraryPrediction =
+    !resource.categoryId && (await isAiCategorizationEnabled(client, userId))
+      ? await predictCategoryFromLibrary(client, userId, {
+          title: effectiveTitle,
+          domain: resource.domain,
+          description: finalDescription,
+        })
+      : null;
+
   const suggested = suggestTags({ title: effectiveTitle, description: finalDescription, domain: resource.domain });
   let finalTagCount = resource.tagIds.length;
   if (suggested.length > 0) {
@@ -91,7 +135,13 @@ export async function enrichResource(client: Client, userId: string, resourceId:
     );
     if (categorySuggestion && categorySuggestion.confidence === "high") {
       patch.categoryId = categorySuggestion.categoryId;
+      patch.categorySource = "rules";
     }
+  }
+
+  if (!patch.categoryId && shouldApplyPrediction(libraryPrediction)) {
+    patch.categoryId = libraryPrediction.label;
+    patch.categorySource = "ai";
   }
 
   const gotDescription = !!finalDescription;

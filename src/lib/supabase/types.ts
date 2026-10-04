@@ -13,6 +13,7 @@ export interface Database {
           avatar_url: string | null;
           username: string | null;
           onboarding_dismissed_at: string | null;
+          ai_categorization_enabled: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -201,6 +202,7 @@ export interface Database {
           platform: string[];
           notes: string;
           category_id: string | null;
+          category_set_by: string | null;
           is_favorite: boolean;
           is_archived: boolean;
           use_count: number;
@@ -391,6 +393,10 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      stack_resource_counts: {
+        Args: Record<PropertyKey, never>;
+        Returns: { stack_id: string; member_count: number }[];
+      };
       discover_shares: {
         Args: { p_sort: string; p_category: string | null; p_limit: number };
         Returns: {

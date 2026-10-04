@@ -397,6 +397,8 @@ export async function createResource(
 }
 
 export interface ResourcePatch {
+  /** Who set the category in this patch. Defaults to "user" for any category change. */
+  categorySource?: "user" | "rules" | "ai";
   /** Manual URL correction — e.g. accepting a detected redirect's destination. Never applied automatically. */
   url?: string;
   title?: string;
@@ -468,7 +470,10 @@ export async function updateResource(
     // default to "user" unless the caller (enrichResource) says otherwise.
     dbPatch.description_source = patch.descriptionSource ?? "user";
   }
-  if (patch.categoryId !== undefined) dbPatch.category_id = patch.categoryId;
+  if (patch.categoryId !== undefined) {
+    dbPatch.category_id = patch.categoryId;
+    dbPatch.category_set_by = patch.categoryId ? (patch.categorySource ?? "user") : null;
+  }
   if (patch.notes !== undefined) dbPatch.notes = clampNotes(patch.notes);
   if (patch.isFavorite !== undefined) dbPatch.is_favorite = patch.isFavorite;
   if (patch.isArchived !== undefined) dbPatch.is_archived = patch.isArchived;

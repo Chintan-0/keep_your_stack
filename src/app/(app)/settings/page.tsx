@@ -43,6 +43,69 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function AiCategorizationSection() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/profile")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { aiCategorizationEnabled: boolean }) => {
+        if (!cancelled) setEnabled(d.aiCategorizationEnabled);
+      })
+      .catch(() => {
+        if (!cancelled) setEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function toggle(next: boolean) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ aiCategorizationEnabled: next }),
+      });
+      if (!res.ok) throw new Error();
+      setEnabled(next);
+      toast.success(next ? "Category suggestions on" : "Category suggestions off");
+    } catch {
+      toast.error("Couldn't save that setting. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Section
+      title="Category suggestions"
+      description="Suggests a category and tags for resources you save, when our rules can't decide."
+    >
+      <label className="flex cursor-pointer items-start gap-3 rounded-[var(--radius-md)] border border-border p-3 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+        <input
+          type="checkbox"
+          className="mt-1 size-4 accent-[var(--accent)]"
+          checked={enabled === true}
+          disabled={enabled === null || saving}
+          onChange={(e) => void toggle(e.target.checked)}
+        />
+        <span className="flex flex-col gap-1">
+          <span className="text-[13.5px] font-medium text-text-primary">Suggest categories from my library</span>
+          <span className="text-[12px] leading-snug text-text-secondary">
+            When on, a resource with no category gets one suggested from how you&apos;ve already organized your
+            library. It runs entirely on our servers: nothing is sent to any outside service, and it only applies a
+            suggestion when it&apos;s very confident. Off by default.
+          </span>
+        </span>
+      </label>
+    </Section>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const theme = useThemeStore((s) => s.theme);
@@ -159,6 +222,8 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       <h1 className="text-xl font-semibold tracking-tight text-text-primary">Settings</h1>
+
+      <AiCategorizationSection />
 
       <Section title="Profile">
         <div className="flex items-center gap-4">

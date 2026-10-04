@@ -53,6 +53,8 @@ export interface Resource {
   description: string;
   faviconLetter: string; // fallback favicon glyph
   categoryId: string | null;
+  /** Who set the category: the user, the deterministic rules, or the AI model. */
+  categorySetBy: "user" | "rules" | "ai" | null;
   notes: string; // personal note
   tagIds: string[];
   stackIds: string[];

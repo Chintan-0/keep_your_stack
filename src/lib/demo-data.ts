@@ -635,6 +635,7 @@ export function buildResources(): Resource[] {
       description: s.description,
       faviconLetter: s.title.charAt(0).toUpperCase(),
       categoryId: s.categoryId,
+      categorySetBy: s.categoryId ? "user" : null,
       notes: s.notes,
       tagIds: s.tagIds,
       stackIds: s.stackIds,
