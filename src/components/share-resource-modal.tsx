@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Copy, Link2, Trash2 } from "lucide-react";
+import { Copy, Link2, Send, Trash2 } from "lucide-react";
 import { Modal, ModalHeader } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
@@ -34,6 +34,8 @@ export function ShareResourceModal() {
   const [visibility, setVisibility] = useState<ShareVisibility>("unlisted");
   const [message, setMessage] = useState("");
   const [creating, setCreating] = useState(false);
+  const [dropEmail, setDropEmail] = useState("");
+  const [dropping, setDropping] = useState(false);
   const [shares, setShares] = useState<ShareRow[] | null>(null);
   const [created, setCreated] = useState<string | null>(null);
 
@@ -57,6 +59,7 @@ export function ShareResourceModal() {
     setShares(null);
     setCreated(null);
     setMessage("");
+    setDropEmail("");
     setVisibility("unlisted");
     closeShareResource();
   }
@@ -80,6 +83,27 @@ export function ShareResourceModal() {
       toast.error(e instanceof Error ? e.message : "Couldn't create the link.");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function sendDrop() {
+    if (!shareResourceId) return;
+    setDropping(true);
+    try {
+      const res = await fetch(`/api/resources/${shareResourceId}/drops`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: dropEmail, message }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "We couldn't send this Drop. Check the email address and try again.");
+      toast.success(body.message ?? "Drop sent.");
+      setDropEmail("");
+      setMessage("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "We couldn't send this Drop. Check the email address and try again.");
+    } finally {
+      setDropping(false);
     }
   }
 
@@ -151,7 +175,7 @@ export function ShareResourceModal() {
         </div>
 
         <Button onClick={create} disabled={creating || !resource} className="w-full">
-          <Link2 size={14} /> {creating ? "Creatingâ€¦" : "Create share link"}
+          <Link2 size={14} /> {creating ? "Creating…" : "Create share link"}
         </Button>
 
         {created && (
@@ -163,6 +187,26 @@ export function ShareResourceModal() {
           </div>
         )}
 
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <p className="text-[12px] font-medium text-text-secondary">Drop it to someone</p>
+          <p className="text-[12px] text-text-muted">
+            They need a KeepYourStack account with this email. They&apos;ll see it in their Drops inbox.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={dropEmail}
+              onChange={(e) => setDropEmail(e.target.value)}
+              placeholder="person@example.com"
+              aria-label="Recipient email"
+              className="h-9 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary focus:border-accent focus:outline-none"
+            />
+            <Button variant="secondary" onClick={sendDrop} disabled={dropping || !resource || !dropEmail.trim()}>
+              <Send size={13} /> {dropping ? "Sending…" : "Drop"}
+            </Button>
+          </div>
+        </div>
+
         {shares && shares.length > 0 && (
           <div className="flex flex-col gap-2">
             <p className="text-[12px] font-medium text-text-secondary">Active links</p>
@@ -171,7 +215,7 @@ export function ShareResourceModal() {
                 <span className="rounded-full bg-surface-3 px-2 py-0.5 text-[11px] text-text-secondary">
                   {s.visibility === "public" ? "Public" : "Unlisted"}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-text-muted">/r/{s.token.slice(0, 8)}â€¦</span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-text-muted">/r/{s.token.slice(0, 8)}…</span>
                 <button
                   type="button"
                   onClick={() => copy(s.token)}

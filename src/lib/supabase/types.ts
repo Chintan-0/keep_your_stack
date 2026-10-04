@@ -112,6 +112,34 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["resource_shares"]["Row"]>;
         Relationships: [];
       };
+      resource_drops: {
+        Row: {
+          id: string;
+          sender_id: string;
+          recipient_id: string;
+          resource_id: string | null;
+          title: string;
+          url: string;
+          domain: string;
+          description: string;
+          tag_names: string[];
+          pricing: string | null;
+          platform: string[];
+          message: string;
+          status: "pending" | "saved" | "dismissed";
+          created_at: string;
+          responded_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["resource_drops"]["Row"]> & {
+          sender_id: string;
+          recipient_id: string;
+          title: string;
+          url: string;
+          domain: string;
+        };
+        Update: Partial<Pick<Database["public"]["Tables"]["resource_drops"]["Row"], "status" | "responded_at">>;
+        Relationships: [];
+      };
       trusted_devices: {
         Row: {
           id: string;
