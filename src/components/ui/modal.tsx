@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function Modal({
   open,
@@ -11,13 +13,44 @@ export function Modal({
   children,
   className,
   labelledBy,
+  trapFocus = false,
 }: {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
   className?: string;
   labelledBy?: string;
+  trapFocus?: boolean;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open || !trapFocus) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !dialog) return;
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onTab);
+    return () => {
+      window.removeEventListener("keydown", onTab);
+      previous?.focus?.();
+    };
+  }, [open, trapFocus]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -42,6 +75,7 @@ export function Modal({
         aria-hidden
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -61,15 +95,17 @@ export function ModalHeader({
   title,
   onClose,
   subtitle,
+  titleId,
 }: {
   title: string;
   onClose: () => void;
   subtitle?: string;
+  titleId?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
       <div>
-        <h2 className="text-[15px] font-semibold text-text-primary">{title}</h2>
+        <h2 id={titleId} className="text-[15px] font-semibold text-text-primary">{title}</h2>
         {subtitle && <p className="mt-0.5 text-[12px] text-text-secondary">{subtitle}</p>}
       </div>
       <button

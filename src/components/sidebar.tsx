@@ -184,6 +184,7 @@ export function Sidebar() {
 
       <div className="flex flex-col gap-0.5">
         <NavLink href="/home" icon={Home} label="Home" />
+        <NavLink href="/discover" icon={Compass} label="Discover" />
       </div>
 
       <div className="flex flex-col gap-0.5">
@@ -193,7 +194,6 @@ export function Sidebar() {
         <NavLink href="/recent" icon={Clock} label="Recently Added" count={recentCount} iconClassName="text-cyan" />
         <NavLink href="/archive" icon={Archive} label="Archived" count={archivedCount} />
         <NavLink href="/drops" icon={Inbox} label="Drops" iconClassName="text-accent" />
-        <NavLink href="/discover" icon={Compass} label="Discover" iconClassName="text-violet" />
         <NavLink
           href="/library"
           icon={Activity}
