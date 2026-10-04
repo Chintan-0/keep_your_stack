@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Compass, Bookmark, Flag, Layers } from "lucide-react";
+import { Compass, Bookmark, Flag, Layers, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tag } from "@/components/ui/tag";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -45,6 +45,7 @@ export default function DiscoverPage() {
   const [stacks, setStacks] = useState<PopularStack[]>([]);
   const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [reportingId, setReportingId] = useState<string | null>(null);
   const [reportReason, setReportReason] = useState("");
   const refreshStats = useStore((s) => s.refreshStats);
@@ -81,6 +82,7 @@ export default function DiscoverPage() {
       const res = await fetch(`/api/discover/${id}/save`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Couldn't save this resource.");
+      setSavedIds((prev) => new Set(prev).add(id));
       toast.success(body.duplicate ? "Already in your library" : "Saved to My Stack");
       void refreshStats();
     } catch (e) {
@@ -203,9 +205,15 @@ export default function DiscoverPage() {
                 </div>
               )}
               <div className="flex flex-wrap items-center gap-2">
-                <Button size="sm" disabled={busyId === s.id} onClick={() => save(s.id)}>
-                  <Bookmark size={13} /> Save to My Stack
-                </Button>
+                {savedIds.has(s.id) ? (
+                  <span className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-md)] bg-success-soft px-3 text-[12.5px] font-medium text-success">
+                    <Check size={13} /> Saved to your library
+                  </span>
+                ) : (
+                  <Button size="sm" disabled={busyId === s.id} onClick={() => save(s.id)}>
+                    <Bookmark size={13} /> Save to My Stack
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"

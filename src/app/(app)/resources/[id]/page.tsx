@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
+import { similarDocs } from "@/lib/similarity";
 import { useUIStore } from "@/lib/ui-store";
 import { Favicon } from "@/components/ui/favicon";
 import { Tag } from "@/components/ui/tag";
@@ -111,7 +112,19 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
       .sort((a, b) => b.score - a.score)
       .slice(0, 4)
       .map((x) => x.r);
-    return scored;
+    const textIds = similarDocs(
+      resources
+        .filter((r) => !r.isArchived)
+        .map((r) => ({ id: r.id, text: `${r.title} ${r.domain} ${r.description}` })),
+      resource.id,
+      4
+    ).map((m) => m.id);
+    const byId = new Map(resources.map((r) => [r.id, r]));
+    const merged = [...scored.map((r) => r.id), ...textIds];
+    return Array.from(new Set(merged))
+      .map((id) => byId.get(id))
+      .filter((r): r is NonNullable<typeof r> => !!r)
+      .slice(0, 4);
   }, [resource, resources]);
 
   if (!hasHydrated) {
@@ -417,6 +430,11 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-1.5">
           <h3 className="text-[11.5px] font-semibold uppercase tracking-wide text-text-muted">Category</h3>
+          {resource.categorySetBy === "ai" && (
+            <span className="w-fit rounded-full border border-accent/30 bg-accent-soft px-2 py-0.5 text-[10.5px] font-medium text-accent">
+              Suggested from your library · you can change it
+            </span>
+          )}
           {(() => {
             const leaf = resource.categoryId ? categories.find((c) => c.id === resource.categoryId) : null;
             if (!leaf) return <p className="text-[13px] text-text-muted">Uncategorized</p>;

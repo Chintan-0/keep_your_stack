@@ -5,7 +5,25 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+// Open dialogs, outermost first. Only the top-most dialog handles Tab, so a
+// confirmation opened on top of another dialog doesn't fight it for focus.
+const trapStack: object[] = [];
+
+// The last element focused outside any dialog. Captured on focus rather than
+// at open time, because a dialog's own autofocus can run before its effects.
+let lastFocusOutsideDialog: HTMLElement | null = null;
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "focusin",
+    (e) => {
+      const target = e.target as HTMLElement | null;
+      if (target && !target.closest?.('[role="dialog"]')) lastFocusOutsideDialog = target;
+    },
+    true
+  );
+}
+
+const FOCUSABLE ='a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function Modal({
   open,
@@ -13,7 +31,7 @@ export function Modal({
   children,
   className,
   labelledBy,
-  trapFocus = false,
+  trapFocus = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -26,12 +44,14 @@ export function Modal({
 
   useEffect(() => {
     if (!open || !trapFocus) return;
-    const previous = document.activeElement as HTMLElement | null;
+    const token = {};
+    trapStack.push(token);
+    const previous = lastFocusOutsideDialog;
     const dialog = dialogRef.current;
     dialog?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
 
     const onTab = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || !dialog) return;
+      if (e.key !== "Tab" || !dialog || trapStack[trapStack.length - 1] !== token) return;
       const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
       if (items.length === 0) return;
       const first = items[0];
@@ -47,6 +67,7 @@ export function Modal({
     window.addEventListener("keydown", onTab);
     return () => {
       window.removeEventListener("keydown", onTab);
+      trapStack.splice(trapStack.indexOf(token), 1);
       previous?.focus?.();
     };
   }, [open, trapFocus]);
