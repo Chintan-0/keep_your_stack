@@ -9,6 +9,7 @@ import { Favicon } from "@/components/ui/favicon";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { decodeHtmlEntities, cn } from "@/lib/utils";
+import { copyText } from "@/lib/clipboard";
 import { MAX_SHARE_MESSAGE_LENGTH, type ShareVisibility } from "@/lib/resource-share-validation";
 
 interface ShareRow {
@@ -131,12 +132,8 @@ export function ShareResourceModal() {
   }
 
   async function copy(token: string) {
-    try {
-      await navigator.clipboard.writeText(shareUrl(token));
-      toast.success("Link copied");
-    } catch {
-      toast.error("Couldn't copy. Select the link and copy it manually.");
-    }
+    if (await copyText(shareUrl(token))) toast.success("Link copied");
+    else toast.error("Couldn't copy the link. Select it and copy it manually.");
   }
 
   const title = resource ? decodeHtmlEntities(resource.title) : "";
