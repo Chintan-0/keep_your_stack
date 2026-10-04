@@ -34,7 +34,6 @@ export interface BackupResource {
   title: string;
   url: string;
   description: string;
-  useCases: string[];
   notes: string;
   categoryId: string | null;
   tagIds: string[];
@@ -166,7 +165,6 @@ export function validateBackup(data: unknown): BackupValidationResult {
       title: r.title,
       url: r.url,
       description: isString(r.description) ? r.description : "",
-      useCases: isStringArray(r.useCases) ? r.useCases : [],
       notes: isString(r.notes) ? r.notes : "",
       categoryId,
       tagIds,

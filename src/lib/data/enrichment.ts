@@ -8,12 +8,10 @@ import { listCategories } from "./categories";
 import { listTags } from "./tags";
 import {
   cleanDescription,
-  suggestUsefulFor,
   suggestTags,
   suggestCategoryForResource,
   normalizeTagName,
   canOverwriteDescription,
-  canOverwriteUsefulFor,
 } from "@/lib/enrichment";
 
 type Client = SupabaseClient<Database>;
@@ -26,11 +24,11 @@ export interface EnrichmentResult {
 /**
  * Runs one resource through the enrichment pipeline: fetch page metadata
  * (SSRF-guarded, see fetchMetadata), then deterministically derive
- * description/Useful-For/tags/category from real evidence only.
+ * description/tags/category from real evidence only.
  *
- * User-authored fields are never touched: description/useCases are only
+ * User-authored fields are never touched: description is only
  * written when they're currently empty or were themselves system-authored
- * (descriptionSource/usefulForSource !== "user") — so a manual edit always
+ * (descriptionSource !== "user") — so a manual edit always
  * wins, even on a later retry. Tags are pure set-union (add-only), so a
  * user-created tag can never be removed by this. Category is only filled
  * when it's currently unset AND the match is high-confidence (folder or an
@@ -68,15 +66,6 @@ export async function enrichResource(client: Client, userId: string, resourceId:
   }
   const finalDescription = patch.description ?? resource.description;
 
-  if (canOverwriteUsefulFor(resource)) {
-    const suggestion = suggestUsefulFor({ title: effectiveTitle, description: finalDescription });
-    if (suggestion && suggestion.confidence !== "low") {
-      patch.useCases = [suggestion.value];
-      patch.usefulForSource = "system";
-    }
-  }
-  const finalUsefulForCount = patch.useCases?.length ?? resource.useCases.length;
-
   const suggested = suggestTags({ title: effectiveTitle, description: finalDescription, domain: resource.domain });
   let finalTagCount = resource.tagIds.length;
   if (suggested.length > 0) {
@@ -106,7 +95,7 @@ export async function enrichResource(client: Client, userId: string, resourceId:
   }
 
   const gotDescription = !!finalDescription;
-  const gotContext = finalUsefulForCount > 0 || finalTagCount > 0;
+  const gotContext = finalTagCount > 0;
   patch.enrichmentStatus = gotDescription && gotContext ? "enriched" : "partial";
 
   const updated = await updateResource(client, userId, resourceId, patch);

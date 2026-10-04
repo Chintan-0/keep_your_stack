@@ -138,7 +138,6 @@ describe("validateBackup", () => {
     if (result.ok) {
       const r = result.backup.resources[0];
       expect(r.description).toBe("");
-      expect(r.useCases).toEqual([]);
       expect(r.notes).toBe("");
       expect(r.isFavorite).toBe(false);
       expect(r.isArchived).toBe(false);

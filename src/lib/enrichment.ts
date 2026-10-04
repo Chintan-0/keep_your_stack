@@ -135,56 +135,6 @@ export function suggestTags(input: { title?: string; description?: string; domai
   return dedupeTags(matched).slice(0, MAX_SUGGESTED_TAGS);
 }
 
-// ── Useful For ───────────────────────────────────────────────────────────
-
-// Ordered: first match wins. Each is deliberately specific (verb + object)
-// rather than a vague "developer tool" catch-all — see the phase spec's
-// explicit ban on vague phrasing.
-const USEFUL_FOR_RULES: { pattern: RegExp; usefulFor: string; confidence: Confidence }[] = [
-  { pattern: /\bcompress(ion|or)?\b.*\bimage|image.*\bcompress/, usefulFor: "Compress and optimize images", confidence: "high" },
-  { pattern: /\boptimi[sz]e?\b.*\bimage|image.*\boptimi[sz]/, usefulFor: "Compress and optimize images", confidence: "high" },
-  { pattern: /\bimage(s)?\b.*\bsmaller|\bsmaller\b.*\bimage(s)?\b|\bshrink\b.*\bimage/, usefulFor: "Compress and optimize images", confidence: "high" },
-  { pattern: /\bsvg\b.*\breact|react.*\bsvg\b/, usefulFor: "Convert SVG files into React components", confidence: "high" },
-  { pattern: /\bqr code\b/, usefulFor: "Generate QR codes", confidence: "high" },
-  { pattern: /\bgraphql\b.*\b(client|api|test|debug)|test.*\bgraphql\b/, usefulFor: "Test and debug GraphQL APIs", confidence: "high" },
-  { pattern: /\brest\b.*\bapi\b.*\b(client|test)|api.*\b(client|testing tool)\b/, usefulFor: "Test and debug APIs", confidence: "high" },
-  { pattern: /\bapi\b.*\bclient\b|\bhttp\b.*\bclient\b/, usefulFor: "Test and debug APIs", confidence: "medium" },
-  { pattern: /\banimat(ed|ion)\b.*\breact\b.*\b(component|ui)|react.*\banimat/, usefulFor: "Build animated React UI components", confidence: "high" },
-  { pattern: /\breact\b.*\bcomponent(s)?\b|\bcomponent(s)?\b.*\breact\b/, usefulFor: "Build React interfaces", confidence: "medium" },
-  { pattern: /\bicon(s)?\b.*\blibrary|\bbrowse\b.*\bicon/, usefulFor: "Browse open-source icons", confidence: "high" },
-  { pattern: /\bfont(s)?\b.*\b(browse|library|free)/, usefulFor: "Browse and pair web fonts", confidence: "medium" },
-  { pattern: /\bmarkdown\b.*\b(editor|preview)/, usefulFor: "Write and preview Markdown", confidence: "high" },
-  { pattern: /\bregex\b.*\b(test|debug|build)|test.*\bregex\b/, usefulFor: "Test and debug regular expressions", confidence: "high" },
-  { pattern: /\bjson\b.*\b(format|validate|viewer)/, usefulFor: "Format and validate JSON", confidence: "high" },
-  { pattern: /\bdesign\b.*\bprototyp|\bprototyp.*\binterface/, usefulFor: "Design and prototype interfaces", confidence: "high" },
-  { pattern: /\bwireframe\b/, usefulFor: "Design and prototype interfaces", confidence: "medium" },
-  { pattern: /\bcolor palette\b|\bcolor scheme\b/, usefulFor: "Generate color palettes", confidence: "high" },
-  { pattern: /\bmonitor(ing)?\b.*\berror|error.*\btrack/, usefulFor: "Monitor application errors", confidence: "high" },
-  { pattern: /\bci\/cd\b|\bcontinuous (integration|deployment)\b/, usefulFor: "Automate build and deployment pipelines", confidence: "medium" },
-  { pattern: /\bcontainer(s|ize)?\b.*\bdeploy|\bdocker\b/, usefulFor: "Package and deploy containerized apps", confidence: "medium" },
-  { pattern: /\bdatabase\b.*\b(client|browser|manage)/, usefulFor: "Browse and manage a database", confidence: "medium" },
-  { pattern: /\bauth(entication)?\b.*\b(add|integrate|provider)/, usefulFor: "Add authentication to an app", confidence: "medium" },
-  { pattern: /\bvideo\b.*\b(edit|convert)/, usefulFor: "Edit or convert video files", confidence: "medium" },
-];
-
-/**
- * Suggests one Useful-For phrase from title/description text, with a
- * confidence tied to how specific the matched evidence was. Returns null
- * when nothing matches — never falls back to a generic "developer tool"
- * placeholder.
- */
-export function suggestUsefulFor(input: {
-  title?: string;
-  description?: string;
-}): { value: string; confidence: Confidence } | null {
-  const text = `${input.title ?? ""} ${input.description ?? ""}`.toLowerCase();
-  if (!text.trim()) return null;
-  for (const rule of USEFUL_FOR_RULES) {
-    if (rule.pattern.test(text)) return { value: rule.usefulFor, confidence: rule.confidence };
-  }
-  return null;
-}
-
 // ── Category suggestion ─────────────────────────────────────────────────
 
 // Domain -> category-name hint. Weak on its own (per the phase spec's
@@ -207,10 +157,6 @@ const DOMAIN_CATEGORY_HINTS: { pattern: RegExp; categoryName: string }[] = [
 
 export function canOverwriteDescription(resource: { description: string; descriptionSource: string | null }): boolean {
   return !resource.description || resource.descriptionSource !== "user";
-}
-
-export function canOverwriteUsefulFor(resource: { useCases: string[]; usefulForSource: string | null }): boolean {
-  return resource.useCases.length === 0 || resource.usefulForSource !== "user";
 }
 
 export interface CategorySuggestion {

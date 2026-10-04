@@ -176,7 +176,7 @@ and the tag chips from it. Two signals, combined server-side:
    pattern.
 2. **Content-based fallback** — the exact same deterministic rules every
    other enrichment path already uses (`src/lib/enrichment.ts`'s
-   `suggestCategoryForResource`/`suggestTags`/`suggestUsefulFor`), applied
+   `suggestCategoryForResource`/`suggestTags`), applied
    to title + domain only (no description — that would need a real
    metadata fetch, which stays out of the pre-save path so the popup never
    waits on a slow site).
@@ -185,7 +185,7 @@ The suggestion is *never* auto-applied without being visibly shown first,
 and once shown, the user's own subsequent edit to any field is
 authoritative — nothing re-applies the suggestion later, including
 post-save enrichment (which already only ever fills a still-empty field —
-see `canOverwriteDescription`/`canOverwriteUsefulFor` and the
+see `canOverwriteDescription` and the
 `!resource.categoryId` check in `enrichResource`). "Why this suggestion?"
 expands the same plain-language reasons array the API returned — real
 counts, never an internal score.
@@ -250,8 +250,8 @@ have:
       double submission
 - [ ] Reopen the same page — popup shows "Already saved", not the save
       form; confirm in the web app only one resource exists
-- [ ] Save with Useful For + Stack + Category + Tags + Note filled in — all
-      five persist and are visible/searchable in the web app after a
+- [ ] Save with Stack + Category + Tags + Note filled in — all
+      four persist and are visible/searchable in the web app after a
       refresh
 - [ ] Archive a saved resource in the web app, then reopen its page in the
       extension — popup shows "Already saved in Archive" with a working

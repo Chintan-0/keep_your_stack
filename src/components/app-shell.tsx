@@ -21,6 +21,7 @@ import { StoreHydrator } from "@/components/store-hydrator";
 const CommandPalette = dynamic(() => import("@/components/command-palette").then((m) => m.CommandPalette), { ssr: false });
 const AddResourceModal = dynamic(() => import("@/components/add-resource-modal").then((m) => m.AddResourceModal), { ssr: false });
 const EditResourceModal = dynamic(() => import("@/components/edit-resource-modal").then((m) => m.EditResourceModal), { ssr: false });
+const ShareResourceModal = dynamic(() => import("@/components/share-resource-modal").then((m) => m.ShareResourceModal), { ssr: false });
 const CreateStackModal = dynamic(() => import("@/components/create-stack-modal").then((m) => m.CreateStackModal), { ssr: false });
 const FeedbackModal = dynamic(() => import("@/components/feedback-modal").then((m) => m.FeedbackModal), { ssr: false });
 const ResourceQuickViewModal = dynamic(
@@ -49,6 +50,7 @@ export function AppShell({
       <CommandPalette />
       <AddResourceModal />
       <EditResourceModal />
+      <ShareResourceModal />
       <CreateStackModal />
       <FeedbackModal />
       <ResourceQuickViewModal />

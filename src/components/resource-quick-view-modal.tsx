@@ -181,19 +181,6 @@ function QuickViewContent({ resource, onClose }: { resource: Resource; onClose: 
           </div>
         )}
 
-        {resource.useCases.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <h3 className="text-[10.5px] font-semibold uppercase tracking-wide text-text-muted">Useful For</h3>
-            <ul className="flex flex-col gap-1">
-              {resource.useCases.slice(0, 3).map((uc, i) => (
-                <li key={i} className="text-[13px] text-text-primary">
-                  <span className="text-accent">•</span> {uc}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {resource.notes && (
           <div className="flex flex-col gap-1.5 rounded-[var(--radius-md)] border border-accent/25 bg-accent-soft p-3">
             <h3 className="text-[10.5px] font-semibold uppercase tracking-wide text-accent">Your Note</h3>

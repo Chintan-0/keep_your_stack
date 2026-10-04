@@ -54,7 +54,6 @@ interface AddResourceInput {
   title?: string;
   description?: string;
   categoryId?: string | null;
-  useCases?: string[];
   notes?: string;
   tagNames?: string[];
   stackIds?: string[];
@@ -68,7 +67,6 @@ interface UpdateResourcePatch {
   url?: string;
   title?: string;
   description?: string;
-  useCases?: string[];
   categoryId?: string | null;
   notes?: string;
   isFavorite?: boolean;
@@ -137,7 +135,7 @@ interface StoreState {
   bulkAddTags: (resourceIds: string[], tagNames: string[]) => Promise<number>;
   /** Archives or restores every resource in one batched request. */
   bulkArchiveResources: (resourceIds: string[], archived: boolean) => Promise<number>;
-  /** Fetches the page and fills in description/Useful For/tags/category from real evidence — never overwrites a user edit. */
+  /** Fetches the page and fills in description/tags/category from real evidence — never overwrites a user edit. */
   enrichResource: (id: string) => Promise<Resource["enrichmentStatus"]>;
 
   findByUrl: (url: string) => Resource | undefined;

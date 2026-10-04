@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 import { Modal, ModalHeader } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { CategorySelector } from "@/components/category-selector";
@@ -32,8 +31,6 @@ function EditResourceForm({ resource, onClose }: { resource: Resource; onClose: 
 
   const [title, setTitle] = useState(resource.title);
   const [description, setDescription] = useState(resource.description);
-  const [useCaseDraft, setUseCaseDraft] = useState("");
-  const [useCases, setUseCases] = useState<string[]>(resource.useCases);
   const [categoryId, setCategoryId] = useState<string | null>(resource.categoryId);
   const [tagNames, setTagNames] = useState<string[]>(
     resource.tagIds.map((id) => tags.find((t) => t.id === id)?.name ?? id)
@@ -41,24 +38,10 @@ function EditResourceForm({ resource, onClose }: { resource: Resource; onClose: 
   const [stackIds, setStackIds] = useState<string[]>(resource.stackIds);
   const [notes, setNotes] = useState(resource.notes);
 
-  function addUseCase() {
-    const v = useCaseDraft.trim();
-    if (!v) return;
-    setUseCases((prev) => [...prev, v]);
-    setUseCaseDraft("");
-  }
-
   function save() {
-    // Same fix as add-resource-modal.tsx: a "Useful For" phrase typed but
-    // never explicitly committed (Enter/Add) would otherwise be silently
-    // dropped on save (found during a real end-to-end test, Phase 17
-    // §35) — flush it into the real list first.
-    const pendingUseCase = useCaseDraft.trim();
-    const finalUseCases = pendingUseCase ? [...useCases, pendingUseCase] : useCases;
     updateResource(resource.id, {
       title: title.trim() || resource.domain,
       description,
-      useCases: finalUseCases,
       categoryId,
       tagNames,
       stackIds,
@@ -88,45 +71,6 @@ function EditResourceForm({ resource, onClose }: { resource: Resource; onClose: 
             rows={2}
             className="resize-none rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 py-2 text-[13px] text-text-primary focus:border-accent focus:outline-none"
           />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="flex items-center gap-1.5 text-[12px] font-medium text-text-secondary">
-            <Sparkles size={13} className="text-accent" /> Useful for
-          </label>
-          <div className="flex gap-2">
-            <input
-              value={useCaseDraft}
-              onChange={(e) => setUseCaseDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addUseCase();
-                }
-              }}
-              className="h-9 flex-1 rounded-[var(--radius-sm)] border border-border-strong bg-surface-3 px-2.5 text-[13px] text-text-primary focus:border-accent focus:outline-none"
-            />
-            <Button type="button" variant="secondary" size="sm" onClick={addUseCase}>
-              Add
-            </Button>
-          </div>
-          {useCases.length > 0 && (
-            <ul className="flex flex-col gap-1 pt-0.5">
-              {useCases.map((uc, i) => (
-                <li key={i} className="flex items-center gap-2 text-[12.5px] text-text-secondary">
-                  <span className="text-accent">•</span>
-                  {uc}
-                  <button
-                    type="button"
-                    onClick={() => setUseCases(useCases.filter((_, idx) => idx !== i))}
-                    className="ml-auto text-text-muted hover:text-danger cursor-pointer"
-                  >
-                    Remove
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
 
         {/* Category gets its own full-width row rather than sharing a

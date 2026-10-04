@@ -10,7 +10,6 @@ import {
   FolderTree,
   Layers,
   Tag as TagIcon,
-  Lightbulb,
   Puzzle,
   Wand2,
   Lock,
@@ -216,7 +215,6 @@ function Problem() {
                 <div className="mt-3 flex flex-col gap-2 text-[12px]">
                   <FieldRow label="Category" value="Development / API" />
                   <FieldRow label="Stack" value="Backend Stack" />
-                  <FieldRow label="Useful For" value="Test APIs without installing a client" />
                   <div className="flex items-center gap-1.5">
                     <span className="w-16 shrink-0 text-text-muted">Tags</span>
                     <Tag>api</Tag>
@@ -256,7 +254,7 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 const STEPS = [
   { n: "01", title: "Discover", body: "Find something useful — a doc, a tool, a library, an API." },
   { n: "02", title: "Save", body: "Save the URL in seconds, from the web app or the Chrome extension." },
-  { n: "03", title: "Add Context", body: "Give it meaning: Useful For, Tags, Stack, and a note if you need one." },
+  { n: "03", title: "Add Context", body: "Give it meaning: Tags, Stack, and a note if you need one." },
   { n: "04", title: "Organize", body: "Keep everything in a structure that actually makes sense to you." },
   { n: "05", title: "Find", body: "Search by what you remember, not just what the resource was called." },
 ];
@@ -292,7 +290,6 @@ const CONTEXT_FIELDS = [
   { label: "Category", value: "Development → API", icon: FolderTree },
   { label: "Stack", value: "Backend Stack", icon: Layers },
   { label: "Tags", value: "#api #rest #graphql", icon: TagIcon },
-  { label: "Useful For", value: "Test APIs without installing a client", icon: Lightbulb },
   { label: "Note", value: "Use this when Postman feels like overkill.", icon: Bookmark },
 ];
 
@@ -401,7 +398,7 @@ function Stacks() {
           </h2>
           <p className="mt-3 text-[14.5px] text-text-secondary">
             Categories tell you what something is. Stacks tell you where you use it. Tags connect related ideas.
-            Useful For tells you why you saved it.
+            Notes tell you why you saved it.
           </p>
         </Reveal>
 

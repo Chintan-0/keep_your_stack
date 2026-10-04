@@ -457,7 +457,7 @@ export default function SearchPage() {
                     </div>
                   </div>
 
-                  {/* Body zone — description/Useful For/tags/match reason →
+                  {/* Body zone — description/tags/match reason →
                       quick-view modal (§2B/§11). */}
                   <button
                     type="button"
@@ -468,12 +468,6 @@ export default function SearchPage() {
                     <p className="text-[12.5px] text-text-secondary">
                       <Highlight text={resource.description} tokens={tokens} />
                     </p>
-                    {resource.useCases.length > 0 && (
-                      <p className="text-[12px] text-text-secondary">
-                        <span className="text-text-muted">Useful for </span>
-                        <Highlight text={resource.useCases[0]} tokens={tokens} />
-                      </p>
-                    )}
                     {resource.tagIds.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
                         {resource.tagIds.slice(0, 4).map((tid) => {

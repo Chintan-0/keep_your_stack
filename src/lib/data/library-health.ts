@@ -37,7 +37,7 @@ export async function getLibraryHealth(client: Client, userId: string): Promise<
     const link = linkChecks.get(r.id);
     if (link && (link.status === "unavailable" || link.status === "blocked")) linkIssues++;
     if (isNeedsReview(r, link?.status)) needsReviewCount++;
-    if (!r.description && r.useCases.length === 0 && r.tagIds.length === 0) missingMetadata++;
+    if (!r.description && r.tagIds.length === 0) missingMetadata++;
   }
 
   return {
@@ -72,7 +72,7 @@ export async function getDuplicateGroups(client: Client, userId: string): Promis
 
 /**
  * Merges `loserId` into `keeperId` per the phase's own merge rules —
- * union tags, prefer user-owned description/Useful For, keep favorite if
+ * union tags, prefer user-owned description, keep favorite if
  * either was, never silently drop a note (concatenates both, clearly
  * separated, if both exist) — then deletes the loser. Both resources must
  * belong to the caller (RLS-enforced on every read/write here).
@@ -102,11 +102,6 @@ export async function mergeResources(
       dbPatch.description = loser.description;
       dbPatch.description_source = "user";
     }
-  }
-
-  if (keeper.usefulForSource !== "user" && keeper.useCases.length === 0 && loser.useCases.length > 0) {
-    dbPatch.use_cases = loser.useCases;
-    dbPatch.useful_for_source = loser.usefulForSource ?? "system";
   }
 
   if (!keeper.categoryId && loser.categoryId) dbPatch.category_id = loser.categoryId;

@@ -4,10 +4,8 @@ import {
   normalizeTagName,
   dedupeTags,
   suggestTags,
-  suggestUsefulFor,
   suggestCategoryForResource,
   canOverwriteDescription,
-  canOverwriteUsefulFor,
   MAX_SUGGESTED_TAGS,
 } from "./enrichment";
 import type { Category } from "./types";
@@ -120,54 +118,7 @@ describe("suggestTags", () => {
   });
 });
 
-describe("suggestUsefulFor", () => {
-  it("suggests a specific phrase from strong title+description evidence (image compression)", () => {
-    const result = suggestUsefulFor({ title: "Squoosh", description: "Make images smaller using modern codecs" });
-    expect(result).not.toBeNull();
-    expect(result!.value.toLowerCase()).toContain("compress");
-    expect(result!.confidence).toBe("high");
-  });
-
-  it("suggests a specific phrase for a GraphQL API client", () => {
-    const result = suggestUsefulFor({ title: "Bruno", description: "Test and debug your GraphQL APIs offline" });
-    expect(result).not.toBeNull();
-    expect(result!.value.toLowerCase()).toContain("graphql");
-  });
-
-  it("suggests a specific phrase for SVG-to-React conversion", () => {
-    const result = suggestUsefulFor({ title: "SVGR", description: "Convert SVG into React components" });
-    expect(result).not.toBeNull();
-    expect(result!.value.toLowerCase()).toContain("svg");
-    expect(result!.value.toLowerCase()).toContain("react");
-  });
-
-  it("suggests QR code generation", () => {
-    const result = suggestUsefulFor({ title: "QR Code Generator", description: "Generate a QR code from any link" });
-    expect(result!.value).toBe("Generate QR codes");
-  });
-
-  it("never falls back to a vague catch-all phrase", () => {
-    const vaguePhrases = ["useful website", "developer tool", "helpful resource", "good for development"];
-    const result = suggestUsefulFor({ title: "Some Obscure Tool With No Real Signal At All", description: "" });
-    if (result) {
-      expect(vaguePhrases).not.toContain(result.value.toLowerCase());
-    }
-  });
-
-  it("returns null — not a guess — when there's no usable evidence", () => {
-    expect(suggestUsefulFor({ title: "", description: "" })).toBeNull();
-    expect(suggestUsefulFor({ title: "xk9z Corp Homepage", description: "" })).toBeNull();
-  });
-
-  it("does not overreach beyond the evidence (weak/no match stays null rather than inventing an ambitious claim)", () => {
-    // A page that just mentions "image" alone, with no compression/optimization
-    // context, shouldn't produce a confident, specific Useful For claim.
-    const result = suggestUsefulFor({ title: "My Photo Gallery", description: "A collection of vacation photos" });
-    expect(result).toBeNull();
-  });
-});
-
-describe("canOverwriteDescription / canOverwriteUsefulFor (user-edit protection)", () => {
+describe("canOverwriteDescription (user-edit protection)", () => {
   it("allows overwriting an empty description", () => {
     expect(canOverwriteDescription({ description: "", descriptionSource: null })).toBe(true);
   });
@@ -178,18 +129,6 @@ describe("canOverwriteDescription / canOverwriteUsefulFor (user-edit protection)
 
   it("never allows overwriting a user-authored description", () => {
     expect(canOverwriteDescription({ description: "My own words", descriptionSource: "user" })).toBe(false);
-  });
-
-  it("allows overwriting empty Useful For", () => {
-    expect(canOverwriteUsefulFor({ useCases: [], usefulForSource: null })).toBe(true);
-  });
-
-  it("allows overwriting system-authored Useful For", () => {
-    expect(canOverwriteUsefulFor({ useCases: ["Old suggestion"], usefulForSource: "system" })).toBe(true);
-  });
-
-  it("never allows overwriting user-authored Useful For, even a single manual entry", () => {
-    expect(canOverwriteUsefulFor({ useCases: ["Use this when building landing pages"], usefulForSource: "user" })).toBe(false);
   });
 });
 

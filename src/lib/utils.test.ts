@@ -88,40 +88,40 @@ describe("category helpers", () => {
 });
 
 describe("needsReview", () => {
-  it("is true for a resource with no category and no useful-for", () => {
-    expect(needsReview({ categoryId: null, useCases: [], needsReviewDismissed: false })).toBe(true);
+  it("is true for a resource with no category and no tags", () => {
+    expect(needsReview({ categoryId: null, tagIds: [], needsReviewDismissed: false })).toBe(true);
   });
 
   it("is false once it has a category", () => {
-    expect(needsReview({ categoryId: "development", useCases: [], needsReviewDismissed: false })).toBe(false);
+    expect(needsReview({ categoryId: "development", tagIds: [], needsReviewDismissed: false })).toBe(false);
   });
 
-  it("is false once it has at least one useful-for entry", () => {
-    expect(needsReview({ categoryId: null, useCases: ["Test APIs"], needsReviewDismissed: false })).toBe(false);
+  it("is false once it has at least one tag", () => {
+    expect(needsReview({ categoryId: null, tagIds: ["t1"], needsReviewDismissed: false })).toBe(false);
   });
 
   it("is false when the user dismissed it, even with missing metadata", () => {
-    expect(needsReview({ categoryId: null, useCases: [], needsReviewDismissed: true })).toBe(false);
+    expect(needsReview({ categoryId: null, tagIds: [], needsReviewDismissed: true })).toBe(false);
   });
 
   it("is true when the link is unavailable, even with full metadata", () => {
     expect(
-      needsReview({ categoryId: "development", useCases: ["Test APIs"], needsReviewDismissed: false }, "unavailable")
+      needsReview({ categoryId: "development", tagIds: ["t1"], needsReviewDismissed: false }, "unavailable")
     ).toBe(true);
   });
 
   it("is true when the link is blocked", () => {
     expect(
-      needsReview({ categoryId: "development", useCases: ["Test APIs"], needsReviewDismissed: false }, "blocked")
+      needsReview({ categoryId: "development", tagIds: ["t1"], needsReviewDismissed: false }, "blocked")
     ).toBe(true);
   });
 
   it("is false when the link is merely redirected or timed out — not the same as broken/blocked", () => {
     expect(
-      needsReview({ categoryId: "development", useCases: ["Test APIs"], needsReviewDismissed: false }, "redirected")
+      needsReview({ categoryId: "development", tagIds: ["t1"], needsReviewDismissed: false }, "redirected")
     ).toBe(false);
     expect(
-      needsReview({ categoryId: "development", useCases: ["Test APIs"], needsReviewDismissed: false }, "timeout")
+      needsReview({ categoryId: "development", tagIds: ["t1"], needsReviewDismissed: false }, "timeout")
     ).toBe(false);
   });
 });

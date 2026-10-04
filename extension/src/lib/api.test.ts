@@ -79,7 +79,6 @@ describe("api.ts", () => {
       category: { id: "cat_1", confidence: "high" },
       stack: { id: "stack_1", name: "Frontend", icon: "🌐" },
       tags: ["react"],
-      usefulFor: null,
       reasons: ["4 resources from react.dev are in Frontend"],
     };
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;

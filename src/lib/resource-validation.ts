@@ -11,8 +11,6 @@
 export const MAX_TITLE_LENGTH = 500;
 export const MAX_DESCRIPTION_LENGTH = 5000;
 export const MAX_NOTES_LENGTH = 20000;
-export const MAX_USE_CASE_LENGTH = 300;
-export const MAX_USE_CASES_COUNT = 30;
 export const MAX_TAG_NAME_LENGTH = 60;
 export const MAX_TAGS_COUNT = 50;
 
@@ -26,10 +24,6 @@ export function clampDescription(description: string): string {
 
 export function clampNotes(notes: string): string {
   return notes.slice(0, MAX_NOTES_LENGTH);
-}
-
-export function clampUseCases(useCases: string[]): string[] {
-  return useCases.slice(0, MAX_USE_CASES_COUNT).map((uc) => uc.slice(0, MAX_USE_CASE_LENGTH));
 }
 
 export function clampTagNames(tagNames: string[]): string[] {

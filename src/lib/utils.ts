@@ -96,11 +96,11 @@ export function childCategories(categories: Category[], parentId: string) {
  * want "broken/blocked link" folded into the same queue pass it in.
  */
 export function needsReview(
-  resource: { categoryId: string | null; useCases: string[]; needsReviewDismissed: boolean },
+  resource: { categoryId: string | null; tagIds: string[]; needsReviewDismissed: boolean },
   linkStatus?: "healthy" | "redirected" | "unavailable" | "timeout" | "blocked" | "unknown"
 ): boolean {
   if (resource.needsReviewDismissed) return false;
-  const missingMetadata = !resource.categoryId && resource.useCases.length === 0;
+  const missingMetadata = !resource.categoryId && resource.tagIds.length === 0;
   const linkIssue = linkStatus === "unavailable" || linkStatus === "blocked";
   return missingMetadata || linkIssue;
 }

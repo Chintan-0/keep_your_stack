@@ -68,7 +68,6 @@ export async function buildBackup(client: Client, userId: string, scope: ExportS
       title: r.title,
       url: r.url,
       description: r.description,
-      useCases: r.useCases,
       notes: r.notes,
       categoryId: r.categoryId,
       tagIds: r.tagIds,
@@ -84,7 +83,7 @@ export async function buildBackup(client: Client, userId: string, scope: ExportS
   };
 }
 
-const CSV_HEADER = ["Title", "URL", "Description", "Useful For", "Notes", "Category", "Tags", "Stacks", "Favorite", "Archived", "Created At", "Updated At"];
+const CSV_HEADER = ["Title", "URL", "Description", "Notes", "Category", "Tags", "Stacks", "Favorite", "Archived", "Created At", "Updated At"];
 
 function categoryPathFor(categoryId: string | null, categories: { id: string; name: string; parentId: string | null }[]): string {
   if (!categoryId) return "";
@@ -100,7 +99,6 @@ export async function buildExportCsv(client: Client, userId: string, scope: Expo
     r.title,
     r.url,
     r.description,
-    r.useCases.join("; "),
     r.notes,
     categoryPathFor(r.categoryId, categories),
     r.tagIds.map((id) => tags.find((t) => t.id === id)?.name ?? "").filter(Boolean).join("; "),

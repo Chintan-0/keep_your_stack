@@ -10,7 +10,6 @@ interface CloneableResource {
   title: string;
   url: string;
   description: string;
-  useCases: string[];
   tags: string[];
   pricing: Pricing | null;
   platform: Platform[];
@@ -51,7 +50,6 @@ export async function cloneResourcesToUser(
         url: r.url,
         title: r.title,
         description: r.description,
-        useCases: r.useCases,
         tagNames: r.tags,
         pricing: r.pricing,
         platform: r.platform,

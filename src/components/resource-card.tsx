@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, Pencil, Check } from "lucide-react";
+import { Heart, Pencil, Check, Share2 } from "lucide-react";
 import type { Resource } from "@/lib/types";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
@@ -58,6 +58,7 @@ export function ResourceCard({
 }) {
   const toggleFavorite = useStore((s) => s.toggleFavorite);
   const openEditResource = useUIStore((s) => s.openEditResource);
+  const openShareResource = useUIStore((s) => s.openShareResource);
   const openQuickView = useUIStore((s) => s.openQuickView);
   const tags = useStore((s) => s.tags);
   const categories = useStore((s) => s.categories);
@@ -193,6 +194,13 @@ export function ResourceCard({
           >
             <Heart size={16} fill={resource.isFavorite ? "currentColor" : "none"} />
           </button>
+          <button
+            onClick={() => openShareResource(resource.id)}
+            className="rounded-[var(--radius-sm)] p-1.5 text-text-muted transition-colors hover:text-text-primary cursor-pointer"
+            aria-label="Share resource"
+          >
+            <Share2 size={15} />
+          </button>
           {showEdit && (
             <button
               onClick={() => openEditResource(resource.id)}
@@ -312,6 +320,13 @@ export function ResourceCard({
               )}
             />
           </button>
+          <button
+            onClick={() => openShareResource(resource.id)}
+            className="rounded-[var(--radius-sm)] p-1 text-text-muted opacity-40 transition-all duration-150 hover:opacity-100 focus-visible:opacity-100 group-hover:opacity-100 cursor-pointer"
+            aria-label="Share resource"
+          >
+            <Share2 size={16} />
+          </button>
           {showEdit && (
             <button
               onClick={() => openEditResource(resource.id)}
@@ -324,7 +339,7 @@ export function ResourceCard({
         </div>
       </div>
 
-      {/* Body zone — description/useful-for/tags/remaining card surface →
+      {/* Body zone — description/tags/remaining card surface →
           quick-view modal (§2B/§9). A single button rather than a stretched
           overlay, since the card no longer represents one destination. */}
       <button
@@ -336,13 +351,6 @@ export function ResourceCard({
         <p className="line-clamp-2 text-[13px] leading-5 text-text-secondary">
           {decodeHtmlEntities(resource.description) || "No description yet."}
         </p>
-
-        {resource.useCases.length > 0 && (
-          <p className="line-clamp-1 text-[12px] text-text-muted">
-            <span className="italic">Useful for </span>
-            {resource.useCases[0]}
-          </p>
-        )}
 
         {resourceTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">

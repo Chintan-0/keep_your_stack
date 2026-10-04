@@ -13,7 +13,6 @@ export interface ImportItem {
   /** Original folder path, e.g. "Development / Frontend" — the one thing the mapping UI groups by. Absent for CSV rows with no category column and no folder concept. */
   folderPath?: string | null;
   notes?: string;
-  useCases?: string[];
   /** ISO date string, only when the source actually provided one — never fabricated. */
   createdAt?: string | null;
   isFavorite?: boolean;

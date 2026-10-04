@@ -15,8 +15,7 @@ Built with Next.js (App Router), TypeScript, Tailwind, Zustand, and Supabase
 Browser bookmarks are a junk drawer: flat, unsearchable by intent, and
 disconnected from *why* you saved something. KeepYourStack treats a saved
 resource as more than a URL — it has a category (what it is), a stack
-(where you use it), tags (what it relates to), a "useful for" (why you'd
-reach for it), and a personal note (why *you* saved it). Search matches
+(where you use it), tags (what it relates to), and a personal note (why *you* saved it). Search matches
 against all of that, so "test APIs" finds Hoppscotch even if you never
 typed its name.
 
@@ -177,7 +176,7 @@ With `npx supabase start` and `npm run dev` running:
 2. Favorite it, archive it, refresh — state persists both times.
 3. Create a stack, add the resource to it, refresh — persists.
 4. Search for something you saved by what it *does*, not its name — check
-   the "Matches:" line names real fields (title/tags/useful for/etc.).
+   the "Matches:" line names real fields (title/tags/etc.).
 5. Sign out, sign up as a second user B — dashboard is empty.
 6. As user B, try `GET /api/resources/<user A's resource id>` — expect 404,
    not the resource.

@@ -82,6 +82,36 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["stack_share_links"]["Row"]>;
         Relationships: [];
       };
+      resource_shares: {
+        Row: {
+          id: string;
+          user_id: string;
+          resource_id: string;
+          token: string;
+          visibility: "unlisted" | "public";
+          message: string;
+          title: string;
+          url: string;
+          domain: string;
+          description: string;
+          tag_names: string[];
+          pricing: string | null;
+          platform: string[];
+          created_at: string;
+          revoked_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["resource_shares"]["Row"]> & {
+          user_id: string;
+          resource_id: string;
+          token: string;
+          visibility: "unlisted" | "public";
+          title: string;
+          url: string;
+          domain: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["resource_shares"]["Row"]>;
+        Relationships: [];
+      };
       trusted_devices: {
         Row: {
           id: string;
@@ -118,7 +148,6 @@ export interface Database {
           resource_type: string | null;
           pricing: string | null;
           platform: string[];
-          use_cases: string[];
           notes: string;
           category_id: string | null;
           is_favorite: boolean;
@@ -128,7 +157,6 @@ export interface Database {
           import_folder: string | null;
           import_source_id: string | null;
           description_source: string | null;
-          useful_for_source: string | null;
           enrichment_status: string;
           enrichment_attempts: number;
           enrichment_attempted_at: string | null;
@@ -378,7 +406,6 @@ export interface Database {
           rank: number;
           matched_title: boolean;
           matched_title_prefix: boolean;
-          matched_use_cases: boolean;
           matched_tags: boolean;
           matched_category: boolean;
           matched_stacks: boolean;

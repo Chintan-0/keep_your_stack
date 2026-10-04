@@ -37,7 +37,7 @@ export async function updateSession(request: NextRequest) {
   // Middleware sees the pre-rewrite path (/@username[/slug], /share/token)
   // — /u/ (what next.config.ts's rewrite resolves those to) is included
   // too as defense in depth.
-  const isPublicSharingPath = /^\/@[^/]+(\/[^/]+)?$/.test(pathname) || pathname.startsWith("/share/") || pathname.startsWith("/u/");
+  const isPublicSharingPath = /^\/@[^/]+(\/[^/]+)?$/.test(pathname) || pathname.startsWith("/share/") || pathname.startsWith("/u/") || pathname.startsWith("/r/");
   // "/" is the public marketing homepage (Phase 15.5) — never gated behind
   // login. It redirects an already-signed-in visitor on to /home itself
   // (see src/app/page.tsx), so this only ever needs to let an

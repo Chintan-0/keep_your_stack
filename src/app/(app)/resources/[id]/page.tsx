@@ -7,6 +7,7 @@ import {
   Heart,
   ArrowUpRight,
   Pencil,
+  Share2,
   Archive,
   Trash2,
   ChevronLeft,
@@ -50,6 +51,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
   const updateResource = useStore((s) => s.updateResource);
   const enrichResource = useStore((s) => s.enrichResource);
   const openEditResource = useUIStore((s) => s.openEditResource);
+  const openShareResource = useUIStore((s) => s.openShareResource);
   const linkChecks = useStore((s) => s.linkChecks);
   const checkResourceLink = useStore((s) => s.checkResourceLink);
   const dismissNeedsReview = useStore((s) => s.dismissNeedsReview);
@@ -88,10 +90,9 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
     if (!resource) return [];
     // Deterministic signals only (no semantic/AI matching yet) — shared
     // category/tags/stack weigh most, with a light bonus for overlapping
-    // title words and Useful For phrasing so near-duplicate-purpose tools
-    // (e.g. two API clients) can surface even without a shared tag.
+    // title words so near-duplicate-purpose tools can surface even without
+    // a shared tag.
     const titleTokens = new Set(tokenizeQuery(resource.title));
-    const usefulForTokens = new Set(resource.useCases.flatMap((uc) => tokenizeQuery(uc)));
 
     const scored = resources
       .filter((r) => r.id !== resource.id && !r.isArchived)
@@ -103,11 +104,6 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
 
         const sharedTitleWords = tokenizeQuery(r.title).filter((w) => titleTokens.has(w)).length;
         score += Math.min(sharedTitleWords, 2) * 0.5;
-
-        const sharedUsefulForWords = r.useCases
-          .flatMap((uc) => tokenizeQuery(uc))
-          .filter((w) => usefulForTokens.has(w)).length;
-        score += Math.min(sharedUsefulForWords, 2) * 0.5;
 
         return { r, score };
       })
@@ -188,6 +184,16 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
                 aria-label="Resource actions"
                 className="absolute right-0 top-11 z-20 w-44 overflow-hidden rounded-[var(--radius-md)] border border-border-strong bg-surface-2 py-1 shadow-xl animate-fade-in"
               >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    openShareResource(resource.id);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-surface-3 cursor-pointer"
+                >
+                  <Share2 size={14} /> Share
+                </button>
                 <button
                   role="menuitem"
                   onClick={() => {
@@ -369,7 +375,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
               <p className="mt-1 text-[12.5px] text-text-secondary">
                 {resource.enrichmentStatus === "failed"
                   ? "We couldn't get more details from this site."
-                  : "We haven't found a description, Useful For, or tags for it yet."}
+                  : "We haven't found a description or tags for it yet."}
               </p>
             </div>
             <div className="flex shrink-0 gap-2">
@@ -398,23 +404,6 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </section>
       )}
-
-      {/* Useful for */}
-      <section className="flex flex-col gap-2.5">
-        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-text-secondary">Useful For</h2>
-        {resource.useCases.length > 0 ? (
-          <ul className="flex flex-col gap-2">
-            {resource.useCases.map((uc, i) => (
-              <li key={i} className="flex items-start gap-2 text-[14px] text-text-primary">
-                <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success" />
-                {uc}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-[13px] text-text-muted">What is this useful for?</p>
-        )}
-      </section>
 
       {/* Personal context */}
       <section className="flex flex-col gap-2.5 rounded-[var(--radius-lg)] border border-accent/25 bg-accent-soft p-5">
@@ -531,7 +520,7 @@ export default function ResourceDetailPage({ params }: { params: Promise<{ id: s
             <CategorySelector value={moveCategoryId} onChange={setMoveCategoryId} />
           </div>
           <p className="text-[12px] text-text-muted">
-            Stack, tags, note, and Useful For stay exactly as they are — only the category changes.
+            Stack, tags, and note stay exactly as they are — only the category changes.
           </p>
         </div>
         <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">

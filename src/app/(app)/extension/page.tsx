@@ -178,7 +178,6 @@ export default function ExtensionPage() {
           <li>• Page title</li>
           <li>• URL</li>
           <li>• Favicon</li>
-          <li>• Optional Useful For</li>
           <li>• Optional Stack</li>
           <li>• Optional Category</li>
           <li>• Optional Tags</li>
@@ -186,7 +185,7 @@ export default function ExtensionPage() {
         </ul>
         <p className="text-[12.5px] text-text-secondary">
           It won&apos;t run in the background, sync automatically, or read your existing bookmarks — it only saves
-          the one page (or link) you tell it to. A description, tags, and Useful For are found automatically after
+          the one page (or link) you tell it to. A description and tags are found automatically after
           the save, the same way importing or adding a resource in the web app already works — that never blocks the
           save itself.
         </p>

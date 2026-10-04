@@ -13,7 +13,6 @@ interface ImportBookmark {
   tagNames?: string[];
   description?: string;
   notes?: string;
-  useCases?: string[];
   /** Per-item override of the batch's `source` — used when a single chunk mixes sources (not currently done by the import page, but kept honest rather than assumed). */
   source?: string;
   /** The source's own ID for this item, when one exists (a JSON backup's resource id) — provenance only. */
@@ -80,7 +79,6 @@ export async function POST(request: NextRequest) {
         title: bookmark.title,
         description: bookmark.description,
         notes: bookmark.notes,
-        useCases: bookmark.useCases,
         categoryId: bookmark.categoryId ?? null,
         stackIds: Array.isArray(bookmark.stackIds) ? bookmark.stackIds : [],
         tagNames: Array.isArray(bookmark.tagNames) ? bookmark.tagNames : [],

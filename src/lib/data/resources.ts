@@ -5,7 +5,7 @@ import type { Resource } from "@/lib/types";
 import { mapResourceRow, RESOURCE_SELECT } from "./mappers";
 import { ensureTags } from "./tags";
 import { normalizeUrl, getDomain } from "@/lib/utils";
-import { clampTitle, clampDescription, clampNotes, clampUseCases, clampTagNames, sanitizePricing, sanitizePlatform } from "@/lib/resource-validation";
+import { clampTitle, clampDescription, clampNotes, clampTagNames, sanitizePricing, sanitizePlatform } from "@/lib/resource-validation";
 import { NotFoundError } from "./errors";
 
 type Client = SupabaseClient<Database>;
@@ -17,7 +17,6 @@ export interface ResourceInput {
   title?: string;
   description?: string;
   categoryId?: string | null;
-  useCases?: string[];
   notes?: string;
   tagNames?: string[];
   stackIds?: string[];
@@ -45,7 +44,7 @@ export interface ResourceInput {
 }
 
 /**
- * Whoever supplies a non-empty description/useCases through the normal
+ * Whoever supplies a non-empty description through the normal
  * create/edit path had the chance to review or type it themselves, so it
  * defaults to "user" — authoritative, never overwritten by later
  * enrichment. Only src/lib/data/enrichment.ts explicitly marks a value as
@@ -252,10 +251,6 @@ async function mergeInputIntoExisting(
   if (!existing.description && input.description?.trim()) {
     patch.description = input.description.trim();
   }
-  const newUseCases = input.useCases?.filter(Boolean) ?? [];
-  if (existing.useCases.length === 0 && newUseCases.length > 0) {
-    patch.useCases = newUseCases;
-  }
   if (!existing.categoryId && input.categoryId) {
     patch.categoryId = input.categoryId;
   }
@@ -363,7 +358,6 @@ export async function createResource(
       favicon_url: input.faviconUrl ?? null,
       image_url: input.imageUrl ?? null,
       category_id: input.categoryId ?? null,
-      use_cases: clampUseCases(input.useCases?.filter(Boolean) ?? []),
       notes: clampNotes(input.notes?.trim() || ""),
       pricing: sanitizePricing(input.pricing),
       platform: sanitizePlatform(input.platform),
@@ -373,13 +367,11 @@ export async function createResource(
       import_folder: input.importFolder ?? null,
       import_source_id: input.importSourceId ?? null,
       description_source: defaultSource(!!input.description?.trim()),
-      useful_for_source: defaultSource(!!input.useCases?.filter(Boolean).length),
       // Nothing to enrich yet if it was already saved with a real
-      // description/useful-for (e.g. the web Add Resource flow, which
-      // fetches metadata before the user ever hits Save) — otherwise it's
-      // a fast title+URL save (import, or the extension) waiting on the
-      // Phase B enrichment pass.
-      enrichment_status: input.description?.trim() || input.useCases?.filter(Boolean).length ? "enriched" : "pending",
+      // description (e.g. the web Add Resource flow, which fetches metadata
+      // before the user ever hits Save) — otherwise it's a fast title+URL
+      // save (import, or the extension) waiting on the Phase B enrichment pass.
+      enrichment_status: input.description?.trim() ? "enriched" : "pending",
       // Only a JSON backup restore ever supplies these — it's the user's
       // own real prior history, not an arbitrary claim. Left unset (falls
       // back to the column's own now() default) for every other caller.
@@ -409,7 +401,6 @@ export interface ResourcePatch {
   url?: string;
   title?: string;
   description?: string;
-  useCases?: string[];
   categoryId?: string | null;
   notes?: string;
   isFavorite?: boolean;
@@ -418,9 +409,8 @@ export interface ResourcePatch {
   platform?: Resource["platform"];
   tagNames?: string[];
   stackIds?: string[];
-  /** Internal — set explicitly only by src/lib/data/enrichment.ts. Any other caller (the UI) editing description/useCases is always "user". */
+  /** Internal — set explicitly only by src/lib/data/enrichment.ts. Any other caller (the UI) editing description is always "user". */
   descriptionSource?: "system" | "user";
-  usefulForSource?: "system" | "user";
   enrichmentStatus?: Resource["enrichmentStatus"];
   enrichmentAttempts?: number;
   enrichmentAttemptedAt?: string;
@@ -478,10 +468,6 @@ export async function updateResource(
     // default to "user" unless the caller (enrichResource) says otherwise.
     dbPatch.description_source = patch.descriptionSource ?? "user";
   }
-  if (patch.useCases !== undefined) {
-    dbPatch.use_cases = clampUseCases(patch.useCases);
-    dbPatch.useful_for_source = patch.usefulForSource ?? "user";
-  }
   if (patch.categoryId !== undefined) dbPatch.category_id = patch.categoryId;
   if (patch.notes !== undefined) dbPatch.notes = clampNotes(patch.notes);
   if (patch.isFavorite !== undefined) dbPatch.is_favorite = patch.isFavorite;
@@ -502,7 +488,6 @@ export async function updateResource(
     patch.url !== undefined ||
     patch.title !== undefined ||
     patch.description !== undefined ||
-    patch.useCases !== undefined ||
     patch.categoryId !== undefined ||
     patch.notes !== undefined ||
     patch.tagNames !== undefined ||

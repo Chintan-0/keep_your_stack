@@ -97,7 +97,6 @@ export async function POST(request: NextRequest) {
         title: body.title,
         description: body.description,
         categoryId: body.categoryId ?? null,
-        useCases: Array.isArray(body.useCases) ? body.useCases : [],
         notes: body.notes,
         tagNames: Array.isArray(body.tagNames) ? body.tagNames : [],
         stackIds: Array.isArray(body.stackIds) ? body.stackIds : [],

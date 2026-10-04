@@ -201,7 +201,6 @@ async function renderNew(guardId?: number) {
   ($("newFavicon") as HTMLImageElement).src = currentPage.favIconUrl || faviconFallback(currentPage.url);
   $("newTitle").textContent = currentPage.title;
   $("newUrl").textContent = currentPage.url;
-  (document.getElementById("useCase") as HTMLInputElement).value = "";
   (document.getElementById("noteInput") as HTMLTextAreaElement).value = "";
   const enrichStatusEl = document.getElementById("enrichStatus");
   if (enrichStatusEl) enrichStatusEl.textContent = "";
@@ -431,7 +430,6 @@ async function doSave(force: boolean) {
   show("saving");
   void track("extension_save_started");
 
-  const useCase = (document.getElementById("useCase") as HTMLInputElement).value.trim();
   const note = (document.getElementById("noteInput") as HTMLTextAreaElement).value.trim();
   const stackId = (document.getElementById("stackSelect") as HTMLSelectElement).value;
   const categoryId = (document.getElementById("categorySelect") as HTMLSelectElement).value;
@@ -442,7 +440,6 @@ async function doSave(force: boolean) {
       title: currentPage.title,
       faviconUrl: currentPage.favIconUrl || null,
       categoryId: categoryId || null,
-      useCases: useCase ? [useCase] : [],
       tagNames: tags,
       stackIds: stackId ? [stackId] : [],
       notes: note,
@@ -507,7 +504,6 @@ async function enrichAfterSave(resource: ExtResource) {
   savedResource = enriched;
   const parts: string[] = [];
   if (enriched.tagIds.length > 0) parts.push(`${enriched.tagIds.length} tag${enriched.tagIds.length === 1 ? "" : "s"}`);
-  if (enriched.useCases.length > 0) parts.push("Useful For added");
   statusEl.textContent = parts.length > 0 ? parts.join(" · ") : "";
 }
 

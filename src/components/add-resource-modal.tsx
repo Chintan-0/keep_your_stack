@@ -13,7 +13,7 @@ import { TagInput } from "@/components/tag-input";
 import { useStore } from "@/lib/store";
 import { useUIStore } from "@/lib/ui-store";
 import { normalizeUrl, getDomain } from "@/lib/utils";
-import { cleanDescription, suggestUsefulFor, suggestTags, suggestCategoryForResource } from "@/lib/enrichment";
+import { cleanDescription, suggestTags, suggestCategoryForResource } from "@/lib/enrichment";
 import type { FetchedMetadata } from "@/lib/data/metadata";
 import type { Resource } from "@/lib/types";
 
@@ -62,12 +62,6 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
   const [domain, setDomain] = useState("");
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  // Not user-editable in this form (kept lightweight — see removal of the
-  // "Useful For" field, Stack Studio 2.0 §2). Still populated from
-  // deterministic enrichment below when confidence allows, and still fully
-  // editable afterward from the Edit Resource modal or the resource detail
-  // page.
-  const [useCases, setUseCases] = useState<string[]>([]);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [stackIds, setStackIds] = useState<string[]>([]);
@@ -100,8 +94,6 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
 
       // Pre-fill suggestions from real evidence only — still fully
       // editable/removable before Save, never forced.
-      const usefulFor = suggestUsefulFor({ title: result.data.title, description: cleanedDescription });
-      if (usefulFor && usefulFor.confidence !== "low") setUseCases([usefulFor.value]);
       const tagSuggestions = suggestTags({ title: result.data.title, description: cleanedDescription, domain: result.data.domain });
       if (tagSuggestions.length) setTags(tagSuggestions);
       const categorySuggestion = suggestCategoryForResource(
@@ -138,7 +130,6 @@ function AddResourceForm({ prefillUrl, onClose }: { prefillUrl: string; onClose:
           title,
           description,
           categoryId,
-          useCases,
           notes,
           tagNames: tags,
           stackIds,

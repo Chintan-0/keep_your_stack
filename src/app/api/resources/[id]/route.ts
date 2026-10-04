@@ -15,13 +15,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // Fields a client is actually allowed to set. Deliberately excludes
-// descriptionSource/usefulForSource/enrichmentStatus/enrichmentAttempts*
+// descriptionSource/enrichmentStatus/enrichmentAttempts*
 // — those are bookkeeping only src/lib/data/enrichment.ts's server-side
 // enrichResource() sets; updateResource() itself defaults description/
-// useCases edits to "user" whenever a caller doesn't specify otherwise,
+// description edits to "user" whenever a caller doesn't specify otherwise,
 // which is exactly right for this route (a human editing their resource).
 const EDITABLE_FIELDS = [
-  "url", "title", "description", "useCases", "categoryId", "notes",
+  "url", "title", "description", "categoryId", "notes",
   "isFavorite", "isArchived", "pricing", "platform", "tagNames", "stackIds",
   "needsReviewDismissed",
 ] as const;

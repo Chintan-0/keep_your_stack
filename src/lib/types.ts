@@ -53,7 +53,6 @@ export interface Resource {
   description: string;
   faviconLetter: string; // fallback favicon glyph
   categoryId: string | null;
-  useCases: string[]; // "Useful for" bullet points
   notes: string; // personal note
   tagIds: string[];
   stackIds: string[];
@@ -70,9 +69,8 @@ export interface Resource {
   importFolder: string | null;
   /** The source's own ID for this item where one exists (e.g. a KeepYourStack backup's resource id) — provenance only, never used for lookups. */
   importSourceId: string | null;
-  /** Who last set description/useCases — enrichment only ever fills these in when it's not "user". */
+  /** Who last set description — enrichment only ever fills it in when it's not "user". */
   descriptionSource: "system" | "user" | null;
-  usefulForSource: "system" | "user" | null;
   enrichmentStatus: "pending" | "enriched" | "partial" | "failed" | "user_completed";
   enrichmentAttempts: number;
   enrichmentAttemptedAt: string | null;

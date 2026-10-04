@@ -61,7 +61,7 @@ export function OnboardingPanel() {
 
   const active = resources.filter((r) => !r.isArchived);
   const hasResource = active.length > 0;
-  const hasContext = active.some((r) => r.categoryId || r.tagIds.length > 0 || r.notes.trim() || r.useCases.length > 0);
+  const hasContext = active.some((r) => r.categoryId || r.tagIds.length > 0 || r.notes.trim());
   const hasStack = stacks.length > 0;
   const allDone = hasResource && hasContext && hasStack && hasSearched;
 

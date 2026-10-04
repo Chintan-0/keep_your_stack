@@ -36,7 +36,6 @@ export async function loadDemoData(client: Client, userId: string): Promise<{ st
       title: resource.title,
       description: resource.description,
       categoryId: resource.categoryId ? resolveDefaultCategoryId(resource.categoryId, userCategories) : null,
-      useCases: resource.useCases,
       notes: resource.notes,
       tagNames: resource.tagIds.map((id) => tagNameById.get(id)).filter(Boolean) as string[],
       stackIds: resource.stackIds.map((id) => stackIdMap.get(id)).filter(Boolean) as string[],

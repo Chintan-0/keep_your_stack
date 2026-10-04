@@ -77,7 +77,6 @@ export interface PublicResource {
   title: string;
   url: string;
   description: string;
-  useCases: string[];
   categoryName: string | null;
   tags: string[];
   pricing: Pricing | null;
@@ -111,7 +110,7 @@ async function loadStackResources(client: Client, stackId: string): Promise<Publ
   // what a public visitor can see of a resource.
   const { data: resources, error } = await client
     .from("resources")
-    .select("id, title, url, description, use_cases, category_id, pricing, platform, is_archived")
+    .select("id, title, url, description, category_id, pricing, platform, is_archived")
     .in("id", resourceIds)
     .eq("is_archived", false)
     .order("created_at", { ascending: false })
@@ -142,7 +141,6 @@ async function loadStackResources(client: Client, stackId: string): Promise<Publ
     title: r.title,
     url: r.url,
     description: r.description,
-    useCases: r.use_cases,
     categoryName: r.category_id ? (categoryNameById.get(r.category_id) ?? null) : null,
     tags: (tagIdsByResource.get(r.id) ?? []).map((id) => tagNameById.get(id)).filter((n): n is string => !!n),
     pricing: r.pricing as Pricing | null,

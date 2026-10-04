@@ -43,7 +43,6 @@ export interface ExtResource {
   categoryId: string | null;
   stackIds: string[];
   tagIds: string[];
-  useCases: string[];
   isArchived: boolean;
 }
 
@@ -52,7 +51,6 @@ export interface SaveInput {
   title: string;
   faviconUrl?: string | null;
   categoryId?: string | null;
-  useCases?: string[];
   notes?: string;
   tagNames?: string[];
   stackIds?: string[];
@@ -71,7 +69,6 @@ export interface OrganizationSuggestion {
   category: { id: string; confidence: "high" | "medium" | "low" | "none" } | null;
   stack: { id: string; name: string; icon: string } | null;
   tags: string[];
-  usefulFor: string | null;
   /** Short, human-readable reasons — shown verbatim behind "Why this suggestion?"; never an internal score. */
   reasons: string[];
 }

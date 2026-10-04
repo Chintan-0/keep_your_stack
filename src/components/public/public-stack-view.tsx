@@ -16,7 +16,6 @@ export interface PublicResourceData {
   title: string;
   url: string;
   description: string;
-  useCases: string[];
   categoryName: string | null;
   tags: string[];
   pricing: string | null;
@@ -160,12 +159,6 @@ export function PublicStackView({ stack, cloneUrl }: { stack: PublicStackData; c
                 </div>
               </div>
               <p className="line-clamp-2 text-[13px] leading-5 text-text-secondary">{r.description || "No description yet."}</p>
-              {r.useCases.length > 0 && (
-                <p className="line-clamp-1 text-[12px] text-text-secondary">
-                  <span className="text-text-muted">Useful for </span>
-                  {r.useCases[0]}
-                </p>
-              )}
               {r.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {r.tags.slice(0, 4).map((t) => (

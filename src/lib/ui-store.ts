@@ -35,6 +35,10 @@ interface UIState {
   openEditResource: (id: string) => void;
   closeEditResource: () => void;
 
+  shareResourceId: string | null;
+  openShareResource: (id: string) => void;
+  closeShareResource: () => void;
+
   quickViewResourceId: string | null;
   openQuickView: (id: string) => void;
   closeQuickView: () => void;
@@ -68,6 +72,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   editResourceId: null,
   openEditResource: (id) => set({ editResourceId: id }),
   closeEditResource: () => set({ editResourceId: null }),
+
+  shareResourceId: null,
+  openShareResource: (id) => set({ shareResourceId: id }),
+  closeShareResource: () => set({ shareResourceId: null }),
 
   quickViewResourceId: null,
   openQuickView: (id) => {

@@ -5,7 +5,7 @@ import { corsPreflight, withCors } from "@/lib/cors";
 
 // Runs the deterministic enrichment pipeline (src/lib/enrichment.ts +
 // src/lib/data/enrichment.ts) for one resource: fetches page metadata and
-// fills in description/Useful For/tags/category from real evidence only,
+// fills in description/tags/category from real evidence only,
 // never overwriting anything the user already set themselves. Used by:
 // the import page's Phase B pass, the Chrome extension (save now, enrich
 // right after — see extension/src/lib/api.ts), bulk "Enrich selected" on

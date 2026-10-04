@@ -318,7 +318,6 @@ export function applyFiltersAndSort<
     updatedAt: string;
     isFavorite: boolean;
     useCount: number;
-    useCases: string[];
     needsReviewDismissed: boolean;
   },
 >(items: T[], filters: Filters, categories: Category[], linkStatusById?: Map<string, string>): T[] {

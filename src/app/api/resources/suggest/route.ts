@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { corsPreflight, withCors } from "@/lib/cors";
 import { getDomain, normalizeUrl } from "@/lib/utils";
-import { suggestCategoryForResource, suggestTags, suggestUsefulFor } from "@/lib/enrichment";
+import { suggestCategoryForResource, suggestTags } from "@/lib/enrichment";
 import { listCategories } from "@/lib/data/categories";
 
 // Phase 15: lets the Chrome extension show organization suggestions
@@ -17,8 +17,8 @@ import { listCategories } from "@/lib/data/categories";
 //  1. Personal history (suggest_resource_organization RPC) — how the
 //     CALLER has previously organized resources from this same domain.
 //     This is the stronger, more specific signal once it exists.
-//  2. Content-based (suggestCategoryForResource/suggestTags/
-//     suggestUsefulFor from src/lib/enrichment.ts) — the same
+//  2. Content-based (suggestCategoryForResource/suggestTags
+//     from src/lib/enrichment.ts) — the same
 //     domain/title keyword rules used by every other enrichment path,
 //     as a fallback for a domain the user has never saved from before.
 export async function POST(request: NextRequest) {
@@ -82,8 +82,6 @@ export async function POST(request: NextRequest) {
     ).slice(0, 5);
     if (personalTags.some((t) => t.count >= 2)) reasons.push(`Frequently tagged this way on ${domain}`);
 
-    const usefulFor = suggestUsefulFor({ title });
-
     return withCors(
       request,
       NextResponse.json({
@@ -93,7 +91,6 @@ export async function POST(request: NextRequest) {
         category: categoryId ? { id: categoryId, confidence: categoryConfidence } : null,
         stack: stack ? { id: stack.id, name: stack.name, icon: stack.icon } : null,
         tags: tagNames,
-        usefulFor: usefulFor?.value ?? null,
         reasons,
       })
     );
