@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/data/auth";
 import { saveSharedResource } from "@/lib/data/resource-shares";
 
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const { supabase, user, unauthorized } = await requireUser();
+  const { supabase, user, unauthorized } = await requireUser(request);
   if (unauthorized) return unauthorized;
 
   try {

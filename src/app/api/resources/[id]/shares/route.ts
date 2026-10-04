@@ -4,9 +4,9 @@ import { createResourceShare, listActiveResourceShares } from "@/lib/data/resour
 import { NotFoundError } from "@/lib/data/errors";
 import { parseShareRequest } from "@/lib/resource-share-validation";
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, user, unauthorized } = await requireUser();
+  const { supabase, user, unauthorized } = await requireUser(request);
   if (unauthorized) return unauthorized;
   const shares = await listActiveResourceShares(supabase, user.id, id);
   return NextResponse.json({ shares });
@@ -14,7 +14,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, user, unauthorized } = await requireUser();
+  const { supabase, user, unauthorized } = await requireUser(request);
   if (unauthorized) return unauthorized;
 
   const parsed = parseShareRequest(await request.json().catch(() => null));

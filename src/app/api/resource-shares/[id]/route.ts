@@ -3,9 +3,9 @@ import { requireUser } from "@/lib/data/auth";
 import { revokeResourceShare } from "@/lib/data/resource-shares";
 import { NotFoundError } from "@/lib/data/errors";
 
-export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, user, unauthorized } = await requireUser();
+  const { supabase, user, unauthorized } = await requireUser(request);
   if (unauthorized) return unauthorized;
 
   try {
