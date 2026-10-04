@@ -378,3 +378,80 @@ body {
     animation: none;
   }
 }
+
+/* Collapsed desktop rail: icons only, with a tooltip on hover. Desktop-only,
+   so the mobile drawer keeps its full labels. */
+@media (min-width: 768px) {
+  .sidebar-rail .rail-hide,
+  .sidebar-rail .rail-text {
+    display: none;
+  }
+  .sidebar-rail .nav-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .sidebar-rail .rail-tip {
+    display: none;
+  }
+  .sidebar-rail .nav-item:hover .rail-tip,
+  .sidebar-rail .nav-item:focus-visible .rail-tip {
+    display: block;
+  }
+  .sidebar-rail .rail-tip {
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 60;
+    white-space: nowrap;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    font-size: 12px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+    pointer-events: none;
+  }
+}
+
+/* Landing hero: staggered rise-in on load, plus a slow, low-contrast sweep
+   behind the accent line. Transform and opacity only. */
+@keyframes kys-hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.hero-rise {
+  animation: kys-hero-rise 620ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes kys-accent-sweep {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+.hero-accent-word {
+  background: linear-gradient(90deg, var(--accent), var(--violet), var(--cyan), var(--accent));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: kys-accent-sweep 9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise {
+    animation: none;
+  }
+  .hero-accent-word {
+    animation: none;
+  }
+}

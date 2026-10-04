@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Package, Plus, CheckSquare, X, Sparkles, Download } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -37,6 +38,7 @@ function readLocationFilters(): { tagId: string; categoryId: string; subcategory
 
 export default function AllResourcesPage() {
   const resources = useStore((s) => s.resources);
+  const stats = useStore((s) => s.stats);
   const categories = useStore((s) => s.categories);
   const linkChecks = useStore((s) => s.linkChecks);
   const bulkMoveResources = useStore((s) => s.bulkMoveResources);
@@ -156,7 +158,7 @@ export default function AllResourcesPage() {
             </Button>
           </div>
         </div>
-        <p className="font-mono text-[12.5px] text-text-muted">{active.length} resources</p>
+        <p className="font-mono text-[12.5px] text-text-muted">{stats?.total ?? active.length} resources</p>
       </div>
 
       {selecting && (
@@ -204,7 +206,7 @@ export default function AllResourcesPage() {
           page-local search box with its own narrower matching. These
           dropdown filters are a different, complementary feature
           (category/stack/tag/pricing/needs-review/sort) and stay. */}
-      <FilterBar filters={displayFilters} onChange={setFilters} view={view} onViewChange={setView} resultCount={filtered.length} />
+      <FilterBar filters={displayFilters} onChange={setFilters} view={view} onViewChange={setView} resultCount={filtered.length} resultTotal={resourcesHasMore ? stats?.total : undefined} />
 
       <ResourceCollection
         resources={filtered}
@@ -218,12 +220,22 @@ export default function AllResourcesPage() {
         emptyDescription={
           filters.categoryId || filters.subcategoryId || filters.stackId || filters.tagId || filters.pricing || filters.needsReview
             ? "Try clearing one of the filter pills above."
-            : "Save your first useful resource."
+            : "Save a link, import your browser bookmarks, or browse what others are sharing."
         }
         emptyAction={
-          <Button onClick={() => openAddResource()} size="sm">
-            <Plus size={14} /> Add Resource
-          </Button>
+          filters.categoryId || filters.subcategoryId || filters.stackId || filters.tagId || filters.pricing || filters.needsReview ? undefined : (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={() => openAddResource()} size="sm">
+                <Plus size={14} /> Add a resource
+              </Button>
+              <Link href="/import" className="inline-flex h-8 items-center rounded-[var(--radius-md)] border border-border-strong px-3 text-[13px] text-text-primary hover:bg-surface-3">
+                Import bookmarks
+              </Link>
+              <Link href="/discover" className="inline-flex h-8 items-center rounded-[var(--radius-md)] border border-border-strong px-3 text-[13px] text-text-primary hover:bg-surface-3">
+                Browse Discover
+              </Link>
+            </div>
+          )
         }
         selectable={selecting}
         selectedIds={selectedIds}

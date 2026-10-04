@@ -113,6 +113,7 @@ export function FilterBar({
   view,
   onViewChange,
   resultCount,
+  resultTotal,
   showTagFilter = true,
 }: {
   filters: Filters;
@@ -120,6 +121,8 @@ export function FilterBar({
   view: "grid" | "list";
   onViewChange: (v: "grid" | "list") => void;
   resultCount?: number;
+  /** Total across the whole library, when only some pages are loaded — shown so a partial count is never mistaken for the full result set. */
+  resultTotal?: number;
   showTagFilter?: boolean;
 }) {
   const stacks = useStore((s) => s.stacks);
@@ -263,7 +266,11 @@ export function FilterBar({
 
       <div className="ml-auto flex items-center gap-2">
         {typeof resultCount === "number" && (
-          <span className="font-mono text-[11.5px] text-text-muted">{resultCount} results</span>
+          <span className="font-mono text-[11.5px] text-text-muted">
+            {resultTotal && resultTotal > resultCount
+              ? `${resultCount} of ${resultTotal} loaded`
+              : `${resultCount} results`}
+          </span>
         )}
         <FilterSelect
           value={filters.sort}

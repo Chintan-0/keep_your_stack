@@ -2,6 +2,8 @@
 
 import { create } from "zustand";
 
+export const SIDEBAR_STORAGE_KEY = "kys-sidebar-collapsed";
+
 // Plain module state, not part of the reactive store — this only needs
 // to survive between "open" and the matching "close," never trigger a
 // re-render, and must be captured at the exact moment open is requested
@@ -44,6 +46,8 @@ interface UIState {
   closeQuickView: () => void;
 
   mobileNavOpen: boolean;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (v: boolean) => void;
   setMobileNavOpen: (v: boolean) => void;
 
   createStackOpen: boolean;
@@ -92,6 +96,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   closeQuickView: () => set({ quickViewResourceId: null }),
 
   mobileNavOpen: false,
+  sidebarCollapsed: false,
+  setSidebarCollapsed: (v) => {
+    try {
+      window.localStorage.setItem(SIDEBAR_STORAGE_KEY, v ? "1" : "0");
+    } catch {}
+    set({ sidebarCollapsed: v });
+  },
   setMobileNavOpen: (v) => set({ mobileNavOpen: v }),
 
   createStackOpen: false,

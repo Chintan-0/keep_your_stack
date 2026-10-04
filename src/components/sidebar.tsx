@@ -22,9 +22,11 @@ import {
   FolderPlus,
   FolderTree,
   Flame,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { useUIStore } from "@/lib/ui-store";
+import { useUIStore, SIDEBAR_STORAGE_KEY } from "@/lib/ui-store";
 import { useNow } from "@/lib/use-now";
 import { Favicon } from "@/components/ui/favicon";
 import { cn, needsReview as isNeedsReview, formatRelativeDate } from "@/lib/utils";
@@ -65,7 +67,7 @@ function NavLink({
       href={href}
       onClick={() => setMobileNavOpen(false)}
       className={cn(
-        "group relative flex items-center justify-between rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] transition-colors",
+        "nav-item group relative flex items-center justify-between rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] transition-colors",
         active
           ? "bg-accent-soft font-medium text-accent"
           : "text-text-secondary hover:bg-surface-3 hover:text-text-primary"
@@ -82,11 +84,12 @@ function NavLink({
             iconClassName ?? (active ? "text-accent" : "text-text-muted")
           )}
         />
-        {label}
+        <span className="rail-text">{label}</span>
       </span>
       {typeof count === "number" && (
-        <span className="font-mono text-[11px] text-text-muted">{count}</span>
+        <span className="rail-hide font-mono text-[11px] text-text-muted">{count}</span>
       )}
+      <span className="rail-tip" aria-hidden="true">{label}</span>
     </Link>
   );
 }
@@ -99,13 +102,36 @@ export function Sidebar() {
   const openAddResource = useUIStore((s) => s.openAddResource);
   const openCreateStack = useUIStore((s) => s.openCreateStack);
   const openFeedback = useUIStore((s) => s.openFeedback);
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useUIStore((s) => s.setSidebarCollapsed);
+  const stats = useStore((s) => s.stats);
   const now = useNow();
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1") setSidebarCollapsed(true);
+    } catch {}
+  }, [setSidebarCollapsed]);
 
   // Purely a UX nicety — hiding/showing this link is NOT the security
   // boundary. /admin and every /api/admin/* route independently re-check
   // admin access server-side regardless of what this returns (see
   // src/app/api/admin/check/route.ts's own comment).
   const [isAdmin, setIsAdmin] = useState(false);
+  const [stackCounts, setStackCounts] = useState<Record<string, number>>({});
+  const stackCountsKey = `${stacks.length}:${resources.length}`;
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/stacks/counts")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { counts: Record<string, number> }) => {
+        if (!cancelled) setStackCounts(d.counts);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [stackCountsKey]);
   useEffect(() => {
     fetch("/api/admin/check")
       .then((r) => r.json())
@@ -171,15 +197,28 @@ export function Sidebar() {
       )}
       <aside
         className={cn(
-          "fixed bottom-0 top-14 z-50 flex w-64 flex-col gap-5 overflow-y-auto border-r border-border bg-surface px-3 py-4 transition-transform duration-200 md:z-40 md:w-60 md:translate-x-0",
+          "fixed bottom-0 top-14 z-50 flex w-64 flex-col gap-5 overflow-y-auto border-r border-border bg-surface px-3 py-4 transition-[width,transform] duration-200 md:z-40 md:translate-x-0",
+          sidebarCollapsed ? "md:w-[72px] sidebar-rail" : "md:w-60",
           mobileNavOpen ? "left-0 translate-x-0" : "left-0 -translate-x-full md:translate-x-0"
         )}
       >
+      <div className="hidden md:flex md:justify-end">
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-expanded={!sidebarCollapsed}
+          className="grid size-8 place-items-center rounded-[var(--radius-sm)] text-text-muted transition-colors hover:bg-surface-3 hover:text-text-primary focus-visible:ring-2 focus-visible:ring-accent/50 cursor-pointer"
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        </button>
+      </div>
       <button
         onClick={() => openAddResource()}
+        aria-label="Add Resource"
         className="flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] bg-accent px-3 py-2 text-[13px] font-medium text-white shadow-sm shadow-accent/20 transition-colors hover:bg-accent-hover cursor-pointer"
       >
-        <Plus size={15} /> Add Resource
+        <Plus size={15} /> <span className="rail-text">Add Resource</span>
       </button>
 
       <div className="flex flex-col gap-0.5">
@@ -188,10 +227,10 @@ export function Sidebar() {
       </div>
 
       <div className="flex flex-col gap-0.5">
-        <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Library</p>
-        <NavLink href="/resources" icon={Layers} label="All Resources" count={active.length} />
-        <NavLink href="/favorites" icon={Star} label="Favorites" count={favoriteCount} iconClassName="text-warning" />
-        <NavLink href="/recent" icon={Clock} label="Recently Added" count={recentCount} iconClassName="text-cyan" />
+        <p className="rail-hide px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Library</p>
+        <NavLink href="/resources" icon={Layers} label="All Resources" count={stats?.total ?? active.length} />
+        <NavLink href="/favorites" icon={Star} label="Favorites" count={stats?.favorites ?? favoriteCount} iconClassName="text-warning" />
+        <NavLink href="/recent" icon={Clock} label="Recently Added" count={stats?.addedRecently ?? recentCount} iconClassName="text-cyan" />
         <NavLink href="/archive" icon={Archive} label="Archived" count={archivedCount} />
         <NavLink href="/drops" icon={Inbox} label="Drops" iconClassName="text-accent" />
         <NavLink
@@ -203,7 +242,7 @@ export function Sidebar() {
         />
       </div>
 
-      <div className="flex flex-col gap-0.5">
+      <div className="rail-hide flex flex-col gap-0.5">
         <div className="flex items-center justify-between px-2.5 pb-1">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Stacks</p>
           <div className="flex items-center gap-2">
@@ -221,7 +260,7 @@ export function Sidebar() {
           </div>
         </div>
         {stacks.slice(0, 6).map((s) => {
-          const count = active.filter((r) => r.stackIds.includes(s.id)).length;
+          const count = stackCounts[s.id] ?? 0;
           return (
             <Link
               key={s.id}
@@ -242,7 +281,7 @@ export function Sidebar() {
       </div>
 
       {popularTags.length > 0 && (
-        <div className="flex flex-col gap-1.5">
+        <div className="rail-hide flex flex-col gap-1.5">
           <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Popular tags</p>
           <div className="flex flex-wrap gap-1.5 px-2.5">
             {popularTags.map((t) => {
@@ -267,7 +306,7 @@ export function Sidebar() {
       )}
 
       {recentActivity.length > 0 && (
-        <div className="flex flex-col gap-0.5">
+        <div className="rail-hide flex flex-col gap-0.5">
           <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Recent activity</p>
           {recentActivity.map((r) => (
             <a
@@ -294,7 +333,7 @@ export function Sidebar() {
           today, which reads as "missing" rather than "zero" (confirmed:
           that's exactly what hid it before). The 0-day message is just as
           real as the counted one, never fabricated either way. */}
-      <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border bg-gradient-to-br from-orange-soft to-transparent px-2.5 py-2">
+      <div className="rail-hide flex flex-col gap-2 rounded-[var(--radius-md)] border border-border bg-gradient-to-br from-orange-soft to-transparent px-2.5 py-2">
         <div className="flex items-center gap-1.5">
           <Flame size={14} className="text-orange" />
           <p className="text-[12.5px] font-medium text-text-primary">
@@ -319,13 +358,13 @@ export function Sidebar() {
 
       <div className="mt-auto flex flex-col gap-4 border-t border-border pt-3">
         <div className="flex flex-col gap-0.5">
-          <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Organize</p>
+          <p className="rail-hide px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Organize</p>
           <NavLink href="/stack-studio" icon={Wand2} label="Stack Studio" iconClassName="text-violet" />
           <NavLink href="/import" icon={Upload} label="Import Bookmarks" iconClassName="text-orange" />
           <NavLink href="/settings/categories" icon={FolderTree} label="Manage Categories" iconClassName="text-warning" />
         </div>
         <div className="flex flex-col gap-0.5">
-          <p className="px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Connect</p>
+          <p className="rail-hide px-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">Connect</p>
           <NavLink href="/extension" icon={Puzzle} label="Browser Extension" iconClassName="text-cyan" />
         </div>
         <div className="flex flex-col gap-0.5">
@@ -333,9 +372,10 @@ export function Sidebar() {
           {isAdmin && <NavLink href="/admin" icon={Shield} label="Admin" />}
           <button
             onClick={openFeedback}
+            aria-label="Feedback"
             className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-surface-3 hover:text-text-primary cursor-pointer"
           >
-            <MessageSquare size={16} className="text-text-muted" /> Feedback
+            <MessageSquare size={16} className="text-text-muted" /> <span className="rail-text">Feedback</span>
           </button>
         </div>
       </div>

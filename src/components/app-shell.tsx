@@ -5,6 +5,8 @@ import { Sidebar } from "@/components/sidebar";
 import { TopBar } from "@/components/topbar";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { StoreHydrator } from "@/components/store-hydrator";
+import { useUIStore } from "@/lib/ui-store";
+import { cn } from "@/lib/utils";
 
 // These four are all overlays that render nothing until the user
 // deliberately opens them (⌘K, "Add Resource", editing a card, "New
@@ -38,12 +40,13 @@ export function AppShell({
   userEmail: string;
   userName: string;
 }) {
+  const sidebarCollapsed = useUIStore((s) => s.sidebarCollapsed);
   return (
     <div className="min-h-screen bg-background">
       <StoreHydrator />
       <TopBar userEmail={userEmail} userName={userName} />
       <Sidebar />
-      <main className="pl-0 pt-14 md:pl-60">
+      <main className={cn("pl-0 pt-14 transition-[padding] duration-200", sidebarCollapsed ? "md:pl-[72px]" : "md:pl-60")}>
         <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </main>
 

@@ -121,6 +121,12 @@ function Nav() {
 
 // ── Hero ─────────────────────────────────────────────────────────────────
 
+const HERO_POINTS = [
+  { label: "Save in seconds", icon: Bookmark },
+  { label: "Organize by how you use it", icon: Layers },
+  { label: "Find it by what it does", icon: Search },
+];
+
 function Hero() {
   return (
     <section className="relative border-b border-border/60 px-4 pb-16 pt-14 sm:px-6 sm:pt-20 lg:px-8">
@@ -135,19 +141,35 @@ function Hero() {
       />
       <div className="mx-auto max-w-6xl">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-5 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-1 font-mono text-[11px] text-text-secondary">
+          <span
+            className="hero-rise inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-2 px-3 py-1 font-mono text-[11px] text-text-secondary"
+            style={{ animationDelay: "0ms" }}
+          >
             <Sparkles size={11} className="text-accent" /> A personal toolbox for building on the internet
           </span>
-          <h1 className="text-[32px] font-semibold leading-[1.1] tracking-tight text-text-primary sm:text-[46px] lg:text-[54px]">
+          <h1
+            className="hero-rise text-[32px] font-semibold leading-[1.1] tracking-tight text-text-primary sm:text-[46px] lg:text-[54px]"
+            style={{ animationDelay: "80ms" }}
+          >
             Your browser is messy.
             <br />
-            Your stack shouldn&apos;t be.
+            <span className="hero-accent-word">Your stack shouldn&apos;t be.</span>
           </h1>
-          <p className="max-w-lg text-[15px] leading-relaxed text-text-secondary sm:text-[16px]">
+          <p
+            className="hero-rise max-w-lg text-[15px] leading-relaxed text-text-secondary sm:text-[16px]"
+            style={{ animationDelay: "160ms" }}
+          >
             Keep the tools, docs, APIs, libraries, and references you actually use — organized by what they do, where
             they belong, and why you saved them.
           </p>
-          <div className="mt-1 flex flex-wrap items-center justify-center gap-3">
+          <ul className="hero-rise flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13px] text-text-secondary" style={{ animationDelay: "220ms" }}>
+            {HERO_POINTS.map((p) => (
+              <li key={p.label} className="inline-flex items-center gap-1.5">
+                <p.icon size={14} className="text-accent" aria-hidden="true" /> {p.label}
+              </li>
+            ))}
+          </ul>
+          <div className="hero-rise mt-1 flex flex-wrap items-center justify-center gap-3" style={{ animationDelay: "280ms" }}>
             <LinkButton href="/auth/sign-up" size="lg" onClick={() => track("homepage_cta_clicked", "hero-primary")}>
               Start building your stack <ArrowRight size={15} />
             </LinkButton>
@@ -160,6 +182,9 @@ function Hero() {
               See how it works
             </LinkButton>
           </div>
+          <p className="hero-rise text-[12px] text-text-muted" style={{ animationDelay: "340ms" }}>
+            Your library stays private unless you choose to share it
+          </p>
         </div>
 
         <Reveal delay={150} className="mt-14 sm:mt-16">
